@@ -304,7 +304,8 @@ struct TextureExtent {
     return block_pitch_h * block_height * depth;
   }
 
-  static TextureExtent Calculate(const FormatInfo* format_info, uint32_t pitch,
+  static TextureExtent Calculate(const FormatInfo* format_info,
+                                 Dimension dimension, uint32_t pitch,
                                  uint32_t height, uint32_t depth, bool is_tiled,
                                  bool is_guest);
   static TextureExtent Calculate(const TextureInfo* texture_info,
@@ -358,17 +359,20 @@ struct TextureInfo {
 
   const TextureExtent GetMipExtent(uint32_t mip, bool is_guest) const;
 
-  void GetMipSize(uint32_t mip, uint32_t* width, uint32_t* height) const;
+  void GetMipSize(uint32_t mip, uint32_t* width, uint32_t* height,
+                  uint32_t* depth) const;
 
   // Get the memory location of a mip. offset_x and offset_y are in blocks.
   uint32_t GetMipLocation(uint32_t mip, uint32_t* offset_x, uint32_t* offset_y,
-                          bool is_guest) const;
+                          uint32_t* offset_z, bool is_guest) const;
 
-  static bool GetMipOffset(uint32_t width, uint32_t height,
+  static bool GetMipOffset(uint32_t width, uint32_t height, uint32_t depth,
                            const FormatInfo* format_info, uint32_t mip,
-                           uint32_t* offset_x, uint32_t* offset_y);
+                           uint32_t* offset_x, uint32_t* offset_y,
+                           uint32_t* offset_z);
 
-  bool GetMipOffset(uint32_t mip, uint32_t* offset_x, uint32_t* offset_y) const;
+  bool GetMipOffset(uint32_t mip, uint32_t* offset_x, uint32_t* offset_y,
+                    uint32_t* offset_z) const;
 
   uint64_t hash() const;
   bool operator==(const TextureInfo& other) const {

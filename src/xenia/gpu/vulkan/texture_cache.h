@@ -158,8 +158,9 @@ class TextureCache {
       TextureFormat format);
   static TextureExtent GetMipExtent(const TextureInfo& src, uint32_t mip);
   static uint32_t ComputeMipStorage(const FormatInfo* format_info,
-                                    uint32_t width, uint32_t height,
-                                    uint32_t depth, uint32_t mip);
+                                    Dimension dimension, uint32_t width,
+                                    uint32_t height, uint32_t depth,
+                                    uint32_t mip);
   static uint32_t ComputeMipStorage(const TextureInfo& src, uint32_t mip);
   static uint32_t ComputeTextureStorage(const TextureInfo& src);
 

@@ -20,9 +20,9 @@ namespace gpu {
 using namespace xe::gpu::xenos;
 
 static TextureExtent CalculateExtent(const FormatInfo* format_info,
-                                     uint32_t pitch, uint32_t height,
-                                     uint32_t depth, bool is_tiled,
-                                     bool is_guest) {
+                                     Dimension dimension, uint32_t pitch,
+                                     uint32_t height, uint32_t depth,
+                                     bool is_tiled, bool is_guest) {
   TextureExtent extent;
 
   extent.pitch = pitch;
@@ -37,9 +37,12 @@ static TextureExtent CalculateExtent(const FormatInfo* format_info,
 
   if (is_guest) {
     // Texture dimensions must be a multiple of tile
-    // dimensions (32x32 blocks).
+    // dimensions (32x32x4 blocks).
     extent.block_pitch_h = xe::round_up(extent.block_pitch_h, 32);
     extent.block_pitch_v = xe::round_up(extent.block_pitch_v, 32);
+    if (dimension == Dimension::k3D) {
+      extent.depth = xe::round_up(extent.depth, 4);
+    }
 
     extent.pitch = extent.block_pitch_h * format_info->block_width;
     extent.height = extent.block_pitch_v * format_info->block_height;
@@ -53,9 +56,6 @@ static TextureExtent CalculateExtent(const FormatInfo* format_info,
       extent.block_pitch_h = byte_pitch / bytes_per_block;
       extent.pitch = extent.block_pitch_h * format_info->block_width;
     }
-
-    // Is depth special?
-    extent.depth = extent.depth;
   } else {
     extent.pitch = extent.block_pitch_h * format_info->block_width;
     extent.height = extent.block_pitch_v * format_info->block_height;
@@ -65,16 +65,18 @@ static TextureExtent CalculateExtent(const FormatInfo* format_info,
 }
 
 TextureExtent TextureExtent::Calculate(const FormatInfo* format_info,
-                                       uint32_t pitch, uint32_t height,
-                                       uint32_t depth, bool is_tiled,
-                                       bool is_guest) {
-  return CalculateExtent(format_info, pitch, height, depth, is_tiled, is_guest);
+                                       Dimension dimension, uint32_t pitch,
+                                       uint32_t height, uint32_t depth,
+                                       bool is_tiled, bool is_guest) {
+  return CalculateExtent(format_info, dimension, pitch, height, depth, is_tiled,
+                         is_guest);
 }
 
 TextureExtent TextureExtent::Calculate(const TextureInfo* info, bool is_guest) {
   assert_not_null(info);
-  return CalculateExtent(info->format_info(), info->pitch, info->height + 1,
-                         info->depth + 1, info->is_tiled, is_guest);
+  return CalculateExtent(info->format_info(), info->dimension, info->pitch,
+                         info->height + 1, info->depth + 1, info->is_tiled,
+                         is_guest);
 }
 
 }  //  namespace gpu

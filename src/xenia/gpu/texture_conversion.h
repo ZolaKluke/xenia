@@ -35,12 +35,18 @@ void ConvertTexelDXT3AToDXT3(Endian endian, void* output, const void* input,
 typedef std::function<void(void*, const void*, size_t)> UntileCopyBlockCallback;
 
 typedef struct UntileInfo {
+  bool is_3d;
+  // offset_z, depth, input_pitch_v, output_pitch_v only used for 3D textures.
   uint32_t offset_x;
   uint32_t offset_y;
+  uint32_t offset_z;
   uint32_t width;
   uint32_t height;
-  uint32_t input_pitch;
-  uint32_t output_pitch;
+  uint32_t depth;
+  uint32_t input_pitch_h;
+  uint32_t input_pitch_v;
+  uint32_t output_pitch_h;
+  uint32_t output_pitch_v;
   const FormatInfo* input_format_info;
   const FormatInfo* output_format_info;
   UntileCopyBlockCallback copy_callback;

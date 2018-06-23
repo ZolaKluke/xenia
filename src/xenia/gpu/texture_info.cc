@@ -139,7 +139,11 @@ bool TextureInfo::PrepareResolve(uint32_t physical_address,
 }
 
 uint32_t TextureInfo::GetMaxMipLevels() const {
-  return 1 + xe::log2_floor(std::max({width + 1, height + 1, depth + 1}));
+  uint32_t max_extent = std::max(width + 1, height + 1);
+  if (dimension == Dimension::k3D) {
+    max_extent = std::max(depth + 1, max_extent);
+  }
+  return 1 + xe::log2_floor(max_extent);
 }
 
 const TextureExtent TextureInfo::GetMipExtent(uint32_t mip,
@@ -147,42 +151,58 @@ const TextureExtent TextureInfo::GetMipExtent(uint32_t mip,
   if (mip == 0) {
     return extent;
   }
-  uint32_t mip_width, mip_height;
+  uint32_t mip_width, mip_height, mip_depth = depth + 1;
   if (is_guest) {
     mip_width = xe::next_pow2(width + 1) >> mip;
     mip_height = xe::next_pow2(height + 1) >> mip;
+    if (dimension == Dimension::k3D) {
+      mip_depth = xe::next_pow2(depth + 1) >> mip;
+    }
   } else {
     mip_width = std::max(1u, (width + 1) >> mip);
     mip_height = std::max(1u, (height + 1) >> mip);
+    if (dimension == Dimension::k3D) {
+      mip_depth = std::max(1u, (depth + 1) >> mip);
+    }
   }
-  return TextureExtent::Calculate(format_info(), mip_width, mip_height,
-                                  depth + 1, is_tiled, is_guest);
+  return TextureExtent::Calculate(format_info(), dimension, mip_width,
+                                  mip_height, mip_depth, is_tiled, is_guest);
 }
 
 void TextureInfo::GetMipSize(uint32_t mip, uint32_t* out_width,
-                             uint32_t* out_height) const {
+                             uint32_t* out_height, uint32_t* out_depth) const {
   assert_not_null(out_width);
   assert_not_null(out_height);
+  assert_not_null(out_depth);
   if (mip == 0) {
     *out_width = width + 1;
     *out_height = height + 1;
+    *out_depth = depth + 1;
     return;
   }
   uint32_t width_pow2 = xe::next_pow2(width + 1);
   uint32_t height_pow2 = xe::next_pow2(height + 1);
   *out_width = std::max(width_pow2 >> mip, 1u);
   *out_height = std::max(height_pow2 >> mip, 1u);
+  if (dimension == Dimension::k3D) {
+    uint32_t depth_pow2 = xe::next_pow2(depth + 1);
+    *out_depth = std::max(depth_pow2 >> mip, 1u);
+  } else {
+    *out_depth = depth + 1;
+  }
 }
 
 uint32_t TextureInfo::GetMipLocation(uint32_t mip, uint32_t* offset_x,
-                                     uint32_t* offset_y, bool is_guest) const {
+                                     uint32_t* offset_y, uint32_t* offset_z,
+                                     bool is_guest) const {
   if (mip == 0) {
     // Short-circuit. Mip 0 is always stored in base_address.
     if (!has_packed_mips) {
       *offset_x = 0;
       *offset_y = 0;
+      *offset_z = 0;
     } else {
-      GetMipOffset(0, offset_x, offset_y);
+      GetMipOffset(0, offset_x, offset_y, offset_z);
     }
     return memory.base_address;
   }
@@ -191,6 +211,7 @@ uint32_t TextureInfo::GetMipLocation(uint32_t mip, uint32_t* offset_x,
     // Short-circuit. There is no mip data.
     *offset_x = 0;
     *offset_y = 0;
+    *offset_z = 0;
     return 0;
   }
 
@@ -207,6 +228,7 @@ uint32_t TextureInfo::GetMipLocation(uint32_t mip, uint32_t* offset_x,
     }
     *offset_x = 0;
     *offset_y = 0;
+    *offset_z = 0;
     return address_base + address_offset;
   }
 
@@ -225,13 +247,15 @@ uint32_t TextureInfo::GetMipLocation(uint32_t mip, uint32_t* offset_x,
   }
 
   // Now, check if the mip is packed at an offset.
-  GetMipOffset(width_pow2, height_pow2, format_info(), mip, offset_x, offset_y);
+  GetMipOffset(width + 1, height + 1, depth + 1, format_info(), mip, offset_x,
+               offset_y, offset_z);
   return address_base + address_offset;
 }
 
-bool TextureInfo::GetMipOffset(uint32_t width, uint32_t height,
+bool TextureInfo::GetMipOffset(uint32_t width, uint32_t height, uint32_t depth,
                                const FormatInfo* format_info, uint32_t mip,
-                               uint32_t* offset_x, uint32_t* offset_y) {
+                               uint32_t* offset_x, uint32_t* offset_y,
+                               uint32_t* offset_z) {
   // Tile size is 32x32, and once textures go <=16 they are packed into a
   // single tile together. The math here is insane. Most sourced from
   // graph paper, looking at dds dumps and executable reverse engineering.
@@ -271,6 +295,7 @@ bool TextureInfo::GetMipOffset(uint32_t width, uint32_t height,
     // The shortest dimension is bigger than 16, not packed.
     *offset_x = 0;
     *offset_y = 0;
+    *offset_z = 0;
     return false;
   }
   uint32_t packed_mip_base = (log2_size > 4) ? (log2_size - 4) : 0;
@@ -287,15 +312,30 @@ bool TextureInfo::GetMipOffset(uint32_t width, uint32_t height,
       *offset_x = 16 >> packed_mip;
       *offset_y = 0;
     }
+    *offset_z = 0;
   } else {
+    uint32_t offset;
     if (log2_width > log2_height) {
       // Wider than tall. Laid out horizontally.
-      *offset_x = (1 << (log2_width - packed_mip_base)) >> (packed_mip - 2);
+      offset = (1 << (log2_width - packed_mip_base)) >> (packed_mip - 2);
+      *offset_x = offset;
       *offset_y = 0;
     } else {
       // Taller than wide. Laid out vertically.
       *offset_x = 0;
-      *offset_y = (1 << (log2_height - packed_mip_base)) >> (packed_mip - 2);
+      offset = (1 << (log2_height - packed_mip_base)) >> (packed_mip - 2);
+      *offset_y = offset;
+    }
+    if (offset < 4) {
+      // Pack 1x1 Z mipmaps along Z - not reached for 2D.
+      uint32_t log2_depth = xe::log2_ceil(depth);
+      if (log2_depth > 1 + packed_mip) {
+        *offset_z = (log2_depth - packed_mip) * 4;
+      } else {
+        *offset_z = 4;
+      }
+    } else {
+      *offset_z = 0;
     }
   }
 
@@ -305,14 +345,15 @@ bool TextureInfo::GetMipOffset(uint32_t width, uint32_t height,
 }
 
 bool TextureInfo::GetMipOffset(uint32_t mip, uint32_t* offset_x,
-                               uint32_t* offset_y) const {
+                               uint32_t* offset_y, uint32_t* offset_z) const {
   if (!has_packed_mips) {
     *offset_x = 0;
     *offset_y = 0;
+    *offset_z = 0;
     return false;
   }
-  return GetMipOffset(width + 1, height + 1, format_info(), mip, offset_x,
-                      offset_y);
+  return GetMipOffset(width + 1, height + 1, depth + 1, format_info(), mip,
+                      offset_x, offset_y, offset_z);
 }
 
 uint64_t TextureInfo::hash() const {
@@ -334,7 +375,7 @@ void TextureInfo::SetupMemoryInfo(uint32_t base_address, uint32_t mip_address) {
   }
 
   if (mip_min_level == 0 && mip_max_level == 0) {
-    // Sort circuit. Only one mip.
+    // Short circuit. Only one mip.
     return;
   }
 

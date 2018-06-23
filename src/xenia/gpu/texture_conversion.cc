@@ -107,6 +107,21 @@ static uint32_t TiledOffset2DInner(uint32_t x, uint32_t y, uint32_t log2_bpp,
          ((y & 16) << 7) + (((((y & 8) >> 2) + (x >> 3)) & 3) << 6);
 }
 
+// Reverse-engineered from an executable.
+static uint32_t TiledOffset3D(uint32_t x, uint32_t y, uint32_t z,
+                              uint32_t pitch_h, uint32_t pitch_v,
+                              uint32_t log2_bpp) {
+  uint32_t base = ((z >> 2) * (pitch_v >> 4) + (y >> 4)) * (pitch_h >> 5);
+  uint32_t micro = ((z >> 2) + (y >> 3)) & 1;
+  micro += (((micro << 1) + (x >> 3)) & 3) << 1;
+  uint32_t macro = ((((y & 6) << 2) + (x & 7)) << (log2_bpp + 6)) >> 6;
+  macro = ((((((base + (x >> 5)) << (log2_bpp + 6)) & 0xFFFFFFF) << 1) +
+            (macro & ~15)) << 1) + (macro & 15) + ((z & 3) << (log2_bpp + 6)) +
+          ((y & 1) << 4);
+  return ((((((((macro >> 6) & 7) + ((micro & 1) << 3)) << 3) +
+             (micro & ~1)) << 2) + (macro & ~511)) << 3) + (macro & 63);
+}
+
 void Untile(uint8_t* output_buffer, const uint8_t* input_buffer,
             const UntileInfo* untile_info) {
   SCOPE_profile_cpu_f("gpu");
@@ -118,36 +133,61 @@ void Untile(uint8_t* output_buffer, const uint8_t* input_buffer,
       untile_info->input_format_info->bytes_per_block();
   uint32_t output_bytes_per_block =
       untile_info->output_format_info->bytes_per_block();
-  uint32_t output_pitch = untile_info->output_pitch * output_bytes_per_block;
+  uint32_t output_pitch = untile_info->output_pitch_h * output_bytes_per_block;
 
   // Bytes per pixel
   auto log2_bpp = (input_bytes_per_block / 4) +
                   ((input_bytes_per_block / 2) >> (input_bytes_per_block / 4));
 
-  // Offset to the current row, in bytes.
-  uint32_t output_row_offset = 0;
-  for (uint32_t y = 0; y < untile_info->height; y++) {
-    auto input_row_offset = TiledOffset2DOuter(
-        untile_info->offset_y + y, untile_info->input_pitch, log2_bpp);
-
-    // Go block-by-block on this row.
-    uint32_t output_offset = output_row_offset;
-
-    for (uint32_t x = 0; x < untile_info->width; x++) {
-      auto input_offset = TiledOffset2DInner(untile_info->offset_x + x,
-                                             untile_info->offset_y + y,
-                                             log2_bpp, input_row_offset);
-      input_offset >>= log2_bpp;
-
-      untile_info->copy_callback(
-          &output_buffer[output_offset],
-          &input_buffer[input_offset * input_bytes_per_block],
-          output_bytes_per_block);
-
-      output_offset += output_bytes_per_block;
+  if (untile_info->is_3d) {
+    uint32_t output_slice_pitch = untile_info->output_pitch_v * output_pitch;
+    // Offset to the current slice, in bytes.
+    uint32_t output_slice_offset = 0;
+    for (uint32_t z = 0; z < untile_info->depth; z++) {
+      // Offset to the current row, in bytes.
+      uint32_t output_row_offset = output_slice_offset;
+      for (uint32_t y = 0; y < untile_info->height; y++) {
+        uint32_t output_offset = output_row_offset;
+        for (uint32_t x = 0; x < untile_info->width; x++) {
+          auto input_offset = TiledOffset3D(
+              untile_info->offset_x + x, untile_info->offset_y + y,
+              untile_info->offset_z + z, untile_info->input_pitch_h,
+              untile_info->input_pitch_v, log2_bpp);
+          untile_info->copy_callback(&output_buffer[output_offset],
+                                     &input_buffer[input_offset],
+                                     output_bytes_per_block);
+          output_offset += output_bytes_per_block;
+        }
+        output_row_offset += output_pitch;
+      }
+      output_slice_offset += output_slice_pitch;
     }
+  } else {
+    // Offset to the current row, in bytes.
+    uint32_t output_row_offset = 0;
+    for (uint32_t y = 0; y < untile_info->height; y++) {
+      auto input_row_offset = TiledOffset2DOuter(
+          untile_info->offset_y + y, untile_info->input_pitch_h, log2_bpp);
 
-    output_row_offset += output_pitch;
+      // Go block-by-block on this row.
+      uint32_t output_offset = output_row_offset;
+
+      for (uint32_t x = 0; x < untile_info->width; x++) {
+        auto input_offset = TiledOffset2DInner(untile_info->offset_x + x,
+                                               untile_info->offset_y + y,
+                                               log2_bpp, input_row_offset);
+        input_offset >>= log2_bpp;
+
+        untile_info->copy_callback(
+            &output_buffer[output_offset],
+            &input_buffer[input_offset * input_bytes_per_block],
+            output_bytes_per_block);
+
+        output_offset += output_bytes_per_block;
+      }
+
+      output_row_offset += output_pitch;
+    }
   }
 }
 
