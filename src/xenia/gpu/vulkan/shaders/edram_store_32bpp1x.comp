@@ -20,7 +20,7 @@ layout(push_constant) uniform push_consts_type {
 } push_constants;
 
 // 1280x2048 (16x128 tiles).
-layout(set = 0, binding = 0, rgba8ui) uniform uimage2D edram;
+layout(set = 0, binding = 0, rgba8ui) uniform writeonly uimage2D edram;
 layout(set = 0, binding = 1, rgba8ui) uniform readonly uimage2D rt;
 
 void main() {

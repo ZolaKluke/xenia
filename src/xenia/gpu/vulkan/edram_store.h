@@ -14,6 +14,8 @@
 
 #include "third_party/glslang-spirv/SpvBuilder.h"
 #include "xenia/gpu/xenos.h"
+#include "xenia/ui/vulkan/fenced_pools.h"
+#include "xenia/ui/vulkan/vulkan.h"
 #include "xenia/ui/vulkan/vulkan_device.h"
 
 namespace xe {
@@ -50,20 +52,26 @@ class EDRAMStore {
   // Layout VK_IMAGE_LAYOUT_GENERAL
   // It must be created with usage & VK_IMAGE_USAGE_STORAGE_BIT.
   void StoreColor(VkCommandBuffer command_buffer, VkFence fence,
-                  VkImage rt_image, ColorRenderTargetFormat rt_format,
-                  VkExtent2D rt_extents, uint32_t edram_offset_tiles,
-                  uint32_t edram_pitch_tiles);
+                  VkImageView rt_image_view, ColorRenderTargetFormat rt_format,
+                  MsaaSamples rt_samples, VkRect2D rt_rect,
+                  uint32_t edram_offset_tiles, uint32_t edram_pitch_px);
+
+  void Scavenge();
 
  private:
   enum class Mode {
-    k32Bpp1x,  // 32-bit image format, non-multisampled.
+    k_ModeUnsupported = -1,
 
-    kModeCount
+    // 32-bit image format, non-multisampled.
+    k_32bpp_1X,
+
+    k_ModeCount
   };
 
   struct ModeInfo {
-    const uint8_t* shader_code;
-    size_t shader_code_size;
+    const uint8_t* store_shader_code;
+    size_t store_shader_code_size;
+    const char* store_shader_debug_name;
   };
 
   struct ModeData {
@@ -71,7 +79,7 @@ class EDRAMStore {
     VkPipeline store_pipeline = nullptr;
   };
 
-  struct PushContants {
+  struct StorePushContants {
     uint32_t edram_offset;
     uint32_t edram_pitch;
     uint32_t rt_offset[2];
@@ -79,12 +87,23 @@ class EDRAMStore {
 
   void PrepareEDRAMImage(VkCommandBuffer command_buffer);
 
+  Mode GetModeForRT(ColorRenderTargetFormat format, MsaaSamples samples);
+
+  // Returns false if shouldn't or can't load or store this EDRAM portion.
+  // Not necessarily in case of an error, returns false for 0x0 framebuffer too.
+  bool GetDimensions(Mode mode, VkExtent2D rt_extent,
+                     uint32_t edram_offset_tiles, uint32_t edram_pitch_px,
+                     uint32_t& rt_pitch_tiles, uint32_t& edram_pitch_tiles,
+                     uint32_t& edram_tile_rows);
+
   ui::vulkan::VulkanDevice* device_ = nullptr;
 
   // Memory backing the 10 MB tile image.
   VkDeviceMemory edram_memory_ = nullptr;
   // 1280x2048 image storing EDRAM tiles.
   VkImage edram_image_ = nullptr;
+  // View of the EDRAM image.
+  VkImageView edram_image_view_ = nullptr;
   // Whether the EDRAM image was made an UAV in the first command buffer.
   bool edram_image_transitioned_ = false;
 
@@ -93,10 +112,13 @@ class EDRAMStore {
   // Layout for the load and store pipelines.
   VkPipelineLayout pipeline_layout_ = nullptr;
 
+  // Descriptor pool for shader invocations.
+  std::unique_ptr<ui::vulkan::DescriptorPool> descriptor_pool_ = nullptr;
+
   // Data for setting up each mode.
-  static const ModeInfo mode_info_[Mode::kModeCount];
+  static const ModeInfo mode_info_[Mode::k_ModeCount];
   // Mode-dependent data (load/store pipelines and per-mode dependencies).
-  ModeData mode_data_[Mode::kModeCount];
+  ModeData mode_data_[Mode::k_ModeCount];
 };
 
 }  // namespace vulkan

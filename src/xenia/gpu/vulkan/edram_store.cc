@@ -8,6 +8,7 @@
  */
 
 #include "xenia/gpu/vulkan/edram_store.h"
+#include "xenia/base/math.h"
 
 namespace xe {
 namespace gpu {
@@ -18,8 +19,9 @@ using xe::ui::vulkan::CheckResult;
 // Generated with `xb genspirv`.
 #include "xenia/gpu/vulkan/shaders/bin/edram_store_32bpp1x_comp.h"
 
-const ModeInfo EDRAMStore::mode_info_[Mode::kModeCount] = {
-    {edram_store_32bpp1x_comp, sizeof(edram_store_32bpp1x_comp)}
+const ModeInfo EDRAMStore::mode_info_[Mode::k_ModeCount] = {
+    {edram_store_32bpp1x_comp, sizeof(edram_store_32bpp1x_comp),
+     "S(c): EDRAM Store 32bpp 1x"}
 };
 
 EDRAMStore::EDRAMStore(ui::vulkan::VulkanDevice* device) : device_(device) {}
@@ -53,7 +55,7 @@ VkResult EDRAMStore::Initialize() {
   if (status != VK_SUCCESS) {
     return status;
   }
-  device_->DbgSetObjectName(reinterpret_cast<uint64_t>(edram_image_),
+  device_->DbgSetObjectName(uint64_t(edram_image_),
                             VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT, "EDRAM");
   VkMemoryRequirements image_requirements;
   vkGetImageMemoryRequirements(*device_, edram_image_, &image_requirements);
@@ -64,6 +66,30 @@ VkResult EDRAMStore::Initialize() {
   }
   status = vkBindImageMemory(*device_, edram_image_, edram_memory_, 0);
   CheckResult(status, "vkBindImageMemory");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+
+  // Create the view of the EDRAM image.
+  VkImageViewCreateInfo image_view_info;
+  image_view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+  image_view_info.pNext = nullptr;
+  image_view_info.flags = 0;
+  image_view_info.image = edram_image_;
+  image_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+  image_view_info.format = VK_FORMAT_R8G8B8A8_UNORM;
+  image_view_info.components.r = VK_COMPONENT_SWIZZLE_R;
+  image_view_info.components.g = VK_COMPONENT_SWIZZLE_G;
+  image_view_info.components.b = VK_COMPONENT_SWIZZLE_B;
+  image_view_info.components.a = VK_COMPONENT_SWIZZLE_A;
+  image_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  image_view_info.subresourceRange.baseMipLevel = 0;
+  image_view_info.subresourceRange.levelCount = 1;
+  image_view_info.subresourceRange.baseArrayLayer = 0;
+  image_view_info.subresourceRange.layerCount = 1;
+  status = vkCreateImageView(*device_, &image_view_info, nullptr,
+                             &edram_image_view_);
+  CheckResult(status, "vkCreateImageView");
   if (status != VK_SUCCESS) {
     return status;
   }
@@ -118,6 +144,14 @@ VkResult EDRAMStore::Initialize() {
     return status;
   }
 
+  // Create the pool for storage images used during loading and storing.
+  VkDescriptorPoolSize pool_sizes[1];
+  pool_sizes[0].descriptorCount = 4096;
+  pool_sizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+  descriptor_pool_ = std::make_unique<DescriptorPool>(
+      *device_, 4096,
+      std::vector<VkDescriptorPoolSize>(pool_sizes, std::end(pool_sizes)));
+
   // Initialize all modes.
   VkShaderModuleCreateInfo shader_module_info;
   shader_module_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -137,18 +171,21 @@ VkResult EDRAMStore::Initialize() {
   pipeline_info.layout = pipeline_layout_;
   pipeline_info.basePipelineHandle = nullptr;
   pipeline_info.basePipelineIndex = -1;
-  for (int mode_index = 0; mode_index < int(Mode::kModeCount); ++mode_index) {
+  for (int mode_index = 0; mode_index < int(Mode::k_ModeCount); ++mode_index) {
     const ModeInfo& mode_info = mode_info_[mode_index];
     ModeData& mode_data = mode_data_[mode_index];
-    shader_module_info.codeSize = mode_info.shader_code_size;
+    shader_module_info.codeSize = mode_info.store_shader_code_size;
     shader_module_info.pCode =
-        reinterpret_cast<const uint32_t*>(mode_info.shader_code);
+        reinterpret_cast<const uint32_t*>(mode_info.store_shader_code);
     status = vkCreateShaderModule(*device_, &shader_module_info, nullptr,
                                   &mode_data.store_shader_module);
     CheckResult(status, "vkCreateShaderModule");
     if (status != VK_SUCCESS) {
       return status;
     }
+    device_->DbgSetObjectName(uint64_t(mode_data.store_shader_module),
+                              VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
+                              mode_info.store_shader_debug_name);
     pipeline_info.stage.module = mode_data.store_shader_module;
     status = vkCreateComputePipelines(*device_, nullptr, 1, &pipeline_info,
                                       nullptr, &mode_data.store_pipeline);
@@ -159,6 +196,37 @@ VkResult EDRAMStore::Initialize() {
   }
 
   return VK_SUCCESS;
+}
+
+void EDRAMStore::Shutdown() {
+  // TODO(Triang3l): Wait for idle.
+  for (int mode_index = 0; mode_index < int(Mode::k_ModeCount); ++mode_index) {
+    ModeData& mode_data = mode_data_[mode_index];
+    if (mode_data.store_pipeline) {
+      vkDestroyPipeline(*device_, mode_data.store_pipeline, nullptr);
+      mode_data.store_pipeline = nullptr;
+    }
+    if (mode_data.store_shader_module) {
+      vkDestroyShaderModule(*device_, mode_data.store_shader_module, nullptr);
+      mode_data.store_shader_module = nullptr;
+    }
+  }
+  if (pipeline_layout_) {
+    vkDestroyPipelineLayout(*device_, pipeline_layout_, nullptr);
+    pipeline_layout_ = nullptr;
+  }
+  if (descriptor_set_layout_) {
+    vkDestroyDescriptorSetLayout(*device_, descriptor_set_layout_, nullptr);
+    descriptor_set_layout_ = nullptr;
+  }
+  if (edram_image_) {
+    vkDestroyImage(*device_, edram_image_, nullptr);
+    edram_image_ = nullptr;
+  }
+  if (edram_memory_) {
+    vkFreeMemory(*device_, edram_memory_, nullptr);
+    edram_memory_ = nullptr;
+  }
 }
 
 void EDRAMStore::PrepareEDRAMImage(VkCommandBuffer command_buffer) {
@@ -187,35 +255,150 @@ void EDRAMStore::PrepareEDRAMImage(VkCommandBuffer command_buffer) {
   edram_image_transitioned_ = true;
 }
 
-void EDRAMStore::Shutdown() {
-  // TODO(Triang3l): Wait for idle.
-  for (int mode_index = 0; mode_index < int(Mode::kModeCount); ++mode_index) {
-    ModeData& mode_data = mode_data_[mode_index];
-    if (mode_data.store_pipeline) {
-      vkDestroyPipeline(*device_, mode_data.store_pipeline, nullptr);
-      mode_data.store_pipeline = nullptr;
+Mode GetModeForRT(ColorRenderTargetFormat format, MsaaSamples samples) {
+  if (rt_samples != MsaaSamples::k1X) {
+    // MSAA storing not supported yet.
+    return k_ModeUnsupported;
+  }
+  switch (rt_format) {
+    case ColorRenderTargetFormat::k_8_8_8_8:
+    case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+    case ColorRenderTargetFormat::k_2_10_10_10:
+    case ColorRenderTargetFormat::k_16_16:
+    case ColorRenderTargetFormat::k_16_16_FLOAT:
+    case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+    case ColorRenderTargetFormat::k_32_FLOAT:
+      return Mode::k_32bpp_1X;
+    default:
+      // 64-bit not supported yet.
+      break;
+  }
+  return k_ModeUnsupported;
+}
+
+bool EDRAMStore::GetDimensions(Mode mode, VkExtent2D rt_extent,
+                               uint32_t edram_offset_tiles,
+                               uint32_t edram_pitch_px,
+                               uint32_t& rt_pitch_tiles,
+                               uint32_t& edram_pitch_tiles,
+                               uint32_t& edram_tile_rows) {
+  if (rt_extent.width == 0 || rt_extent.height == 0 || edram_pitch_px == 0) {
+    return false;
+  }
+
+  // All this is for 80x16 - other modes are not supported yet!
+  if (edram_offset_tiles >= 2048) {
+    return false;
+  }
+  uint32_t edram_pitch = xe::round_up(edram_pitch_px, 80) / 80;
+  uint32_t rt_pitch = std::min(xe::round_up(rt_extent.width, 80) / 80,
+                               edram_pitch);
+  uint32_t edram_rows = xe::round_up(rt_extent.height, 16) / 16;
+  uint32_t edram_size = edram_pitch * edram_rows;
+  if (edram_offset_tiles + edram_size > 2048) {
+    // Ignore excess rows.
+    edram_rows = (2048 - edram_size) / edram_pitch;
+    if (edram_rows == 0) {
+      return false;
     }
-    if (mode_data.store_shader_module) {
-      vkDestroyShaderModule(*device_, mode_data.store_shader_module, nullptr);
-      mode_data.store_shader_module = nullptr;
-    }
   }
-  if (pipeline_layout_) {
-    vkDestroyPipelineLayout(*device_, pipeline_layout_, nullptr);
-    pipeline_layout_ = nullptr;
+
+  rt_pitch_tiles = rt_pitch;
+  edram_pitch_tiles = edram_pitch;
+  edram_pitch_rows = edram_rows;
+  return true;
+}
+
+void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
+                            VkImageView rt_image_view,
+                            ColorRenderTargetFormat rt_format,
+                            MsaaSamples rt_samples, VkRect2D rt_rect,
+                            uint32_t edram_offset_tiles,
+                            uint32_t edram_pitch_px) {
+  if (edram_pitch_px == 0 || rt_rect.extent.width == 0 ||
+      rt_rect.extent.height == 0) {
+    return;
   }
-  if (descriptor_set_layout_) {
-    vkDestroyDescriptorSetLayout(*device_, descriptor_set_layout_, nullptr);
-    descriptor_set_layout_ = nullptr;
+
+  Mode mode = GetModeForRT(rt_format, rt_samples);
+  if (mode == k_ModeUnsupported) {
+    return;
   }
-  if (edram_image_) {
-    vkDestroyImage(*device_, edram_image_, nullptr);
-    edram_image_ = nullptr;
+  uint32_t rt_pitch_tiles, edram_pitch_tiles, edram_tile_rows;
+  if (!GetDimensions(mode, rt_rect.extent, edram_offset_tiles, edram_pitch_px,
+                     rt_pitch_tiles, edram_pitch_tiles, edram_tile_rows)) {
+    return;
   }
-  if (edram_memory_) {
-    vkFreeMemory(*device_, edram_memory_, nullptr);
-    edram_memory_ = nullptr;
+  ModeData& mode_data = mode_data_[mode];
+
+  // We have a command buffer now - transition the EDRAM image if not done yet.
+  PrepareEDRAMImage(command_buffer);
+
+  // Write the descriptors.
+  auto set = descriptor_pool_->AcquireEntry(descriptor_set_layout_);
+  if (!set) {
+    assert_always();
+    descriptor_pool_->CancelBatch();
+    return;
   }
+  VkWriteDescriptorSet descriptors[2];
+  descriptors[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  descriptors[0].pNext = nullptr;
+  descriptors[0].dstSet = set;
+  descriptors[0].dstBinding = 0;
+  descriptors[0].dstArrayElement = 0;
+  descriptors[0].descriptorCount = 0;
+  descriptors[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+  VkDescriptorImageInfo image_info_edram;
+  image_info_edram.sampler = nullptr;
+  image_info_edram.imageView = edram_image_view_;
+  image_info_edram.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+  descriptors[0].pImageInfo = &image_info_edram;
+  descriptors[0].pBufferInfo = nullptr;
+  descriptors[0].pTexelBufferView = nullptr;
+  descriptors[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  descriptors[1].pNext = nullptr;
+  descriptors[1].dstSet = set;
+  descriptors[1].dstBinding = 1;
+  descriptors[1].dstArrayElement = 0;
+  descriptors[1].descriptorCount = 0;
+  descriptors[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+  VkDescriptorImageInfo image_info_rt;
+  image_info_rt.sampler = nullptr;
+  image_info_rt.imageView = rt_image_view;
+  image_info_rt.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+  descriptors[1].pImageInfo = &image_info_rt;
+  descriptors[1].pBufferInfo = nullptr;
+  descriptors[1].pTexelBufferView = nullptr;
+  vkUpdateDescriptorSets(*device_, 2, descriptors, 0, nullptr);
+
+  // Dispatch the computation descriptors.
+  vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                    mode_data.store_pipeline);
+  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          pipeline_layout_, 0, 1, &set, 0, nullptr);
+  StorePushContants push_constants;
+  push_constants.edram_offset = edram_offset_tiles;
+  push_constants.edram_pitch = edram_pitch_tiles;
+  push_constants.rt_offset[0] = uint32_t(rt_rect.offset.x);
+  push_constants.rt_offset[1] = uint32_t(rt_rect.offset.y);
+  vkCmdPushConstants(command_buffer, pipeline_layout_,
+                     VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants),
+                     &push_constants);
+  uint32_t group_count_x = rt_pitch_tiles;
+  if (mode == Mode::k_32bpp_1X) {
+    // For the 80x16 mode, tiles are split into 2 groups because 1280 threads
+    // may be over the limit.
+    group_count_x *= 2;
+  }
+  vkCmdDispatch(command_buffer, group_count_x, edram_tile_rows, 1);
+}
+
+void EDRAMStore::Scavenge() {
+  if (descriptor_pool_->has_open_batch()) {
+    descriptor_pool_->EndBatch();
+  }
+  descriptor_pool_->Scavenge();
 }
 
 }  // namespace vulkan
