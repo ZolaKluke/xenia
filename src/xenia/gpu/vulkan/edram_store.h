@@ -44,6 +44,11 @@ class EDRAMStore {
   VkResult Initialize();
   void Shutdown();
 
+  // Prior to storing, the render target must be in the following state:
+  // StageMask & VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
+  // AccessMask & VK_ACCESS_SHADER_READ_BIT
+  // Layout VK_IMAGE_LAYOUT_GENERAL
+  // It must be created with usage & VK_IMAGE_USAGE_STORAGE_BIT.
   void StoreColor(VkCommandBuffer command_buffer, VkFence fence,
                   VkImage rt_image, ColorRenderTargetFormat rt_format,
                   VkExtent2D rt_extents, uint32_t edram_offset_tiles,
@@ -71,6 +76,8 @@ class EDRAMStore {
     uint32_t edram_pitch;
     uint32_t rt_offset[2];
   };
+
+  void PrepareEDRAMImage(VkCommandBuffer command_buffer);
 
   ui::vulkan::VulkanDevice* device_ = nullptr;
 
