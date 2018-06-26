@@ -576,6 +576,12 @@ VkResult RenderCache::Initialize() {
     return status;
   }
 
+  // Initialize the EDRAM contents storage.
+  status = edram_store_.Initialize();
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+
   // Query requirements for the buffer.
   // It should be 1:1.
   VkMemoryRequirements buffer_requirements;
@@ -639,6 +645,9 @@ void RenderCache::Shutdown() {
     vkFreeMemory(*device_, edram_memory_, nullptr);
     edram_memory_ = nullptr;
   }
+
+  // Release the EDRAM contents storage.
+  edram_store_.Shutdown();
 }
 
 bool RenderCache::dirty() const {
@@ -1120,6 +1129,10 @@ void RenderCache::EndRenderPass() {
 
 void RenderCache::ClearCache() {
   // TODO(benvanik): caching.
+}
+
+void RenderCache::Scavenge() {
+  edram_store_.Scavenge();
 }
 
 void RenderCache::RawCopyToImage(VkCommandBuffer command_buffer,

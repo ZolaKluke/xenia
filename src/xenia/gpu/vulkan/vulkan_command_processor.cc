@@ -576,6 +576,7 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     command_buffer_pool_->Scavenge();
 
     blitter_->Scavenge();
+    render_cache->Scavenge();
     texture_cache_->Scavenge();
     buffer_cache_->Scavenge();
   }

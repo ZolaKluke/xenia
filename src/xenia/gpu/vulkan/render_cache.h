@@ -14,6 +14,7 @@
 #include "xenia/gpu/registers.h"
 #include "xenia/gpu/shader.h"
 #include "xenia/gpu/texture_info.h"
+#include "xenia/gpu/vulkan/edram_store.h"
 #include "xenia/gpu/vulkan/vulkan_shader.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/vulkan/vulkan.h"
@@ -301,6 +302,9 @@ class RenderCache {
   // Clears all cached content.
   void ClearCache();
 
+  // Frees any unused resources.
+  void Scavenge();
+
   // Queues commands to copy EDRAM contents into an image.
   // The command buffer must not be inside of a render pass when calling this.
   void RawCopyToImage(VkCommandBuffer command_buffer, uint32_t edram_base,
@@ -356,6 +360,9 @@ class RenderCache {
 
   RegisterFile* register_file_ = nullptr;
   ui::vulkan::VulkanDevice* device_ = nullptr;
+
+  // Storage for preserving EDRAM contents across different views.
+  EDRAMStore edram_store_;
 
   // Entire 10MiB of EDRAM.
   VkDeviceMemory edram_memory_ = nullptr;
