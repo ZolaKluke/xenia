@@ -660,7 +660,7 @@ class GenSpirvCommand(Command):
             help_short='Generates SPIR-V binaries and header files.',
             help_long='''
             Generates the .spv/.h binaries under src/xenia/*/vulkan/shaders/bin/).
-            Run after modifying any .vert/.geom/.frag files.
+            Run after modifying any .vert/.geom/.frag/.comp files.
             ''',
             *args, **kwargs)
 
@@ -692,7 +692,7 @@ class GenSpirvCommand(Command):
                      for root, dirs, files in os.walk('src')
                      for name in files
                      if (name.endswith('.vert') or name.endswith('.geom') or
-                         name.endswith('.frag'))]
+                         name.endswith('.frag') or name.endswith('.comp'))]
 
         any_errors = False
         for src_file in src_files:
