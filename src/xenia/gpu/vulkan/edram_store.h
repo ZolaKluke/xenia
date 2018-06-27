@@ -81,8 +81,10 @@ class EDRAMStore {
   };
 
   struct ModeData {
+    // Store is compute.
     VkShaderModule store_shader_module = nullptr;
     VkPipeline store_pipeline = nullptr;
+    // Load is graphics.
   };
 
   struct StorePushConstants {
@@ -114,9 +116,9 @@ class EDRAMStore {
   EDRAMImageStatus edram_image_status_ = EDRAMImageStatus::kUntransitioned;
 
   // Descriptor set layout for the load and store pipelines.
-  VkDescriptorSetLayout descriptor_set_layout_ = nullptr;
+  VkDescriptorSetLayout store_descriptor_set_layout_ = nullptr;
   // Layout for the load and store pipelines.
-  VkPipelineLayout pipeline_layout_ = nullptr;
+  VkPipelineLayout store_pipeline_layout_ = nullptr;
 
   // Descriptor pool for shader invocations.
   std::unique_ptr<ui::vulkan::DescriptorPool> descriptor_pool_ = nullptr;
