@@ -8,6 +8,7 @@
  */
 
 #include "xenia/gpu/vulkan/edram_store.h"
+#include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 
 namespace xe {
@@ -50,7 +51,7 @@ VkResult EDRAMStore::Initialize() {
   image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   image_info.queueFamilyIndexCount = 0;
   image_info.pQueueFamilyIndices = nullptr;
-  image_info.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
+  image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   status = vkCreateImage(*device_, &image_info, nullptr, &edram_image_);
   CheckResult(status, "vkCreateImage");
   if (status != VK_SUCCESS) {
@@ -241,15 +242,8 @@ void EDRAMStore::TransitionEDRAMImage(VkCommandBuffer command_buffer,
   VkImageMemoryBarrier barrier;
   barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
   barrier.pNext = nullptr;
-  if (edram_image_status_ == EDRAMImageStatus::kUntransitioned) {
-    barrier.srcAccessMask = 0;
-  } else {
-    barrier.srcAccessMask =
-        load ? VK_ACCESS_SHADER_WRITE_BIT : VK_ACCESS_SHADER_READ_BIT;
-  }
   barrier.dstAccessMask =
       load ? VK_ACCESS_SHADER_READ_BIT : VK_ACCESS_SHADER_WRITE_BIT;
-  barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
   barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
   barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -261,8 +255,13 @@ void EDRAMStore::TransitionEDRAMImage(VkCommandBuffer command_buffer,
   barrier.subresourceRange.layerCount = 1;
   VkPipelineStageFlags src_stage_mask;
   if (edram_image_status_ == EDRAMImageStatus::kUntransitioned) {
+    barrier.srcAccessMask = 0;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     src_stage_mask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
   } else {
+    barrier.srcAccessMask =
+        load ? VK_ACCESS_SHADER_WRITE_BIT : VK_ACCESS_SHADER_READ_BIT;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
     src_stage_mask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
   }
   vkCmdPipelineBarrier(command_buffer, src_stage_mask,
@@ -314,7 +313,7 @@ bool EDRAMStore::GetDimensions(Mode mode, VkExtent2D rt_extent,
   uint32_t edram_size = edram_pitch * edram_rows;
   if (edram_offset_tiles + edram_size > 2048) {
     // Ignore excess rows.
-    edram_rows = (2048 - edram_size) / edram_pitch;
+    edram_rows = (2048 - edram_offset_tiles) / edram_pitch;
     if (edram_rows == 0) {
       return false;
     }
@@ -332,6 +331,8 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
                             MsaaSamples rt_samples, VkRect2D rt_rect,
                             uint32_t edram_offset_tiles,
                             uint32_t edram_pitch_px) {
+  XELOGGPU("EDRAM StoreColor: offset %u, pitch %u, height %u.\n",
+           edram_offset_tiles, edram_pitch_px, rt_rect.extent.height);
   if (edram_pitch_px == 0 || rt_rect.extent.width == 0 ||
       rt_rect.extent.height == 0) {
     return;
@@ -369,7 +370,7 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   descriptors[0].dstSet = set;
   descriptors[0].dstBinding = 0;
   descriptors[0].dstArrayElement = 0;
-  descriptors[0].descriptorCount = 0;
+  descriptors[0].descriptorCount = 1;
   descriptors[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
   VkDescriptorImageInfo image_info_edram;
   image_info_edram.sampler = nullptr;
@@ -383,7 +384,7 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   descriptors[1].dstSet = set;
   descriptors[1].dstBinding = 1;
   descriptors[1].dstArrayElement = 0;
-  descriptors[1].descriptorCount = 0;
+  descriptors[1].descriptorCount = 1;
   descriptors[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
   VkDescriptorImageInfo image_info_rt;
   image_info_rt.sampler = nullptr;

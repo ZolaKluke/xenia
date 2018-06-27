@@ -216,7 +216,8 @@ VkResult CachedTileView::Initialize(VkCommandBuffer command_buffer) {
   image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
   image_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                      VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                     VK_IMAGE_USAGE_SAMPLED_BIT;
+                     VK_IMAGE_USAGE_SAMPLED_BIT |
+                     VK_IMAGE_USAGE_STORAGE_BIT;
   image_info.usage |= key.color_or_depth
                           ? VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
                           : VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
@@ -662,6 +663,7 @@ bool RenderCache::dirty() const {
   dirty |= cur_regs.rb_color1_info.value != regs[XE_GPU_REG_RB_COLOR1_INFO].u32;
   dirty |= cur_regs.rb_color2_info.value != regs[XE_GPU_REG_RB_COLOR2_INFO].u32;
   dirty |= cur_regs.rb_color3_info.value != regs[XE_GPU_REG_RB_COLOR3_INFO].u32;
+  dirty |= cur_regs.rb_color_mask != regs[XE_GPU_REG_RB_COLOR_MASK].u32;
   dirty |= cur_regs.rb_depth_info.value != regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
   dirty |= cur_regs.pa_sc_window_scissor_tl !=
            regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
@@ -700,6 +702,7 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
       SetShadowRegister(&regs.rb_color2_info.value, XE_GPU_REG_RB_COLOR2_INFO);
   dirty |=
       SetShadowRegister(&regs.rb_color3_info.value, XE_GPU_REG_RB_COLOR3_INFO);
+  dirty |= SetShadowRegister(&regs.rb_color_mask, XE_GPU_REG_RB_COLOR_MASK);
   dirty |=
       SetShadowRegister(&regs.rb_depth_info.value, XE_GPU_REG_RB_DEPTH_INFO);
   dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_tl,
@@ -827,6 +830,7 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
     for (int i = 0; i < 4; ++i) {
       config->color[i].edram_base = color_info[i].color_base;
       config->color[i].format = GetBaseRTFormat(color_info[i].color_format);
+      config->color[i].used = ((regs.rb_color_mask >> (i * 4)) & 0xF) != 0;
     }
   } else {
     for (int i = 0; i < 4; ++i) {
@@ -1187,7 +1191,7 @@ void RenderCache::EndRenderPass() {
     vkCmdPipelineBarrier(current_command_buffer_,
                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                          VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0,
-                         nullptr, 0, nullptr, barrier_count, barriers_pre);
+                         nullptr, 0, nullptr, barrier_count, barriers_post);
   }
 
   current_command_buffer_ = nullptr;

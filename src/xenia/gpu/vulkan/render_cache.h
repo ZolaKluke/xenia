@@ -387,6 +387,7 @@ class RenderCache {
     reg::RB_COLOR_INFO rb_color1_info;
     reg::RB_COLOR_INFO rb_color2_info;
     reg::RB_COLOR_INFO rb_color3_info;
+    uint32_t rb_color_mask;
     reg::RB_DEPTH_INFO rb_depth_info;
     uint32_t pa_sc_window_scissor_tl;
     uint32_t pa_sc_window_scissor_br;
