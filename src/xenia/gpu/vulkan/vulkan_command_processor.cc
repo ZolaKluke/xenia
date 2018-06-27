@@ -576,7 +576,7 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     command_buffer_pool_->Scavenge();
 
     blitter_->Scavenge();
-    render_cache->Scavenge();
+    render_cache_->Scavenge();
     texture_cache_->Scavenge();
     buffer_cache_->Scavenge();
   }
@@ -652,7 +652,7 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
     full_update = true;
     current_render_state_ = render_cache_->BeginRenderPass(
-        command_buffer, current_batch_fence, vertex_shader, pixel_shader);
+        command_buffer, current_batch_fence_, vertex_shader, pixel_shader);
     if (!current_render_state_) {
       return false;
     }

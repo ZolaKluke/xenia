@@ -552,7 +552,7 @@ bool CachedRenderPass::IsCompatible(
 
 RenderCache::RenderCache(RegisterFile* register_file,
                          ui::vulkan::VulkanDevice* device)
-    : register_file_(register_file), device_(device) {}
+    : register_file_(register_file), device_(device), edram_store_(device) {}
 
 RenderCache::~RenderCache() { Shutdown(); }
 
@@ -1151,7 +1151,7 @@ void RenderCache::EndRenderPass() {
     barrier_pre.subresourceRange.baseArrayLayer = 0;
     barrier_pre.subresourceRange.layerCount = 1;
 
-    VkImageMemoryBarrier& barrier_post = barriers_post[color_count];
+    VkImageMemoryBarrier& barrier_post = barriers_post[barrier_count];
     barrier_post = barrier_pre;
     std::swap(barrier_post.srcAccessMask, barrier_post.dstAccessMask);
     std::swap(barrier_post.oldLayout, barrier_post.newLayout);
@@ -1160,10 +1160,10 @@ void RenderCache::EndRenderPass() {
   }
 
   if (barrier_count != 0) {
-    VkCmdPipelineBarrier(current_command_buffer_,
+    vkCmdPipelineBarrier(current_command_buffer_,
                          VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr,
-                         0, nullptr, color_count, barriers_pre);
+                         0, nullptr, barrier_count, barriers_pre);
     VkRect2D rt_rect = {
         {0, 0},
         {current_state_.config.surface_pitch_px,
@@ -1184,10 +1184,10 @@ void RenderCache::EndRenderPass() {
                               color_info.edram_base,
                               current_state_.config.surface_pitch_px);
     }
-    VkCmdPipelineBarrier(current_command_buffer_,
+    vkCmdPipelineBarrier(current_command_buffer_,
                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                          VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0,
-                         nullptr, 0, nullptr, color_count, barriers_pre);
+                         nullptr, 0, nullptr, barrier_count, barriers_pre);
   }
 
   current_command_buffer_ = nullptr;

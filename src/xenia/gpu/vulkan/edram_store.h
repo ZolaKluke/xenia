@@ -85,7 +85,7 @@ class EDRAMStore {
     VkPipeline store_pipeline = nullptr;
   };
 
-  struct StorePushContants {
+  struct StorePushConstants {
     uint32_t edram_offset;
     uint32_t edram_pitch;
     uint32_t rt_offset[2];

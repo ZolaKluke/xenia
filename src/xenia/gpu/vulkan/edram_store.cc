@@ -19,7 +19,8 @@ using xe::ui::vulkan::CheckResult;
 // Generated with `xb genspirv`.
 #include "xenia/gpu/vulkan/shaders/bin/edram_store_32bpp1x_comp.h"
 
-const ModeInfo EDRAMStore::mode_info_[Mode::k_ModeCount] = {
+const EDRAMStore::ModeInfo EDRAMStore::mode_info_[
+    size_t(EDRAMStore::Mode::k_ModeCount)] = {
     {edram_store_32bpp1x_comp, sizeof(edram_store_32bpp1x_comp),
      "S(c): EDRAM Store 32bpp 1x"}
 };
@@ -136,7 +137,7 @@ VkResult EDRAMStore::Initialize() {
   VkPushConstantRange push_constant_range;
   push_constant_range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
   push_constant_range.offset = 0;
-  push_constant_range.size = sizeof(PushConstants);
+  push_constant_range.size = sizeof(StorePushConstants);
   pipeline_layout_info.pPushConstantRanges = &push_constant_range;
   status = vkCreatePipelineLayout(*device_, &pipeline_layout_info, nullptr,
                                   &pipeline_layout_);
@@ -149,7 +150,7 @@ VkResult EDRAMStore::Initialize() {
   VkDescriptorPoolSize pool_sizes[1];
   pool_sizes[0].descriptorCount = 4096;
   pool_sizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-  descriptor_pool_ = std::make_unique<DescriptorPool>(
+  descriptor_pool_ = std::make_unique<ui::vulkan::DescriptorPool>(
       *device_, 4096,
       std::vector<VkDescriptorPoolSize>(pool_sizes, std::end(pool_sizes)));
 
@@ -270,12 +271,13 @@ void EDRAMStore::TransitionEDRAMImage(VkCommandBuffer command_buffer,
   edram_image_status_ = new_status;
 }
 
-Mode GetModeForRT(ColorRenderTargetFormat format, MsaaSamples samples) {
-  if (rt_samples != MsaaSamples::k1X) {
+EDRAMStore::Mode EDRAMStore::GetModeForRT(ColorRenderTargetFormat format,
+                                          MsaaSamples samples) {
+  if (samples != MsaaSamples::k1X) {
     // MSAA storing not supported yet.
-    return k_ModeUnsupported;
+    return Mode::k_ModeUnsupported;
   }
-  switch (rt_format) {
+  switch (format) {
     case ColorRenderTargetFormat::k_8_8_8_8:
     case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
     case ColorRenderTargetFormat::k_2_10_10_10:
@@ -288,7 +290,7 @@ Mode GetModeForRT(ColorRenderTargetFormat format, MsaaSamples samples) {
       // 64-bit not supported yet.
       break;
   }
-  return k_ModeUnsupported;
+  return Mode::k_ModeUnsupported;
 }
 
 bool EDRAMStore::GetDimensions(Mode mode, VkExtent2D rt_extent,
@@ -320,7 +322,7 @@ bool EDRAMStore::GetDimensions(Mode mode, VkExtent2D rt_extent,
 
   rt_pitch_tiles = rt_pitch;
   edram_pitch_tiles = edram_pitch;
-  edram_pitch_rows = edram_rows;
+  edram_tile_rows = edram_rows;
   return true;
 }
 
@@ -336,7 +338,7 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   }
 
   Mode mode = GetModeForRT(rt_format, rt_samples);
-  if (mode == k_ModeUnsupported) {
+  if (mode == Mode::k_ModeUnsupported) {
     return;
   }
   uint32_t rt_pitch_tiles, edram_pitch_tiles, edram_tile_rows;
@@ -344,7 +346,7 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
                      rt_pitch_tiles, edram_pitch_tiles, edram_tile_rows)) {
     return;
   }
-  ModeData& mode_data = mode_data_[mode];
+  ModeData& mode_data = mode_data_[size_t(mode)];
 
   // Allocate space for the descriptors.
   if (!descriptor_pool_->has_open_batch()) {
@@ -397,7 +399,7 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
                     mode_data.store_pipeline);
   vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                           pipeline_layout_, 0, 1, &set, 0, nullptr);
-  StorePushContants push_constants;
+  StorePushConstants push_constants;
   push_constants.edram_offset = edram_offset_tiles;
   push_constants.edram_pitch = edram_pitch_tiles;
   push_constants.rt_offset[0] = uint32_t(rt_rect.offset.x);
