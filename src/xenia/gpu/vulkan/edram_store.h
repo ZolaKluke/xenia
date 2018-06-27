@@ -59,6 +59,12 @@ class EDRAMStore {
   void Scavenge();
 
  private:
+  enum class EDRAMImageStatus {
+    kUntransitioned,
+    kStore,
+    kLoad
+  };
+
   enum class Mode {
     k_ModeUnsupported = -1,
 
@@ -85,7 +91,7 @@ class EDRAMStore {
     uint32_t rt_offset[2];
   };
 
-  void PrepareEDRAMImage(VkCommandBuffer command_buffer);
+  void TransitionEDRAMImage(VkCommandBuffer command_buffer, bool load);
 
   Mode GetModeForRT(ColorRenderTargetFormat format, MsaaSamples samples);
 
@@ -104,8 +110,8 @@ class EDRAMStore {
   VkImage edram_image_ = nullptr;
   // View of the EDRAM image.
   VkImageView edram_image_view_ = nullptr;
-  // Whether the EDRAM image was made an UAV in the first command buffer.
-  bool edram_image_transitioned_ = false;
+  // The current access mode for the EDRAM image.
+  EDRAMImageStatus edram_image_status_ = EDRAMImageStatus::kUntransitioned;
 
   // Descriptor set layout for the load and store pipelines.
   VkDescriptorSetLayout descriptor_set_layout_ = nullptr;

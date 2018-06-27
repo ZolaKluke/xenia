@@ -69,6 +69,7 @@ VkResult EDRAMStore::Initialize() {
   if (status != VK_SUCCESS) {
     return status;
   }
+  edram_image_status_ = EDRAMImageStatus::kUntransitioned;
 
   // Create the view of the EDRAM image.
   VkImageViewCreateInfo image_view_info;
@@ -229,16 +230,24 @@ void EDRAMStore::Shutdown() {
   }
 }
 
-void EDRAMStore::PrepareEDRAMImage(VkCommandBuffer command_buffer) {
-  if (edram_image_transitioned_) {
+void EDRAMStore::TransitionEDRAMImage(VkCommandBuffer command_buffer,
+                                      bool load) {
+  EDRAMImageStatus new_status =
+      load ? EDRAMImageStatus::kLoad : EDRAMImageStatus::kStore;
+  if (edram_image_status_ == new_status) {
     return;
   }
   VkImageMemoryBarrier barrier;
   barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
   barrier.pNext = nullptr;
-  barrier.srcAccessMask = 0;
-  barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT |
-                          VK_ACCESS_SHADER_WRITE_BIT;
+  if (edram_image_status_ == EDRAMImageStatus::kUntransitioned) {
+    barrier.srcAccessMask = 0;
+  } else {
+    barrier.srcAccessMask =
+        load ? VK_ACCESS_SHADER_WRITE_BIT : VK_ACCESS_SHADER_READ_BIT;
+  }
+  barrier.dstAccessMask =
+      load ? VK_ACCESS_SHADER_READ_BIT : VK_ACCESS_SHADER_WRITE_BIT;
   barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
   barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
   barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -249,10 +258,16 @@ void EDRAMStore::PrepareEDRAMImage(VkCommandBuffer command_buffer) {
   barrier.subresourceRange.levelCount = 1;
   barrier.subresourceRange.baseArrayLayer = 0;
   barrier.subresourceRange.layerCount = 1;
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+  VkPipelineStageFlags src_stage_mask;
+  if (edram_image_status_ == EDRAMImageStatus::kUntransitioned) {
+    src_stage_mask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+  } else {
+    src_stage_mask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+  }
+  vkCmdPipelineBarrier(command_buffer, src_stage_mask,
                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &barrier);
-  edram_image_transitioned_ = true;
+  edram_image_status_ = new_status;
 }
 
 Mode GetModeForRT(ColorRenderTargetFormat format, MsaaSamples samples) {
@@ -331,16 +346,21 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   }
   ModeData& mode_data = mode_data_[mode];
 
-  // We have a command buffer now - transition the EDRAM image if not done yet.
-  PrepareEDRAMImage(command_buffer);
-
-  // Write the descriptors.
+  // Allocate space for the descriptors.
+  if (!descriptor_pool_->has_open_batch()) {
+    descriptor_pool_->BeginBatch(fence);
+  }
   auto set = descriptor_pool_->AcquireEntry(descriptor_set_layout_);
   if (!set) {
     assert_always();
     descriptor_pool_->CancelBatch();
     return;
   }
+
+  // Switch the EDRAM image to storing.
+  TransitionEDRAMImage(command_buffer, false);
+
+  // Write the descriptors.
   VkWriteDescriptorSet descriptors[2];
   descriptors[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
   descriptors[0].pNext = nullptr;
@@ -392,6 +412,11 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
     group_count_x *= 2;
   }
   vkCmdDispatch(command_buffer, group_count_x, edram_tile_rows, 1);
+
+  // Commit the write so loads or overlapping writes won't conflict.
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0,
+                       nullptr, 0, nullptr);
 }
 
 void EDRAMStore::Scavenge() {

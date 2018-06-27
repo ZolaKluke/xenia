@@ -671,6 +671,7 @@ bool RenderCache::dirty() const {
 }
 
 const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
+                                                VkFence batch_fence,
                                                 VulkanShader* vertex_shader,
                                                 VulkanShader* pixel_shader) {
 #if FINE_GRAINED_DRAW_SCOPES
@@ -679,6 +680,7 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
 
   assert_null(current_command_buffer_);
   current_command_buffer_ = command_buffer;
+  current_batch_fence_ = batch_fence;
 
   // Lookup or construct a render pass compatible with our current state.
   auto config = &current_state_.config;
@@ -1124,7 +1126,72 @@ void RenderCache::EndRenderPass() {
   }
   */
 
+  VkImageMemoryBarrier barriers_pre[4], barriers_post[4];
+  uint32_t barrier_count = 0;
+
+  for (int i = 0; i < 4; i++) {
+    auto target = current_state_.framebuffer->color_attachments[i];
+    if (!target || !current_state_.config.color[i].used) {
+      continue;
+    }
+
+    VkImageMemoryBarrier& barrier_pre = barriers_pre[barrier_count];
+    barrier_pre.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier_pre.pNext = nullptr;
+    barrier_pre.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    barrier_pre.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    barrier_pre.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+    barrier_pre.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    barrier_pre.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier_pre.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier_pre.image = target->image;
+    barrier_pre.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier_pre.subresourceRange.baseMipLevel = 0;
+    barrier_pre.subresourceRange.levelCount = 1;
+    barrier_pre.subresourceRange.baseArrayLayer = 0;
+    barrier_pre.subresourceRange.layerCount = 1;
+
+    VkImageMemoryBarrier& barrier_post = barriers_post[color_count];
+    barrier_post = barrier_pre;
+    std::swap(barrier_post.srcAccessMask, barrier_post.dstAccessMask);
+    std::swap(barrier_post.oldLayout, barrier_post.newLayout);
+
+    ++barrier_count;
+  }
+
+  if (barrier_count != 0) {
+    VkCmdPipelineBarrier(current_command_buffer_,
+                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr,
+                         0, nullptr, color_count, barriers_pre);
+    VkRect2D rt_rect = {
+        {0, 0},
+        {current_state_.config.surface_pitch_px,
+         current_state_.config.surface_height_px}
+    };
+    for (int i = 0; i < 4; ++i) {
+      auto target = current_state_.framebuffer->color_attachments[i];
+      if (!target) {
+        continue;
+      }
+      auto& color_info = current_state_.config.color[i];
+      if (!color_info.used) {
+        continue;
+      }
+      edram_store_.StoreColor(current_command_buffer_, current_batch_fence_,
+                              target->image_view, color_info.format,
+                              current_state_.config.surface_msaa, rt_rect,
+                              color_info.edram_base,
+                              current_state_.config.surface_pitch_px);
+    }
+    VkCmdPipelineBarrier(current_command_buffer_,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0,
+                         nullptr, 0, nullptr, color_count, barriers_pre);
+  }
+
   current_command_buffer_ = nullptr;
+  current_batch_fence_ = nullptr;
 }
 
 void RenderCache::ClearCache() {

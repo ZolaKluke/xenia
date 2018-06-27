@@ -292,6 +292,7 @@ class RenderCache {
   // Begins a render pass targeting the state-specified framebuffer formats.
   // The command buffer will be transitioned into the render pass phase.
   const RenderState* BeginRenderPass(VkCommandBuffer command_buffer,
+                                     VkFence batch_fence,
                                      VulkanShader* vertex_shader,
                                      VulkanShader* pixel_shader);
 
@@ -401,6 +402,7 @@ class RenderCache {
 
   // Only valid during a BeginRenderPass/EndRenderPass block.
   VkCommandBuffer current_command_buffer_ = nullptr;
+  VkFence current_batch_fence_ = nullptr;
 };
 
 }  // namespace vulkan

@@ -652,7 +652,7 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
     full_update = true;
     current_render_state_ = render_cache_->BeginRenderPass(
-        command_buffer, vertex_shader, pixel_shader);
+        command_buffer, current_batch_fence, vertex_shader, pixel_shader);
     if (!current_render_state_) {
       return false;
     }
