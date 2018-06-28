@@ -74,6 +74,11 @@ class EDRAMStore {
     k_ModeCount
   };
 
+  static inline bool IsMode64bpp(Mode mode) { return false; }
+  static inline MsaaSamples GetModeMsaaSamples(Mode mode) {
+    return MsaaSamples::k1X;
+  }
+
   struct ModeInfo {
     const uint8_t* store_shader_code;
     size_t store_shader_code_size;
@@ -99,10 +104,13 @@ class EDRAMStore {
 
   // Returns false if shouldn't or can't load or store this EDRAM portion.
   // Not necessarily in case of an error, returns false for 0x0 framebuffer too.
-  bool GetDimensions(Mode mode, VkExtent2D rt_extent,
-                     uint32_t edram_offset_tiles, uint32_t edram_pitch_px,
-                     uint32_t& rt_pitch_tiles, uint32_t& edram_pitch_tiles,
-                     uint32_t& edram_tile_rows);
+  // This assumes that the whole framebuffer starts at a whole tile.
+  bool GetDimensions(Mode mode, uint32_t edram_base_offset_tiles,
+                     uint32_t edram_pitch_px, VkRect2D rt_rect,
+                     VkRect2D& rt_rect_adjusted,
+                     uint32_t& edram_add_offset_tiles,
+                     VkExtent2D& edram_extent_tiles,
+                     uint32_t& edram_pitch_tiles);
 
   ui::vulkan::VulkanDevice* device_ = nullptr;
 

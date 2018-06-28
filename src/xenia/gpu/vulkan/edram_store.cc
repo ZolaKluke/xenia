@@ -299,36 +299,87 @@ EDRAMStore::Mode EDRAMStore::GetModeForRT(ColorRenderTargetFormat format,
   return Mode::k_ModeUnsupported;
 }
 
-bool EDRAMStore::GetDimensions(Mode mode, VkExtent2D rt_extent,
-                               uint32_t edram_offset_tiles,
-                               uint32_t edram_pitch_px,
-                               uint32_t& rt_pitch_tiles,
-                               uint32_t& edram_pitch_tiles,
-                               uint32_t& edram_tile_rows) {
-  if (rt_extent.width == 0 || rt_extent.height == 0 || edram_pitch_px == 0) {
+bool EDRAMStore::GetDimensions(
+    Mode mode, uint32_t edram_base_offset_tiles, uint32_t edram_pitch_px,
+    VkRect2D rt_rect, VkRect2D& rt_rect_adjusted,
+    uint32_t& edram_add_offset_tiles, VkExtent2D& edram_extent_tiles,
+    uint32_t& edram_pitch_tiles) {
+  // Check if the area is not empty or outside the bounds.
+  if (edram_base_offset_tiles >= 2048 || edram_pitch_px == 0 ||
+      rt_rect.extent.width == 0 || rt_rect.extent.height == 0 ||
+      uint32_t(rt_rect.offset.x) >= edram_pitch_px) {
     return false;
   }
 
-  // All this is for 80x16 - other modes are not supported yet!
-  if (edram_offset_tiles >= 2048) {
-    return false;
+  // Scales applied to framebuffer dimensions to get tile counts.
+  // Tiles are always 5120 bytes long, and at 32bpp without MSAA they're 80x16.
+  // The EDRAM storage image is split into 80x16 tiles, but one framebuffer
+  // pixel can take multiple texels in the EDRAM image with a 64bpp format or
+  // with multisampling.
+  // For 64bpp images, each pixel is split into 2 EDRAM texels horizontally.
+  // For 2X MSAA, two samples of each pixels are placed vertically.
+  // For 4X MSAA, the additional samples are also placed horizontally.
+  uint32_t pixel_width_power = 0, pixel_height_power = 0;
+  if (IsMode64bpp(mode)) {
+    ++pixel_width_power;
   }
+  MsaaSamples msaa_samples = GetModeMsaaSamples(mode);
+  if (msaa_samples >= MsaaSamples::k2X) {
+    ++pixel_height_power;
+    if (msaa_samples >= MsaaSamples::k4X) {
+      ++pixel_width_power;
+    }
+  }
+
+  // Scale the framebuffer area relatively to EDRAM image texels.
+  rt_rect.offset.x <<= pixel_width_power;
+  rt_rect.offset.y <<= pixel_height_power;
+  rt_rect.extent.width <<= pixel_width_power;
+  rt_rect.extent.height <<= pixel_height_power;
+  edram_pitch_px <<= pixel_width_power;
+
+  // Snap dimensions to whole tiles.
+  uint32_t rt_rect_tiles_left = uint32_t(rt_rect.offset.x) / 80;
+  uint32_t rt_rect_tiles_right =
+      xe::round_up(uint32_t(rt_rect.offset.x) + rt_rect.extent.width, 80) / 80;
+  uint32_t rt_rect_tiles_top = uint32_t(rt_rect.offset.x) >> 4;
+  uint32_t rt_rect_tiles_bottom =
+      xe::round_up(uint32_t(rt_rect.offset.x) + rt_rect.extent.width, 16) >> 4;
   uint32_t edram_pitch = xe::round_up(edram_pitch_px, 80) / 80;
-  uint32_t rt_pitch = std::min(xe::round_up(rt_extent.width, 80) / 80,
-                               edram_pitch);
-  uint32_t edram_rows = xe::round_up(rt_extent.height, 16) / 16;
-  uint32_t edram_size = edram_pitch * edram_rows;
-  if (edram_offset_tiles + edram_size > 2048) {
-    // Ignore excess rows.
-    edram_rows = (2048 - edram_offset_tiles) / edram_pitch;
-    if (edram_rows == 0) {
+
+  // Check if a framebuffer area wider than the surface pitch was requested.
+  // Shouldn't happen actually, but just in case.
+  uint32_t rt_rect_tiles_width = rt_rect_tiles_right - rt_rect_tiles_left;
+  rt_rect_tiles_width = std::min(rt_rect_tiles_width, edram_pitch);
+
+  // Calculate additional offset to the region being stored.
+  uint32_t edram_add_offset =
+      rt_rect_tiles_top * edram_pitch + rt_rect_tiles_left;
+  uint32_t edram_offset = edram_base_offset_tiles + edram_add_offset;
+
+  // Clamp the height in case the framebuffer size was highly overestimated.
+  // This, on the other hand, may happen.
+  uint32_t rt_rect_tiles_height = rt_rect_tiles_bottom - rt_rect_tiles_top;
+  uint32_t edram_size =
+      rt_rect_tiles_height * edram_pitch + rt_rect_tiles_width;
+  if (edram_offset + edram_size > 2048) {
+    rt_rect_tiles_height = (2048 - edram_offset) / edram_pitch;
+    if (rt_rect_tiles_height == 0) {
       return false;
     }
   }
 
-  rt_pitch_tiles = rt_pitch;
+  // Return the new dimensions.
+  rt_rect_adjusted.offset.x = (rt_rect_tiles_left * 80) >> pixel_width_power;
+  rt_rect_adjusted.offset.y = (rt_rect_tiles_top << 4) >> pixel_height_power;
+  rt_rect_adjusted.extent.width =
+    (rt_rect_tiles_width * 80) >> pixel_width_power;
+  rt_rect_adjusted.extent.height =
+    (rt_rect_tiles_width << 4) >> pixel_height_power;
+  edram_add_offset_tiles = edram_add_offset;
+  edram_extent_tiles.width = rt_rect_tiles_width;
+  edram_extent_tiles.height = rt_rect_tiles_height;
   edram_pitch_tiles = edram_pitch;
-  edram_tile_rows = edram_rows;
   return true;
 }
 
@@ -349,11 +400,17 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   if (mode == Mode::k_ModeUnsupported) {
     return;
   }
-  uint32_t rt_pitch_tiles, edram_pitch_tiles, edram_tile_rows;
-  if (!GetDimensions(mode, rt_rect.extent, edram_offset_tiles, edram_pitch_px,
-                     rt_pitch_tiles, edram_pitch_tiles, edram_tile_rows)) {
+
+  // Get the dimensions for the copying.
+  VkRect2D rt_rect_adjusted;
+  uint32_t edram_add_offset_tiles, edram_pitch_tiles;
+  VkExtent2D edram_extent_tiles;
+  if (!GetDimensions(mode, edram_offset_tiles, edram_pitch_px, rt_rect,
+                     rt_rect_adjusted, edram_add_offset_tiles,
+                     edram_extent_tiles, edram_pitch_tiles)) {
     return;
   }
+
   ModeData& mode_data = mode_data_[size_t(mode)];
 
   // Allocate space for the descriptors.
@@ -408,20 +465,20 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                           store_pipeline_layout_, 0, 1, &set, 0, nullptr);
   StorePushConstants push_constants;
-  push_constants.edram_offset = edram_offset_tiles;
+  push_constants.edram_offset = edram_offset_tiles + edram_add_offset_tiles;
   push_constants.edram_pitch = edram_pitch_tiles;
-  push_constants.rt_offset[0] = uint32_t(rt_rect.offset.x);
-  push_constants.rt_offset[1] = uint32_t(rt_rect.offset.y);
+  push_constants.rt_offset[0] = uint32_t(rt_rect_adjusted.offset.x);
+  push_constants.rt_offset[1] = uint32_t(rt_rect_adjusted.offset.y);
   vkCmdPushConstants(command_buffer, store_pipeline_layout_,
                      VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants),
                      &push_constants);
-  uint32_t group_count_x = rt_pitch_tiles;
+  uint32_t group_count_x = edram_extent_tiles.width;
   if (mode == Mode::k_32bpp_1X) {
     // For the 80x16 mode, tiles are split into 2 groups because 1280 threads
     // may be over the limit.
     group_count_x *= 2;
   }
-  vkCmdDispatch(command_buffer, group_count_x, edram_tile_rows, 1);
+  vkCmdDispatch(command_buffer, group_count_x, edram_extent_tiles.height, 1);
 
   // Commit the write so loads or overlapping writes won't conflict.
   vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
