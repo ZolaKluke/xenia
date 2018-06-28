@@ -651,6 +651,13 @@ void RenderCache::Shutdown() {
   edram_store_.Shutdown();
 }
 
+uint32_t RenderCache::RTMaskFromColorMask(uint32_t color_mask) {
+  return ((color_mask & 0x000F) ? (1 << 0) : 0) |
+         ((color_mask & 0x00F0) ? (1 << 1) : 0) |
+         ((color_mask & 0x0F00) ? (1 << 2) : 0) |
+         ((color_mask & 0xF000) ? (1 << 3) : 0);
+}
+
 bool RenderCache::dirty() const {
   auto& regs = *register_file_;
   auto& cur_regs = shadow_registers_;
@@ -663,7 +670,8 @@ bool RenderCache::dirty() const {
   dirty |= cur_regs.rb_color1_info.value != regs[XE_GPU_REG_RB_COLOR1_INFO].u32;
   dirty |= cur_regs.rb_color2_info.value != regs[XE_GPU_REG_RB_COLOR2_INFO].u32;
   dirty |= cur_regs.rb_color3_info.value != regs[XE_GPU_REG_RB_COLOR3_INFO].u32;
-  dirty |= cur_regs.rb_color_mask != regs[XE_GPU_REG_RB_COLOR_MASK].u32;
+  dirty |= cur_regs.rb_color_mask_rts !=
+           RTMaskFromColorMask(regs[XE_GPU_REG_RB_COLOR_MASK].u32);
   dirty |= cur_regs.rb_depth_info.value != regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
   dirty |= cur_regs.pa_sc_window_scissor_tl !=
            regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
@@ -702,7 +710,10 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
       SetShadowRegister(&regs.rb_color2_info.value, XE_GPU_REG_RB_COLOR2_INFO);
   dirty |=
       SetShadowRegister(&regs.rb_color3_info.value, XE_GPU_REG_RB_COLOR3_INFO);
-  dirty |= SetShadowRegister(&regs.rb_color_mask, XE_GPU_REG_RB_COLOR_MASK);
+  uint32_t color_mask_rts =
+      RTMaskFromColorMask(register_file_->values[XE_GPU_REG_RB_COLOR_MASK].u32);
+  dirty |= color_mask_rts != regs.rb_color_mask_rts;
+  regs.rb_color_mask_rts = color_mask_rts;
   dirty |=
       SetShadowRegister(&regs.rb_depth_info.value, XE_GPU_REG_RB_DEPTH_INFO);
   dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_tl,
@@ -830,7 +841,7 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
     for (int i = 0; i < 4; ++i) {
       config->color[i].edram_base = color_info[i].color_base;
       config->color[i].format = GetBaseRTFormat(color_info[i].color_format);
-      config->color[i].used = ((regs.rb_color_mask >> (i * 4)) & 0xF) != 0;
+      config->color[i].used = (regs.rb_color_mask_rts & (1 << i)) != 0;
     }
   } else {
     for (int i = 0; i < 4; ++i) {

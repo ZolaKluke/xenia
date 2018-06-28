@@ -338,6 +338,9 @@ class RenderCache {
   void FillEDRAM(VkCommandBuffer command_buffer, uint32_t value);
 
  private:
+  // Retrieves whether each of 4 render targets is enabled based on color mask.
+  static uint32_t RTMaskFromColorMask(uint32_t color_mask);
+
   // Parses the current state into a configuration object.
   bool ParseConfiguration(RenderConfiguration* config);
 
@@ -387,7 +390,8 @@ class RenderCache {
     reg::RB_COLOR_INFO rb_color1_info;
     reg::RB_COLOR_INFO rb_color2_info;
     reg::RB_COLOR_INFO rb_color3_info;
-    uint32_t rb_color_mask;
+    // One bit per render target - from RTMaskFromColorMask.
+    uint32_t rb_color_mask_rts;
     reg::RB_DEPTH_INFO rb_depth_info;
     uint32_t pa_sc_window_scissor_tl;
     uint32_t pa_sc_window_scissor_br;
