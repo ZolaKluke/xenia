@@ -70,11 +70,15 @@ class EDRAMStore {
 
     // 32-bit image format, non-multisampled.
     k_32bpp_1X,
+    // 64-bit image format, non-multisampled.
+    k_64bpp_1X,
 
     k_ModeCount
   };
 
-  static inline bool IsMode64bpp(Mode mode) { return false; }
+  static inline bool IsMode64bpp(Mode mode) {
+    return mode == Mode::k_64bpp_1X;
+  }
   static inline MsaaSamples GetModeMsaaSamples(Mode mode) {
     return MsaaSamples::k1X;
   }

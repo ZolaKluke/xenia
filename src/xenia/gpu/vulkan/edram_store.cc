@@ -19,11 +19,14 @@ using xe::ui::vulkan::CheckResult;
 
 // Generated with `xb genspirv`.
 #include "xenia/gpu/vulkan/shaders/bin/edram_store_32bpp1x_comp.h"
+#include "xenia/gpu/vulkan/shaders/bin/edram_store_64bpp1x_comp.h"
 
 const EDRAMStore::ModeInfo EDRAMStore::mode_info_[
     size_t(EDRAMStore::Mode::k_ModeCount)] = {
     {edram_store_32bpp1x_comp, sizeof(edram_store_32bpp1x_comp),
-     "S(c): EDRAM Store 32bpp 1x"}
+     "S(c): EDRAM Store 32bpp 1x"},
+    {edram_store_64bpp1x_comp, sizeof(edram_store_64bpp1x_comp),
+     "S(c): EDRAM Store 64bpp 1x"}
 };
 
 EDRAMStore::EDRAMStore(ui::vulkan::VulkanDevice* device) : device_(device) {}
@@ -292,6 +295,10 @@ EDRAMStore::Mode EDRAMStore::GetModeForRT(ColorRenderTargetFormat format,
     case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
     case ColorRenderTargetFormat::k_32_FLOAT:
       return Mode::k_32bpp_1X;
+    case ColorRenderTargetFormat::k_16_16_16_16:
+    case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+    case ColorRenderTargetFormat::k_32_32_FLOAT:
+      return Mode::k_64bpp_1X;
     default:
       // 64-bit not supported yet.
       break;
