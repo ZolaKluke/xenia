@@ -101,55 +101,71 @@ VkResult EDRAMStore::Initialize() {
   }
 
   // Create the descriptor set layout for the load and store pipelines.
-  VkDescriptorSetLayoutCreateInfo store_descriptor_set_layout_info;
-  store_descriptor_set_layout_info.sType =
+  // Store - 2 descriptors for compute shaders: EDRAM and render target.
+  VkDescriptorSetLayoutCreateInfo descriptor_set_layout_info;
+  descriptor_set_layout_info.sType =
       VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-  store_descriptor_set_layout_info.pNext = nullptr;
-  store_descriptor_set_layout_info.flags = 0;
-  store_descriptor_set_layout_info.bindingCount = 2;
-  VkDescriptorSetLayoutBinding store_descriptor_set_layout_bindings[2];
+  descriptor_set_layout_info.pNext = nullptr;
+  descriptor_set_layout_info.flags = 0;
+  descriptor_set_layout_info.bindingCount = 2;
+  VkDescriptorSetLayoutBinding descriptor_set_layout_bindings[2];
   // EDRAM.
-  store_descriptor_set_layout_bindings[0].binding = 0;
-  store_descriptor_set_layout_bindings[0].descriptorType =
+  descriptor_set_layout_bindings[0].binding = 0;
+  descriptor_set_layout_bindings[0].descriptorType =
       VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-  store_descriptor_set_layout_bindings[0].descriptorCount = 1;
-  store_descriptor_set_layout_bindings[0].stageFlags =
-      VK_SHADER_STAGE_COMPUTE_BIT;
-  store_descriptor_set_layout_bindings[0].pImmutableSamplers = nullptr;
+  descriptor_set_layout_bindings[0].descriptorCount = 1;
+  descriptor_set_layout_bindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+  descriptor_set_layout_bindings[0].pImmutableSamplers = nullptr;
   // Render target.
-  store_descriptor_set_layout_bindings[1].binding = 1;
-  store_descriptor_set_layout_bindings[1].descriptorType =
+  descriptor_set_layout_bindings[1].binding = 1;
+  descriptor_set_layout_bindings[1].descriptorType =
       VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-  store_descriptor_set_layout_bindings[1].descriptorCount = 1;
-  store_descriptor_set_layout_bindings[1].stageFlags =
-      VK_SHADER_STAGE_COMPUTE_BIT;
-  store_descriptor_set_layout_bindings[1].pImmutableSamplers = nullptr;
-  store_descriptor_set_layout_info.pBindings =
-      store_descriptor_set_layout_bindings;
-  status = vkCreateDescriptorSetLayout(*device_,
-                                       &store_descriptor_set_layout_info,
+  descriptor_set_layout_bindings[1].descriptorCount = 1;
+  descriptor_set_layout_bindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+  descriptor_set_layout_bindings[1].pImmutableSamplers = nullptr;
+  descriptor_set_layout_info.pBindings =
+      descriptor_set_layout_bindings;
+  status = vkCreateDescriptorSetLayout(*device_, &descriptor_set_layout_info,
                                        nullptr, &store_descriptor_set_layout_);
   CheckResult(status, "vkCreateDescriptorSetLayout");
   if (status != VK_SUCCESS) {
     return status;
   }
+  // Load - only EDRAM, for fragment shader.
+  descriptor_set_layout_info.bindingCount = 1;
+  descriptor_set_layout_bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+  status = vkCreateDescriptorSetLayout(*device_, &descriptor_set_layout_info,
+                                       nullptr, &load_descriptor_set_layout_);
+  CheckResult(status, "vkCreateDescriptorSetLayout");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
-  // Create the layout for the load and store pipelines.
-  VkPipelineLayoutCreateInfo store_pipeline_layout_info;
-  store_pipeline_layout_info.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  store_pipeline_layout_info.pNext = nullptr;
-  store_pipeline_layout_info.flags = 0;
-  store_pipeline_layout_info.setLayoutCount = 1;
-  store_pipeline_layout_info.pSetLayouts = &store_descriptor_set_layout_;
-  store_pipeline_layout_info.pushConstantRangeCount = 1;
-  VkPushConstantRange store_push_constant_range;
-  store_push_constant_range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-  store_push_constant_range.offset = 0;
-  store_push_constant_range.size = sizeof(StorePushConstants);
-  store_pipeline_layout_info.pPushConstantRanges = &store_push_constant_range;
-  status = vkCreatePipelineLayout(*device_, &store_pipeline_layout_info,
-                                  nullptr, &store_pipeline_layout_);
+  // Create the layouts for the store and load pipelines.
+  VkPipelineLayoutCreateInfo pipeline_layout_info;
+  pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  pipeline_layout_info.pNext = nullptr;
+  pipeline_layout_info.flags = 0;
+  pipeline_layout_info.setLayoutCount = 1;
+  pipeline_layout_info.pSetLayouts = &store_descriptor_set_layout_;
+  pipeline_layout_info.pushConstantRangeCount = 1;
+  VkPushConstantRange push_constant_range;
+  push_constant_range.offset = 0;
+  pipeline_layout_info.pPushConstantRanges = &push_constant_range;
+  // Store.
+  push_constant_range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+  push_constant_range.size = sizeof(StorePushConstants);
+  status = vkCreatePipelineLayout(*device_, &pipeline_layout_info, nullptr,
+                                  &store_pipeline_layout_);
+  CheckResult(status, "vkCreatePipelineLayout");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+  // Load.
+  push_constant_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+  push_constant_range.size = sizeof(LoadPushConstants);
+  status = vkCreatePipelineLayout(*device_, &pipeline_layout_info, nullptr,
+                                  &load_pipeline_layout_);
   CheckResult(status, "vkCreatePipelineLayout");
   if (status != VK_SUCCESS) {
     return status;

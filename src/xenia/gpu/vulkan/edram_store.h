@@ -102,6 +102,11 @@ class EDRAMStore {
     uint32_t rt_offset[2];
   };
 
+  struct LoadPushConstants {
+    uint32_t edram_offset;
+    uint32_t edram_pitch;
+  };
+
   void TransitionEDRAMImage(VkCommandBuffer command_buffer, bool load);
 
   Mode GetModeForRT(ColorRenderTargetFormat format, MsaaSamples samples);
@@ -127,10 +132,12 @@ class EDRAMStore {
   // The current access mode for the EDRAM image.
   EDRAMImageStatus edram_image_status_ = EDRAMImageStatus::kUntransitioned;
 
-  // Descriptor set layout for the load and store pipelines.
+  // Store pipeline layout.
   VkDescriptorSetLayout store_descriptor_set_layout_ = nullptr;
-  // Layout for the load and store pipelines.
   VkPipelineLayout store_pipeline_layout_ = nullptr;
+  // Load pipeline layout.
+  VkDescriptorSetLayout load_descriptor_set_layout_ = nullptr;
+  VkPipelineLayout load_pipeline_layout_ = nullptr;
 
   // Descriptor pool for shader invocations.
   std::unique_ptr<ui::vulkan::DescriptorPool> descriptor_pool_ = nullptr;
