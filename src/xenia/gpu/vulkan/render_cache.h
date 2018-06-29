@@ -1,3 +1,4 @@
+#ifdef RENDER_CACHE_NOT_OBSOLETE
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -415,3 +416,4 @@ class RenderCache {
 }  // namespace xe
 
 #endif  // XENIA_GPU_VULKAN_RENDER_CACHE_H_
+#endif  // RENDER_CACHE_NOT_OBSOLETE

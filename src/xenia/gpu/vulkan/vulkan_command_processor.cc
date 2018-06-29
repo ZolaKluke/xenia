@@ -114,6 +114,15 @@ bool VulkanCommandProcessor::SetupContext() {
     return false;
   }
 
+  #ifndef RENDER_CACHE_NOT_OBSOLETE
+  rt_cache_ = std::make_unique<RTCache>(register_file_, device_);
+  status = rt_cache_->Initialize();
+  if (status != VK_SUCCESS) {
+    XELOGE("Unable to initialize render target cache");
+    rt_cache_->Shutdown();
+    return false;
+  }
+  #else
   render_cache_ = std::make_unique<RenderCache>(register_file_, device_);
   status = render_cache_->Initialize();
   if (status != VK_SUCCESS) {
@@ -121,6 +130,7 @@ bool VulkanCommandProcessor::SetupContext() {
     render_cache_->Shutdown();
     return false;
   }
+  #endif
 
   return true;
 }
@@ -135,7 +145,11 @@ void VulkanCommandProcessor::ShutdownContext() {
 
   buffer_cache_.reset();
   pipeline_cache_.reset();
+  #ifndef RENDER_CACHE_NOT_OBSOLETE
+  rt_cache_.reset();
+  #else
   render_cache_.reset();
+  #endif
   texture_cache_.reset();
 
   blitter_.reset();
@@ -374,10 +388,14 @@ void VulkanCommandProcessor::BeginFrame() {
 }
 
 void VulkanCommandProcessor::EndFrame() {
+  #ifndef RENDER_CACHE_NOT_OBSOLETE
+  rt_cache_->OnFrameEnd();
+  #else
   if (current_render_state_) {
     render_cache_->EndRenderPass();
     current_render_state_ = nullptr;
   }
+  #endif
 
   VkResult status = VK_SUCCESS;
   status = vkEndCommandBuffer(current_setup_buffer_);
@@ -559,7 +577,11 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
 
     buffer_cache_->ClearCache();
     pipeline_cache_->ClearCache();
+    #ifndef RENDER_CACHE_NOT_OBSOLETE
+    rt_cache_->ClearCache();
+    #else
     render_cache_->ClearCache();
+    #endif
     texture_cache_->ClearCache();
   }
 
@@ -576,7 +598,11 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     command_buffer_pool_->Scavenge();
 
     blitter_->Scavenge();
+    #ifndef RENDER_CACHE_NOT_OBSOLETE
+    rt_cache_->Scavenge();
+    #else
     render_cache_->Scavenge();
+    #endif
     texture_cache_->Scavenge();
     buffer_cache_->Scavenge();
   }
@@ -641,6 +667,18 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   auto command_buffer = current_command_buffer_;
   auto setup_buffer = current_setup_buffer_;
 
+  #ifndef RENDER_CACHE_NOT_OBSOLETE
+  // Apply changes to the render pass, check if the state must be resubmitted.
+  RTCache::DrawStatus rt_cache_status =
+      rt_cache_->OnDraw(command_buffer, current_batch_fence_);
+  if (rt_cache_status == RTCache::DrawStatus::kNotInRenderPass) {
+    // Current render target configuration not supported.
+    return false;
+  }
+  if (rt_cache_status == RTCache::DrawStatus::kNewRenderPass) {
+    full_update = true;
+  }
+  #else
   // Begin the render pass.
   // This will setup our framebuffer and begin the pass in the command buffer.
   // This reuses a previous render pass if one is already open.
@@ -657,6 +695,7 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
       return false;
     }
   }
+  #endif
 
   // Configure the pipeline for drawing.
   // This encodes all render state (blend, depth, etc), our shader stages,
@@ -860,6 +899,10 @@ bool VulkanCommandProcessor::PopulateSamplers(VkCommandBuffer command_buffer,
 }
 
 bool VulkanCommandProcessor::IssueCopy() {
+  #ifndef RENDER_CACHE_NOT_OBSOLETE
+  return true;
+
+  #else
   SCOPE_profile_cpu_f("gpu");
   auto& regs = *register_file_;
 
@@ -1321,6 +1364,7 @@ bool VulkanCommandProcessor::IssueCopy() {
   }
 
   return true;
+  #endif
 }
 
 }  // namespace vulkan

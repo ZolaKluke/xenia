@@ -26,6 +26,7 @@
 #include "xenia/gpu/vulkan/buffer_cache.h"
 #include "xenia/gpu/vulkan/pipeline_cache.h"
 #include "xenia/gpu/vulkan/render_cache.h"
+#include "xenia/gpu/vulkan/rt_cache.h"
 #include "xenia/gpu/vulkan/texture_cache.h"
 #include "xenia/gpu/vulkan/vulkan_shader.h"
 #include "xenia/gpu/xenos.h"
@@ -53,7 +54,11 @@ class VulkanCommandProcessor : public CommandProcessor {
   virtual void RequestFrameTrace(const std::wstring& root_path) override;
   void ClearCaches() override;
 
+  #ifndef RENDER_CACHE_NOT_OBSOLETE
+  RTCache* rt_cache() { return rt_cache_.get(); }
+  #else
   RenderCache* render_cache() { return render_cache_.get(); }
+  #endif
 
  private:
   bool SetupContext() override;
@@ -126,14 +131,20 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   std::unique_ptr<BufferCache> buffer_cache_;
   std::unique_ptr<PipelineCache> pipeline_cache_;
+  #ifndef RENDER_CACHE_NOT_OBSOLETE
+  std::unique_ptr<RTCache> rt_cache_;
+  #else
   std::unique_ptr<RenderCache> render_cache_;
+  #endif
   std::unique_ptr<TextureCache> texture_cache_;
 
   std::unique_ptr<ui::vulkan::Blitter> blitter_;
   std::unique_ptr<ui::vulkan::CommandBufferPool> command_buffer_pool_;
 
   bool frame_open_ = false;
+  #ifdef RENDER_CACHE_NOT_OBSOLETE
   const RenderState* current_render_state_ = nullptr;
+  #endif
   VkCommandBuffer current_command_buffer_ = nullptr;
   VkCommandBuffer current_setup_buffer_ = nullptr;
   VkFence current_batch_fence_;

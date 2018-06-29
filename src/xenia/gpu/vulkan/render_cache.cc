@@ -1,3 +1,4 @@
+#ifdef RENDER_CACHE_NOT_OBSOLETE
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -1485,3 +1486,4 @@ bool RenderCache::SetShadowRegister(uint32_t* dest, uint32_t register_name) {
 }  // namespace vulkan
 }  // namespace gpu
 }  // namespace xe
+#endif  // RENDER_CACHE_NOT_OBSOLETE
