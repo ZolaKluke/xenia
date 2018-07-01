@@ -92,6 +92,7 @@ class RTCache {
     struct RenderTarget {
       VkImage image;
       VkImageView image_view;
+      VkImageView image_view_stencil;
 
       RenderTargetKey key;
 

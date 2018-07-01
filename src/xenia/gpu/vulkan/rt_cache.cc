@@ -98,6 +98,9 @@ void RTCache::Shutdown() {
   // TODO(Triang3l): Wait for idle.
 
   for (auto rt : rts_) {
+    if (rt->image_view_stencil != nullptr) {
+      vkDestroyImageView(*device_, rt->image_view_stencil, nullptr);
+    }
     vkDestroyImageView(*device_, rt->image_view, nullptr);
     vkDestroyImage(*device_, rt->image, nullptr);
     delete rt;
@@ -340,19 +343,25 @@ bool RTCache::AllocateRenderTargets(
                                rt_memory_[alloc_info->page_first / 6],
                                (alloc_info->page_first % 6) << 22);
     CheckResult(status, "vkBindImageMemory");
-    VkImageView image_view = nullptr;
+    VkImageView image_view = nullptr, image_view_stencil = nullptr;
     if (status == VK_SUCCESS) {
       image_view_info.image = new_images[rt_index];
       image_view_info.format = formats[rt_index];
-      if (key.is_depth) {
-        image_view_info.subresourceRange.aspectMask =
-            VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-      } else {
-        image_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-      }
+      image_view_info.subresourceRange.aspectMask =
+          key.is_depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
       status = vkCreateImageView(*device_, &image_view_info, nullptr,
                                  &image_view);
       CheckResult(status, "vkCreateImageView");
+      if (status == VK_SUCCESS && key.is_depth) {
+        image_view_info.subresourceRange.aspectMask =
+            VK_IMAGE_ASPECT_STENCIL_BIT;
+        status = vkCreateImageView(*device_, &image_view_info, nullptr,
+                                   &image_view_stencil);
+        CheckResult(status, "vkCreateImageView");
+        if (status != VK_SUCCESS) {
+          vkDestroyImageView(*device_, image_view, nullptr);
+        }
+      }
     }
     if (status != VK_SUCCESS) {
       for (uint32_t j = 0; j < 5; ++j) {
@@ -364,6 +373,7 @@ bool RTCache::AllocateRenderTargets(
     RenderTarget* rt = new RenderTarget;
     rt->image = new_images[rt_index];
     rt->image_view = image_view;
+    rt->image_view_stencil = image_view_stencil;
     rt->key.value = key.value;
     rt->page_first = alloc_info.page_first;
     rt->page_count = alloc_info.page_count;
