@@ -8,6 +8,7 @@
  */
 
 #include "xenia/gpu/vulkan/edram_store.h"
+#include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 

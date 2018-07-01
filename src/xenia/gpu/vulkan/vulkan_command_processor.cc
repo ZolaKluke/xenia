@@ -389,7 +389,7 @@ void VulkanCommandProcessor::BeginFrame() {
 
 void VulkanCommandProcessor::EndFrame() {
   #ifndef RENDER_CACHE_NOT_OBSOLETE
-  rt_cache_->OnFrameEnd();
+  rt_cache_->OnFrameEnd(current_command_buffer_, current_batch_fence_);
   #else
   if (current_render_state_) {
     render_cache_->EndRenderPass();
