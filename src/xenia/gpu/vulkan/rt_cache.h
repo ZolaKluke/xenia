@@ -68,6 +68,7 @@ class RTCache {
 
   private:
     // Key used to index render targets bound to various 4 MB pages.
+    // Zero key means the render target is not used.
     union RenderTargetKey {
       struct {
         uint32_t width_div_80 : 6;  // 6
@@ -103,13 +104,28 @@ class RTCache {
       uint32_t page_count;
     };
 
+    struct RenderPass {
+      VkRenderPass pass;
+
+      // nullptr if not used.
+      RenderTarget* rts_color[4];
+      RenderTarget* rt_depth;
+
+      // Cache optimization for search.
+      RenderTargetKey keys_color[4];
+      RenderTargetKey key_depth;
+    };
+
     // Finds or creates views for the specified render target configuration.
-    // Pass zero keys for unused render targets.
     // Returns true if succeeded, false in case of an error.
     bool AllocateRenderTargets(const RenderTargetKey keys_color[4],
                                RenderTargetKey key_depth,
                                RenderTarget* rts_color[4],
                                RenderTarget** rt_depth);
+
+    // Finds or creates a render pass. Returns nullptr in case of an error.
+    RenderPass* GetRenderPass(const RenderTargetKey keys_color[4],
+                              RenderTargetKey key_depth);
 
     RegisterFile* register_file_ = nullptr;
     ui::vulkan::VulkanDevice* device_ = nullptr;
@@ -122,6 +138,8 @@ class RTCache {
 
     // Render target views indexed with render target keys.
     std::unordered_multimap<uint32_t, RenderTarget*> rts_;
+
+    std::vector<RenderPass*> passes_;
 };
 
 }  // namespace vulkan

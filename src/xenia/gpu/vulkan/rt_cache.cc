@@ -69,7 +69,7 @@ VkFormat RTCache::DepthRenderTargetFormatToVkFormat(
     case DepthRenderTargetFormat::kD24S8:
       return VK_FORMAT_D24_UNORM_S8_UINT;
     case DepthRenderTargetFormat::kD24FS8:
-      // Vulkan doesn't support 24-bit floats, so just promote it to 32-bit
+      // Vulkan doesn't support 24-bit floats, so just promote it to 32-bit.
       return VK_FORMAT_D32_SFLOAT_S8_UINT;
     default:
       return VK_FORMAT_UNDEFINED;
@@ -96,6 +96,12 @@ VkResult RTCache::Initialize() {
 
 void RTCache::Shutdown() {
   // TODO(Triang3l): Wait for idle.
+
+  for (auto pass : passes_) {
+    vkDestroyRenderPass(*device_, pass->pass, nullptr);
+    delete pass;
+  }
+  passes_.clear();
 
   for (auto rt : rts_) {
     if (rt->image_view_stencil != nullptr) {
@@ -369,6 +375,14 @@ bool RTCache::AllocateRenderTargets(
       }
       return false;
     }
+    // TODO(Triang3l): Color and depth format names.
+    device_->DbgSetObjectName(
+        uint64_t(new_images[rt_index]), VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
+        xe::format_string("RT(%c): %u, %ux, pages [%u,%u)", key.is_depth ? 'd' : 'c',
+                          key.is_depth ? uint32_t(key.depth_format) :
+                                         uint32_t(key.color_format),
+                          1 << uint32_t(key.samples), alloc_info.page_first,
+                          alloc_info.page_first + alloc_info.page_count);
     // Add a new entry to the cache.
     RenderTarget* rt = new RenderTarget;
     rt->image = new_images[rt_index];
@@ -387,6 +401,107 @@ bool RTCache::AllocateRenderTargets(
   *rt_depth = rts[0];
   std::memcpy(rts_color, &rts[1], sizeof(rts_color));
   return true;
+}
+
+RTCache::RenderPass* RTCache::GetRenderPass(
+    const RTCache::RenderTargetKey keys_color[4],
+    RTCache::RenderTargetKey key_depth) {
+  // Check if there is an existing render pass with such render targets.
+  // TODO(Triang3l): Use a better structure (though pass count is mostly small).
+  for (auto existing_pass : passes_) {
+    if (!std::memcmp(existing_pass->keys_color, keys_color, sizeof(keys_color))
+        && existing_pass->key_depth == key_depth) {
+      return existing_pass;
+    }
+  }
+
+  // Obtain the attachments for the pass.
+  RenderTarget* rts_color[4], rt_depth;
+  if (!AllocateRenderTargets(keys_color, key_depth, rts_color, &rt_depth)) {
+    return false;
+  }
+
+  // Create a new Vulkan render pass.
+  VkRenderPassCreateInfo pass_info;
+  VkSubpassDescription subpass;
+  VkAttachmentDescription attachments[5];
+  VkAttachmentReference color_attachments[4], depth_attachment;
+  pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+  pass_info.pNext = nullptr;
+  pass_info.flags = 0;
+  pass_info.attachmentCount = 0;
+  pass_info.pAttachments = attachments;
+  pass_info.subpassCount = 1;
+  pass_info.pSubpasses = &subpass;
+  pass_info.dependencyCount = 0;
+  pass_info.pDependencies = nullptr;
+  subpass.flags = 0;
+  subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+  subpass.inputAttachmentCount = 0;
+  subpass.pInputAttachments = nullptr;
+  subpass.colorAttachmentCount = 4;
+  subpass.pColorAttachments = color_attachments;
+  subpass.pResolveAttachments = nullptr;
+  subpass.pDepthStencilAttachment = nullptr;
+  subpass.preserveAttachmentCount = 0;
+  subpass.pPreserveAttachments = nullptr;
+  for (uint32_t i = 0; i < 4; ++i) {
+    VkAttachmentReference& color_attachment = color_attachments[i];
+    color_attachment.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    RenderTarget* rt_color = rts_colors[i];
+    if (rt_color == nullptr) {
+      color_attachment.attachment = VK_ATTACHMENT_UNUSED;
+      continue;
+    }
+    color_attachment.attachment = pass_info.attachmentCount;
+    VkAttachmentDescription& attachment =
+        attachments[pass_info.attachmentCount++];
+    attachment.flags = 0;
+    attachment.format =
+        ColorRenderTargetFormatToVkFormat(keys_color[i].color_format);
+    attachment.samples =
+        VkSampleCountFlagBits(1 << uint32_t(keys_color[i].samples));
+    attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  }
+  if (rt_depth != nullptr) {
+    subpass.pDepthStencilAttachment = &depth_attachment;
+    depth_attachment.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depth_attachment.attachment = pass_info.attachmentCount;
+    VkAttachmentDescription& attachment =
+        attachments[pass_info.attachmentCount++];
+    attachment.flags = 0;
+    attachment.format =
+        DepthRenderTargetFormatToVkFormat(key_depth.depth_format);
+    attachment.samples =
+        VkSampleCountFlagBits(1 << uint32_t(key_depth.samples));
+    attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachment.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+  }
+  VkRenderPass pass;
+  VkResult status = vkCreateRenderPass(*device_, &pass_info, nullptr, &pass);
+  CheckResult(status, "vkCreateRenderPass");
+  if (status != VK_SUCCESS) {
+    return nullptr;
+  }
+
+  // Insert a new pass object.
+  RenderPass* new_pass = new RenderPass;
+  new_pass->pass = pass;
+  std::memcpy(new_pass->rts_color, rts_color, sizeof(rts_color));
+  new_pass->rt_depth = rt_depth;
+  std::memcpy(new_pass->keys_color, keys_color, sizeof(keys_color));
+  new_pass->key_depth = key_depth;
+  passes_.push_back(new_pass);
+  return new_pass;
 }
 
 RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
