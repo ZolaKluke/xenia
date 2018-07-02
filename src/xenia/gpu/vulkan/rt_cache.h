@@ -37,13 +37,13 @@ class RTCache {
   public:
     // Result of OnDraw, how the command processor needs to respond.
     enum class DrawStatus {
-      // Failed to enter a Xenos render pass - can't send commands to Vulkan.
-      kNotInRenderPass,
+      // Either failed to enter a render pass, or drawing will have no effect.
+      kDoNotDraw,
       // Started a new Vulkan render pass - need to resubmit state.
-      kNewRenderPass,
+      kDrawInNewPass,
       // Still drawing in the same render pass - current state still valid.
       // Viewport and scissor could have changed though.
-      kSameRenderPass
+      kDrawInSamePass
     };
 
     RTCache(RegisterFile* register_file, ui::vulkan::VulkanDevice* device);
@@ -140,6 +140,31 @@ class RTCache {
     std::unordered_multimap<uint32_t, RenderTarget*> rts_;
 
     std::vector<RenderPass*> passes_;
+
+    // Shadows of the registers that impact the render pass we choose.
+    // If the registers don't change between passes, we can quickly reuse the
+    // previous one.
+    struct ShadowRegisters {
+      reg::RB_MODECONTROL rb_modecontrol;
+      reg::RB_SURFACE_INFO rb_surface_info;
+      reg::RB_COLOR_INFO rb_color_info;
+      reg::RB_COLOR_INFO rb_color1_info;
+      reg::RB_COLOR_INFO rb_color2_info;
+      reg::RB_COLOR_INFO rb_color3_info;
+      uint32_t rb_color_mask;
+      reg::RB_DEPTH_INFO rb_depth_info;
+      uint32_t pa_sc_window_scissor_tl;
+      uint32_t pa_sc_window_scissor_br;
+
+      ShadowRegisters() { Reset(); }
+      void Reset() { std::memset(this, 0, sizeof(*this)); }
+    } shadow_registers_;
+    bool SetShadowRegister(uint32_t* dest, uint32_t register_name);
+
+    // Current state.
+    RenderPass* current_pass_ = nullptr;
+    uint32_t current_edram_color_tiles_[4];
+    uint32_t current_edram_depth_tile_;
 };
 
 }  // namespace vulkan

@@ -213,7 +213,7 @@ bool RTCache::AllocateRenderTargets(
     // Also will obviously need it for the view as there's no image to reuse.
     image_info.format = formats[i];
     image_info.extent.width = key.width_div_80 * 80;
-    image_info.extent.height = key.width_div_16 * 16;
+    image_info.extent.height = key.height_div_16 * 16;
     image_info.samples = VkSampleCountFlagBits(1 << uint32_t(key.samples));
     image_info.usage = key.is_depth ? image_usage_depth : image_usage_color;
     status = vkCreateImage(*device_, &image_info, nullptr, &new_images[i]);
@@ -332,7 +332,7 @@ bool RTCache::AllocateRenderTargets(
     if (new_images[rt_index] == nullptr) {
       image_info.format = formats[rt_index];
       image_info.extent.width = key.width_div_80 * 80;
-      image_info.extent.height = key.width_div_16 * 16;
+      image_info.extent.height = key.height_div_16 * 16;
       image_info.samples = VkSampleCountFlagBits(1 << uint32_t(key.samples));
       image_info.usage = key.is_depth ? image_usage_depth : image_usage_color;
       status = vkCreateImage(*device_, &image_info, nullptr, &new_images[rt_index]);
@@ -504,9 +504,43 @@ RTCache::RenderPass* RTCache::GetRenderPass(
   return new_pass;
 }
 
+bool RTCache::SetShadowRegister(uint32_t* dest, uint32_t register_name) {
+  uint32_t value = register_file_->values[register_name].u32;
+  if (*dest == value) {
+    return false;
+  }
+  *dest = value;
+  return true;
+}
+
 RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
                                     VkFence batch_fence) {
-  return DrawStatus::kNotInRenderPass;
+  // Check if registers influencing the choice have changed.
+  auto& regs = shadow_registers_;
+  bool dirty = false;
+  dirty |=
+      SetShadowRegister(&regs.rb_modecontrol.value, XE_GPU_REG_RB_MODECONTROL);
+  dirty |=
+      SetShadowRegister(&regs.rb_color_info.value, XE_GPU_REG_RB_COLOR_INFO);
+  dirty |=
+      SetShadowRegister(&regs.rb_color1_info.value, XE_GPU_REG_RB_COLOR1_INFO);
+  dirty |=
+      SetShadowRegister(&regs.rb_color2_info.value, XE_GPU_REG_RB_COLOR2_INFO);
+  dirty |=
+      SetShadowRegister(&regs.rb_color3_info.value, XE_GPU_REG_RB_COLOR3_INFO);
+  dirty |= SetShadowRegister(&regs.rb_color_mask, XE_GPU_REG_RB_COLOR_MASK);
+  dirty |=
+      SetShadowRegister(&regs.rb_depth_info.value, XE_GPU_REG_RB_DEPTH_INFO);
+  dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_tl,
+                             XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL);
+  dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_br,
+                             XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR);
+  if (!dirty) {
+    return current_pass_ != nullptr ? DrawStatus::kDrawInSamePass :
+                                      DrawStatus::kDoNotDraw;
+  }
+
+  return DrawStatus::kDoNotDraw;
 }
 
 void RTCache::OnFrameEnd(VkCommandBuffer command_buffer, VkFence batch_fence) {
