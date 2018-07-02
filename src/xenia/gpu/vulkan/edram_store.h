@@ -56,6 +56,14 @@ class EDRAMStore {
                   MsaaSamples rt_samples, VkRect2D rt_rect,
                   uint32_t edram_offset_tiles, uint32_t edram_pitch_px);
 
+  // Gets the maximum height of a color render target in pixels.
+  uint32_t GetColorMaxHeight(ColorRenderTargetFormat format,
+                             MsaaSamples samples, uint32_t offset_tiles,
+                             uint32_t pitch_px);
+  uint32_t GetDepthMaxHeight(DepthRenderTargetFormat format,
+                             MsaaSamples samples, uint32_t offset_tiles,
+                             uint32_t pitch_px);
+
   void Scavenge();
 
  private:
@@ -109,7 +117,11 @@ class EDRAMStore {
 
   void TransitionEDRAMImage(VkCommandBuffer command_buffer, bool load);
 
-  Mode GetModeForRT(ColorRenderTargetFormat format, MsaaSamples samples);
+  Mode GetColorMode(ColorRenderTargetFormat format, MsaaSamples samples);
+
+  // Returns log2 of how many EDRAM image texels one framebuffer pixel covers.
+  void GetPixelEDRAMSizePower(Mode mode, uint32_t& width_power,
+                              uint32_t& height_power);
 
   // Returns false if shouldn't or can't load or store this EDRAM portion.
   // Not necessarily in case of an error, returns false for 0x0 framebuffer too.
@@ -120,6 +132,8 @@ class EDRAMStore {
                      uint32_t& edram_add_offset_tiles,
                      VkExtent2D& edram_extent_tiles,
                      uint32_t& edram_pitch_tiles);
+
+  uint32_t GetMaxHeight(Mode mode, uint32_t offset_tiles, uint32_t pitch_px);
 
   ui::vulkan::VulkanDevice* device_ = nullptr;
 
