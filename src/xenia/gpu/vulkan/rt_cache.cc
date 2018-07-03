@@ -542,6 +542,8 @@ RTCache::RenderPass* RTCache::GetRenderPass(
   new_pass->rt_depth = rt_depth;
   std::memcpy(new_pass->keys_color, keys_color, sizeof(keys_color));
   new_pass->key_depth = key_depth;
+  new_pass->width = framebuffer_info.width;
+  new_pass->height = framebuffer_info.height;
   passes_.push_back(new_pass);
   return new_pass;
 }
@@ -553,6 +555,41 @@ bool RTCache::SetShadowRegister(uint32_t* dest, uint32_t register_name) {
   }
   *dest = value;
   return true;
+}
+
+void RTCache::BeginRenderPass(VkCommandBuffer command_buffer,
+                              VkFence batch_fence, RTCache::RenderPass* pass) {
+  // TODO(Triang3l): Barriers.
+  VkRenderPassBeginInfo begin_info;
+  begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+  begin_info.pNext = nullptr;
+  begin_info.renderPass = pass->pass;
+  begin_info.framebuffer = pass->framebuffer;
+  begin_info.renderArea.offset.x = 0;
+  begin_info.renderArea.offset.y = 0;
+  begin_info.renderArea.extent.width = pass->width;
+  begin_info.renderArea.extent.height = pass->height;
+  // TODO(Triang3l): Remove clear when EDRAM store is added.
+  VkClearValue clear_depth;
+  begin_info.pClearValues = &clear_depth;
+  if (pass->rt_depth != nullptr) {
+    clear_depth.depthStencil.depth = 0.0f;
+    clear_depth.depthStencil.stencil = 0;
+    begin_info.clearValueCount = 1;
+  } else {
+    begin_info.clearValueCount = 0;
+  }
+  vkCmdBeginRenderPass(command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
+  current_pass_ = pass;
+}
+
+void RTCache::EndRenderPass(VkCommandBuffer command_buffer,
+                            VkFence batch_fence) {
+  if (current_pass_ == nullptr) {
+    return;
+  }
+  vkCmdEndRenderPass(command_buffer);
+  current_pass_ = nullptr;
 }
 
 RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
@@ -589,7 +626,7 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
   ModeControl mode_control = regs.rb_modecontrol.edram_mode;
   if (mode_control != ModeControl::kColorDepth &&
       mode_control != ModeControl::kDepth) {
-    current_pass_ = nullptr;
+    EndRenderPass(command_buffer, batch_fence);
     return DrawStatus::kDoNotDraw;
   }
   uint32_t color_mask =
@@ -603,7 +640,7 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
   // Calculate the width of the host render target.
   uint32_t width = regs.rb_surface_info.surface_pitch;
   if (width == 0) {
-    current_pass_ = nullptr;
+    EndRenderPass(command_buffer, batch_fence);
     return DrawStatus::kDoNotDraw;
   }
   width = std::min(width, 2560u);
@@ -628,7 +665,7 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
   }
   uint32_t height = EDRAMStore::GetMaxHeight(any_64bpp, samples, 0, width);
   if (height == 0) {
-    current_pass_ = nullptr;
+    EndRenderPass(command_buffer, batch_fence);
     return DrawStatus::kDoNotDraw;
   }
   uint32_t height_div_16 = xe::round_up(height, 16) / 16;
@@ -663,15 +700,15 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
     }
   }
 
+  EndRenderPass(command_buffer, batch_fence);
+
   // Find or create the render pass and enter it.
-  current_pass_ = GetRenderPass(keys_color, key_depth);
-  if (current_pass_ == nullptr) {
+  RenderPass* pass = GetRenderPass(keys_color, key_depth);
+  if (pass == nullptr) {
     // Not supported or there have been Vulkan errors, don't render.
     return DrawStatus::kDoNotDraw;
   }
-
-  // TODO(Triang3l): Start a new render pass.
-
+  BeginRenderPass(command_buffer, batch_fence, pass);
   return DrawStatus::kDrawInNewPass;
 }
 

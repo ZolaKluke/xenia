@@ -105,9 +105,9 @@ class RTCache {
     };
 
     struct RenderPass {
+      // Attachment 0 for depth if used, then color.
       VkRenderPass pass;
       VkFramebuffer framebuffer;
-      // Attachment 0 is depth if used, then color.
 
       // nullptr if not used.
       RenderTarget* rts_color[4];
@@ -116,6 +116,10 @@ class RTCache {
       // Cache optimization for search.
       RenderTargetKey keys_color[4];
       RenderTargetKey key_depth;
+
+      // Dimensions for render area.
+      uint32_t width;
+      uint32_t height;
     };
 
     // Finds or creates views for the specified render target configuration.
@@ -128,6 +132,10 @@ class RTCache {
     // Finds or creates a render pass. Returns nullptr in case of an error.
     RenderPass* GetRenderPass(const RenderTargetKey keys_color[4],
                               RenderTargetKey key_depth);
+
+    void BeginRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence,
+                         RenderPass* pass);
+    void EndRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence);
 
     RegisterFile* register_file_ = nullptr;
     ui::vulkan::VulkanDevice* device_ = nullptr;
