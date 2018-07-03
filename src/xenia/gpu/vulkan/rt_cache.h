@@ -106,6 +106,8 @@ class RTCache {
 
     struct RenderPass {
       VkRenderPass pass;
+      VkFramebuffer framebuffer;
+      // Attachment 0 is depth if used, then color.
 
       // nullptr if not used.
       RenderTarget* rts_color[4];

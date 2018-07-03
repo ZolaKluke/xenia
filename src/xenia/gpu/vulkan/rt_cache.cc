@@ -100,6 +100,7 @@ void RTCache::Shutdown() {
   // TODO(Triang3l): Wait for idle.
 
   for (auto pass : passes_) {
+    vkDestroyFramebuffer(*device_, pass->framebuffer, nullptr);
     vkDestroyRenderPass(*device_, pass->pass, nullptr);
     delete pass;
   }
@@ -427,7 +428,9 @@ RTCache::RenderPass* RTCache::GetRenderPass(
   VkRenderPassCreateInfo pass_info;
   VkSubpassDescription subpass;
   VkAttachmentDescription attachments[5];
+  VkImageView attachment_image_views[5];
   VkAttachmentReference color_attachments[4], depth_attachment;
+  uint32_t width_div_80_min = UINT32_MAX, height_div_16_min = UINT32_MAX;
   pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
   pass_info.pNext = nullptr;
   pass_info.flags = 0;
@@ -447,6 +450,31 @@ RTCache::RenderPass* RTCache::GetRenderPass(
   subpass.pDepthStencilAttachment = nullptr;
   subpass.preserveAttachmentCount = 0;
   subpass.pPreserveAttachments = nullptr;
+  // Attachment 0 is depth, then color.
+  if (rt_depth != nullptr) {
+    subpass.pDepthStencilAttachment = &depth_attachment;
+    depth_attachment.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depth_attachment.attachment = pass_info.attachmentCount;
+    VkAttachmentDescription& attachment =
+        attachments[pass_info.attachmentCount];
+    attachment.flags = 0;
+    attachment.format =
+        DepthRenderTargetFormatToVkFormat(key_depth.depth_format);
+    attachment.samples =
+        VkSampleCountFlagBits(1 << uint32_t(key_depth.samples));
+    // attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    // TODO(Triang3l): Change loadOp to DONT_CARE when EDRAM store is added.
+    attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachment.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    attachment_image_views[pass_info.attachmentCount] = rt_depth->image_view;
+    width_div_80_min = std::min(key_depth.width_div_80, width_div_80_min);
+    height_div_16_min = std::min(key_depth.height_div_16, height_div_16_min);
+    ++pass_info.attachmentCount;
+  }
   for (uint32_t i = 0; i < 4; ++i) {
     VkAttachmentReference& color_attachment = color_attachments[i];
     color_attachment.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -455,38 +483,24 @@ RTCache::RenderPass* RTCache::GetRenderPass(
       color_attachment.attachment = VK_ATTACHMENT_UNUSED;
       continue;
     }
+    RenderTargetKey key(keys_color[i]);
     color_attachment.attachment = pass_info.attachmentCount;
     VkAttachmentDescription& attachment =
-        attachments[pass_info.attachmentCount++];
+        attachments[pass_info.attachmentCount];
     attachment.flags = 0;
-    attachment.format =
-        ColorRenderTargetFormatToVkFormat(keys_color[i].color_format);
-    attachment.samples =
-        VkSampleCountFlagBits(1 << uint32_t(keys_color[i].samples));
+    attachment.format = ColorRenderTargetFormatToVkFormat(key.color_format);
+    attachment.samples = VkSampleCountFlagBits(1 << uint32_t(key.samples));
     attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-  }
-  if (rt_depth != nullptr) {
-    subpass.pDepthStencilAttachment = &depth_attachment;
-    depth_attachment.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    depth_attachment.attachment = pass_info.attachmentCount;
-    VkAttachmentDescription& attachment =
-        attachments[pass_info.attachmentCount++];
-    attachment.flags = 0;
-    attachment.format =
-        DepthRenderTargetFormatToVkFormat(key_depth.depth_format);
-    attachment.samples =
-        VkSampleCountFlagBits(1 << uint32_t(key_depth.samples));
-    attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attachment.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    attachment_image_views[pass_info.attachmentCount] =
+        rts_color[i]->image_view;
+    width_div_80_min = std::min(key.width_div_80, width_div_80_min);
+    height_div_16_min = std::min(key.height_div_16, height_div_16_min);
+    ++pass_info.attachmentCount;
   }
   VkRenderPass pass;
   VkResult status = vkCreateRenderPass(*device_, &pass_info, nullptr, &pass);
@@ -495,9 +509,35 @@ RTCache::RenderPass* RTCache::GetRenderPass(
     return nullptr;
   }
 
+  // Create a framebuffer using the pass.
+  VkFramebufferCreateInfo framebuffer_info;
+  framebuffer_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+  framebuffer_info.pNext = nullptr;
+  framebuffer_info.flags = 0;
+  framebuffer_info.renderPass = pass;
+  framebuffer_info.attachmentCount = pass_info.attachmentCount;
+  framebuffer_info.pAttachments = attachment_image_views;
+  if (width_div_80_min == UINT32_MAX && height_div_16_min == UINT32_MAX) {
+    framebuffer_info.width = 80;
+    framebuffer_info.height = 16;
+  } else {
+    framebuffer_info.width = width_div_80_min * 80;
+    framebuffer_info.height = height_div_16_min * 16;
+  }
+  framebuffer_info.layers = 1;
+  VkFramebuffer framebuffer;
+  VkResult status = vkCreateFramebuffer(*device_, &framebuffer_info, nullptr,
+                                        &framebuffer);
+  CheckResult(status, "vkCreateFramebuffer");
+  if (status != VK_SUCCESS) {
+    vkDestroyRenderPass(*device_, pass, nullptr);
+    return nullptr;
+  }
+
   // Insert a new pass object.
   RenderPass* new_pass = new RenderPass;
   new_pass->pass = pass;
+  new_pass->framebuffer = framebuffer;
   std::memcpy(new_pass->rts_color, rts_color, sizeof(rts_color));
   new_pass->rt_depth = rt_depth;
   std::memcpy(new_pass->keys_color, keys_color, sizeof(keys_color));
