@@ -91,6 +91,8 @@ VkResult RTCache::Initialize() {
     return status;
   }
 
+  current_shadow_valid_ = false;
+
   return VK_SUCCESS;
 }
 
@@ -517,9 +519,11 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
                                     VkFence batch_fence) {
   // Check if registers influencing the choice have changed.
   auto& regs = shadow_registers_;
-  bool dirty = false;
+  bool dirty = !current_shadow_valid_;
   dirty |=
       SetShadowRegister(&regs.rb_modecontrol.value, XE_GPU_REG_RB_MODECONTROL);
+  dirty |= SetShadowRegister(&regs.rb_surface_info.value,
+                             XE_GPU_REG_RB_SURFACE_INFO);
   dirty |=
       SetShadowRegister(&regs.rb_color_info.value, XE_GPU_REG_RB_COLOR_INFO);
   dirty |=
@@ -539,8 +543,96 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
     return current_pass_ != nullptr ? DrawStatus::kDrawInSamePass :
                                       DrawStatus::kDoNotDraw;
   }
+  current_shadow_valid_ = true;
 
-  return DrawStatus::kDoNotDraw;
+  // Get the mode, used color render targets and the sample count.
+  ModeControl mode_control = regs.rb_modecontrol.edram_mode;
+  if (mode_control != ModeControl::kColorDepth &&
+      mode_control != ModeControl::kDepth) {
+    current_pass_ = nullptr;
+    return DrawStatus::kDoNotDraw;
+  }
+  uint32_t color_mask =
+      mode_control == ModeControl::kColorDepth ? regs.rb_color_mask : 0;
+  uint32_t color_info[] = {
+      regs.rb_color_info.value, regs.rb_color1_info.value,
+      regs.rb_color2_info.value, regs.rb_color3_info.value
+  };
+  uint32_t samples = regs.rb_surface_info.msaa_samples;
+
+  // Calculate the width of the host render target.
+  uint32_t width = regs.rb_surface_info.surface_pitch;
+  if (width == 0) {
+    current_pass_ = nullptr;
+    return DrawStatus::kDoNotDraw;
+  }
+  width = std::min(width, 2560u);
+  // Round up so there are less switches and to make EDRAM load/store safer.
+  uint32_t width_div_80 = xe::round_up(width, 80) / 80;
+
+  // Calculate the height of the render pass.
+  // TODO(Triang3l): Use 120 or 240 increments from the viewport instead of max.
+  // TODO(Triang3l): For max, use the real offset, 0 is just for early testing.
+  bool any_64bpp = false;
+  for (uint32_t i = 0; i < 4; ++i) {
+    if (!(color_mask & (0xF << (i * 4)))) {
+      continue;
+    }
+    ColorRenderTargetFormat color_format =
+        ColorRenderTargetFormat((color_info[i] >> 16) & 0xF);
+    if (EDRAMStore::IsColorFormat64bpp(color_format)) {
+      any_64bpp = true;
+      break;
+    }
+    uint32_t color_max_height = EDRAMStore::GetMaxHeight(
+  }
+  uint32_t height = EDRAMStore::GetMaxHeight(any_64bpp, samples, 0, width);
+  if (height == 0) {
+    current_pass_ = nullptr;
+    return DrawStatus::kDoNotDraw;
+  }
+  uint32_t height_div_16 = xe::round_up(height, 16) / 16;
+
+  // Get the keys for the render pass.
+  RenderTargetKey keys_color[4], key_depth;
+  for (uint32_t i = 0; i < 4; ++i) {
+    uint32_t& key_color = keys_color[i];
+    if (!(color_mask & (0xF << (i * 4)))) {
+      key_color.value = 0;
+      continue;
+    }
+    key_color.width_div_80 = width_div_80;
+    key_color.height_div_16 = height_div_16;
+    key_color.is_depth = 0;
+    key_color.color_format =
+        ColorRenderTargetFormat((color_info[i] >> 16) & 0xF);
+    key_color.samples = samples;
+  }
+  key_depth.width_div_80 = width_div_80;
+  key_depth.height_div_16 = height_div_16;
+  key_depth.is_depth = 1;
+  key_depth.depth_format = regs.rb_depth_info.depth_format;
+  key_depth.samples = samples;
+
+  // Check if we can keep using the old pass.
+  // TODO(Triang3l): Check if offsets are different when EDRAM store is added.
+  if (current_pass_ != nullptr) {
+    if (!std::memcmp(current_pass_->keys_color, keys_color, sizeof(keys_color)
+        && current_pass->key_depth == key_depth)) {
+      return DrawStatus::kDrawInSamePass;
+    }
+  }
+
+  // Find or create the render pass and enter it.
+  current_pass_ = GetRenderPass(keys_color, key_depth);
+  if (current_pass_ == nullptr) {
+    // Not supported or there have been Vulkan errors, don't render.
+    return DrawStatus::kDoNotDraw;
+  }
+
+  // TODO(Triang3l): Start a new render pass.
+
+  return DrawStatus::kDrawInNewPass;
 }
 
 void RTCache::OnFrameEnd(VkCommandBuffer command_buffer, VkFence batch_fence) {

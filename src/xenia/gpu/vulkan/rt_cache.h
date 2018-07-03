@@ -165,6 +165,9 @@ class RTCache {
     RenderPass* current_pass_ = nullptr;
     uint32_t current_edram_color_tiles_[4];
     uint32_t current_edram_depth_tile_;
+    // current_shadow_valid_ is set to false when need to do full OnDraw logic.
+    // This may happen after a copy command that ends the pass, for example.
+    bool current_shadow_valid_ = false;
 };
 
 }  // namespace vulkan

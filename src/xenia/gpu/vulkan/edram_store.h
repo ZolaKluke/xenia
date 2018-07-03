@@ -64,8 +64,8 @@ class EDRAMStore {
                   uint32_t edram_offset_tiles, uint32_t edram_pitch_px);
 
   // Returns the maximum height of a render target in pixels.
-  uint32_t GetMaxHeight(bool format_64bpp, MsaaSamples samples,
-                        uint32_t offset_tiles, uint32_t pitch_px);
+  static uint32_t GetMaxHeight(bool format_64bpp, MsaaSamples samples,
+                               uint32_t offset_tiles, uint32_t pitch_px);
 
   void Scavenge();
 
@@ -123,8 +123,9 @@ class EDRAMStore {
   Mode GetColorMode(ColorRenderTargetFormat format, MsaaSamples samples);
 
   // Returns log2 of how many EDRAM image texels one framebuffer pixel covers.
-  void GetPixelEDRAMSizePower(bool format_64bpp, MsaaSamples samples,
-                              uint32_t& width_power, uint32_t& height_power);
+  static void GetPixelEDRAMSizePower(bool format_64bpp, MsaaSamples samples,
+                                     uint32_t& width_power,
+                                     uint32_t& height_power);
 
   // Returns false if shouldn't or can't load or store this EDRAM portion.
   // Not necessarily in case of an error, returns false for 0x0 framebuffer too.
