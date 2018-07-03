@@ -23,7 +23,7 @@ namespace gpu {
 namespace vulkan {
 
 // Stores the raw contents of the EDRAM in a buffer implemented as a 1280x2048
-// 32-bit image.
+// 32-bit image, basically manages the guest framebuffers.
 //
 // There is a large comment in render_cache.h describing the way EDRAM is
 // structured and accessed by games.
@@ -46,6 +46,13 @@ class EDRAMStore {
   VkResult Initialize();
   void Shutdown();
 
+  // Whether the format is 64 bits per pixel on the guest.
+  static inline bool IsColorFormat64bpp(ColorRenderTargetFormat format) {
+    return format == ColorRenderTargetFormat::k_16_16_16_16 ||
+           format == ColorRenderTargetFormat::k_16_16_16_16_FLOAT ||
+           format == ColorRenderTargetFormat::k_32_32_FLOAT;
+  }
+
   // Prior to storing, the render target must be in the following state:
   // StageMask & VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
   // AccessMask & VK_ACCESS_SHADER_READ_BIT
@@ -56,13 +63,9 @@ class EDRAMStore {
                   MsaaSamples rt_samples, VkRect2D rt_rect,
                   uint32_t edram_offset_tiles, uint32_t edram_pitch_px);
 
-  // Gets the maximum height of a color render target in pixels.
-  uint32_t GetColorMaxHeight(ColorRenderTargetFormat format,
-                             MsaaSamples samples, uint32_t offset_tiles,
-                             uint32_t pitch_px);
-  uint32_t GetDepthMaxHeight(DepthRenderTargetFormat format,
-                             MsaaSamples samples, uint32_t offset_tiles,
-                             uint32_t pitch_px);
+  // Returns the maximum height of a render target in pixels.
+  uint32_t GetMaxHeight(bool format_64bpp, MsaaSamples samples,
+                        uint32_t offset_tiles, uint32_t pitch_px);
 
   void Scavenge();
 
@@ -120,20 +123,18 @@ class EDRAMStore {
   Mode GetColorMode(ColorRenderTargetFormat format, MsaaSamples samples);
 
   // Returns log2 of how many EDRAM image texels one framebuffer pixel covers.
-  void GetPixelEDRAMSizePower(Mode mode, uint32_t& width_power,
-                              uint32_t& height_power);
+  void GetPixelEDRAMSizePower(bool format_64bpp, MsaaSamples samples,
+                              uint32_t& width_power, uint32_t& height_power);
 
   // Returns false if shouldn't or can't load or store this EDRAM portion.
   // Not necessarily in case of an error, returns false for 0x0 framebuffer too.
   // This assumes that the whole framebuffer starts at a whole tile.
-  bool GetDimensions(Mode mode, uint32_t edram_base_offset_tiles,
-                     uint32_t edram_pitch_px, VkRect2D rt_rect,
-                     VkRect2D& rt_rect_adjusted,
+  bool GetDimensions(bool format_64bpp, MsaaSamples samples,
+                     uint32_t edram_base_offset_tiles, uint32_t edram_pitch_px,
+                     VkRect2D rt_rect, VkRect2D& rt_rect_adjusted,
                      uint32_t& edram_add_offset_tiles,
                      VkExtent2D& edram_extent_tiles,
                      uint32_t& edram_pitch_tiles);
-
-  uint32_t GetMaxHeight(Mode mode, uint32_t offset_tiles, uint32_t pitch_px);
 
   ui::vulkan::VulkanDevice* device_ = nullptr;
 

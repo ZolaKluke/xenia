@@ -323,19 +323,18 @@ EDRAMStore::Mode EDRAMStore::GetColorMode(ColorRenderTargetFormat format,
   return Mode::k_ModeUnsupported;
 }
 
-void EDRAMStore::GetPixelEDRAMSizePower(Mode mode, uint32_t& width_power,
-                                        uint32_t& height_power) {
+void EDRAMStore::GetPixelEDRAMSizePower(bool format_64bpp, MsaaSamples samples,
+                                        uint32_t& width_power, uint32_t& height_power) {
   // For 64bpp images, each pixel is split into 2 EDRAM texels horizontally.
   // For 2X MSAA, two samples of each pixels are placed vertically.
   // For 4X MSAA, the additional samples are also placed horizontally.
   uint32_t pixel_width_power = 0, pixel_height_power = 0;
-  if (IsMode64bpp(mode)) {
+  if (format_64bpp) {
     ++pixel_width_power;
   }
-  MsaaSamples msaa_samples = GetModeMsaaSamples(mode);
-  if (msaa_samples >= MsaaSamples::k2X) {
+  if (samples >= MsaaSamples::k2X) {
     ++pixel_height_power;
-    if (msaa_samples >= MsaaSamples::k4X) {
+    if (samples >= MsaaSamples::k4X) {
       ++pixel_width_power;
     }
   }
@@ -344,8 +343,8 @@ void EDRAMStore::GetPixelEDRAMSizePower(Mode mode, uint32_t& width_power,
 }
 
 bool EDRAMStore::GetDimensions(
-    Mode mode, uint32_t edram_base_offset_tiles, uint32_t edram_pitch_px,
-    VkRect2D rt_rect, VkRect2D& rt_rect_adjusted,
+    bool format_64bpp, MsaaSamples samples, uint32_t edram_base_offset_tiles,
+    uint32_t edram_pitch_px, VkRect2D rt_rect, VkRect2D& rt_rect_adjusted,
     uint32_t& edram_add_offset_tiles, VkExtent2D& edram_extent_tiles,
     uint32_t& edram_pitch_tiles) {
   // Check if the area is not empty or outside the bounds.
@@ -361,7 +360,8 @@ bool EDRAMStore::GetDimensions(
   // pixel can take multiple texels in the EDRAM image with a 64bpp format or
   // with multisampling.
   uint32_t pixel_width_power, pixel_height_power;
-  GetPixelEDRAMSizePower(mode, pixel_width_power, pixel_height_power);
+  GetPixelEDRAMSizePower(format_64bpp, samples, pixel_width_power,
+                         pixel_height_power);
 
   // Scale the framebuffer area relatively to EDRAM image texels.
   rt_rect.offset.x <<= pixel_width_power;
@@ -415,30 +415,19 @@ bool EDRAMStore::GetDimensions(
   return true;
 }
 
-uint32_t EDRAMStore::GetMaxHeight(Mode mode, uint32_t offset_tiles,
-                                  uint32_t pitch_px) {
-  if (mode == Mode::k_Unsupported || pitch_px == 0) {
+uint32_t EDRAMStore::GetMaxHeight(bool format_64bpp, MsaaSamples samples,
+                                  uint32_t offset_tiles, uint32_t pitch_px) {
+  if (pitch_px == 0) {
     return 0;
   }
   uint32_t pixel_width_power, pixel_height_power;
-  GetPixelEDRAMSizePower(mode, pixel_width_power, pixel_height_power);
-  uint32_t edram_pitch_tiles = xe::round_up(pitch_px << pixel_width_power, 80) / 80;
+  GetPixelEDRAMSizePower(format_64bpp, samples, pixel_width_power,
+                         pixel_height_power);
+  uint32_t edram_pitch_tiles =
+      xe::round_up(pitch_px << pixel_width_power, 80) / 80;
   uint32_t height = ((2048 - offset_tiles) / edram_pitch_tiles) <<
                     (4 - pixel_height_power);
   return std::min(height, 2560u);
-}
-
-uint32_t EDRAMStore::GetColorMaxHeight(
-    ColorRenderTargetFormat format, MsaaSamples samples, uint32_t offset_tiles,
-    uint32_t pitch_px) {
-  return GetMaxHeight(GetColorMode(format, samples), offset_tiles, pitch_px);
-}
-
-uint32_t EDRAMStore::GetDepthMaxHeight(
-    DepthRenderTargetFormat format, MsaaSamples samples, uint32_t offset_tiles,
-    uint32_t pitch_px) {
-  // TODO(Triang3l): Implement max height for depth buffers.
-  return 0;
 }
 
 void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
@@ -463,8 +452,8 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   VkRect2D rt_rect_adjusted;
   uint32_t edram_add_offset_tiles, edram_pitch_tiles;
   VkExtent2D edram_extent_tiles;
-  if (!GetDimensions(mode, edram_offset_tiles, edram_pitch_px, rt_rect,
-                     rt_rect_adjusted, edram_add_offset_tiles,
+  if (!GetDimensions(rt_format, rt_samples, edram_offset_tiles, edram_pitch_px,
+                     rt_rect, rt_rect_adjusted, edram_add_offset_tiles,
                      edram_extent_tiles, edram_pitch_tiles)) {
     return;
   }
