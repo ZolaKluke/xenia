@@ -394,6 +394,7 @@ bool RTCache::AllocateRenderTargets(
     rt->key.value = key.value;
     rt->page_first = alloc_info.page_first;
     rt->page_count = alloc_info.page_count;
+    rt->current_usage = RenderTargetUsage::kUntransitioned;
     rts_.insert(std::make_pair<uint32_t, RenderTarget*>(key.value, rt));
     rts[rt_index] = rt;
     // It's not "new" anymore, so don't delete it in case of an error.
@@ -404,6 +405,38 @@ bool RTCache::AllocateRenderTargets(
   *rt_depth = rts[0];
   std::memcpy(rts_color, &rts[1], sizeof(rts_color));
   return true;
+}
+
+VkPipelineStageFlags RTCache::GetRenderTargetUsageParameters(
+    bool is_depth, RenderTargetUsage usage, VkAccessFlags& access_mask,
+    VkImageLayout& layout) {
+  switch (usage) {
+    case RenderTargetUsage::kUntransitioned:
+      access_mask = 0;
+      layout = VK_IMAGE_LAYOUT_UNDEFINED;
+      return VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    case RenderTargetUsage::kFramebuffer:
+      layout = VK_IMAGE_LAYOUT_GENERAL;
+      if (is_depth) {
+        access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+                      VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        return VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+               VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+      }
+      access_mask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+      return VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    case RenderTargetUsage::kStoreToEDRAM:
+      assert_false(is_depth);
+      access_mask = VK_ACCESS_SHADER_READ_BIT;
+      layout = VK_IMAGE_LAYOUT_GENERAL;
+      return VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    default:
+      assert_unhandled_case(usage);
+  };
+  access_mask = 0;
+  layout = VK_IMAGE_LAYOUT_GENERAL;
+  return VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 }
 
 RTCache::RenderPass* RTCache::GetRenderPass(
@@ -557,9 +590,115 @@ bool RTCache::SetShadowRegister(uint32_t* dest, uint32_t register_name) {
   return true;
 }
 
+void RTCache::SwitchRenderPassTargetUsage(
+    VkCommandBuffer command_buffer, RenderPass* pass, RenderTargetUsage usage,
+    uint32_t switch_color_mask, bool switch_depth) {
+  // Filter out targets already in the required usage.
+  for (uint32_t i = 0; i < 4; ++i) {
+    if (!(switch_color_mask & (uint32_t(1) << i))) {
+      continue;
+    }
+    RenderTarget* rt = pass->rts_color[i];
+    if (rt == nullptr || rt->current_usage == usage) {
+      switch_color_mask &= ~(uint32_t(1) << i);
+    }
+  }
+  if (switch_depth) {
+    if (pass->rt_depth == nullptr || pass->rt_depth->current_usage == usage) {
+      switch_depth = false;
+    }
+  }
+  if (!switch_color_mask && !switch_depth) {
+    return;
+  }
+
+  // Switch usage.
+  VkPipelineStageFlagBits stage_mask_src = 0, stage_mask_dst = 0;
+  VkImageMemoryBarrier image_barriers[6];
+  uint32_t image_barrier_count = 0;
+  if (switch_color_mask) {
+    VkAccessFlags access_mask_new;
+    VkImageLayout layout_new;
+    stage_mask_dst |=
+        GetRenderTargetUsageParameters(false, usage, access_mask_new,
+                                       layout_new);
+    for (uint32_t i = 0; i < 4; ++i) {
+      if (!(switch_color_mask & (uint32_t(1) << i))) {
+        continue;
+      }
+      RenderTarget* rt = pass->rts_color[i];
+      VkImageMemoryBarrier& image_barrier = image_barriers[image_barrier_count];
+      stage_mask_src |=
+          GetRenderTargetUsageParameters(false, rt->current_usage,
+                                         image_barrier.srcAccessMask,
+                                         image_barrier.oldLayout);
+      rt->current_usage = usage;
+      if (image_barrier.srcAccessMask == access_mask_new &&
+          image_barrier.oldLayout == layout_new) {
+        continue;
+      }
+      image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+      image_barrier.pNext = nullptr;
+      image_barrier.dstAccessMask = access_mask_new;
+      image_barrier.newLayout = layout_new;
+      image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+      image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+      image_barrier.image = rt->image;
+      image_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+      image_barrier.subresourceRange.baseMipLevel = 0;
+      image_barrier.subresourceRange.levelCount = 1;
+      image_barrier.subresourceRange.baseArrayLayer = 0;
+      image_barrier.subresourceRange.layerCount = 1;
+      ++image_barrier_count;
+    }
+  }
+  if (switch_depth) {
+    VkAccessFlags access_mask_new;
+    VkImageLayout layout_new;
+    stage_mask_dst |=
+        GetRenderTargetUsageParameters(true, usage, access_mask_new,
+                                       layout_new);
+    RenderTarget* rt = pass->rt_depth;
+    VkImageMemoryBarrier& image_barrier = image_barriers[image_barrier_count];
+    stage_mask_src |=
+        GetRenderTargetUsageParameters(true, rt->current_usage,
+                                       image_barrier.srcAccessMask,
+                                       image_barrier.oldLayout);
+    rt->current_usage = usage;
+    if (image_barrier.srcAccessMask != access_mask_new ||
+        image_barrier.oldLayout != layout_new) {
+      image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+      image_barrier.pNext = nullptr;
+      image_barrier.dstAccessMask = access_mask_new;
+      image_barrier.newLayout = layout_new;
+      image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+      image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+      image_barrier.image = rt->image;
+      image_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+      image_barrier.subresourceRange.baseMipLevel = 0;
+      image_barrier.subresourceRange.levelCount = 1;
+      image_barrier.subresourceRange.baseArrayLayer = 0;
+      image_barrier.subresourceRange.layerCount = 1;
+      ++image_barrier_count;
+
+      VkImageMemoryBarrier& image_barrier_stencil =
+          image_barriers[image_barrier_count];
+      image_barrier_stencil = image_barrier;
+      image_barrier_stencil.subresourceRange.aspectMask =
+          VK_IMAGE_ASPECT_STENCIL_BIT;
+      ++image_barrier_count;
+    }
+  }
+  vkCmdPipelineBarrier(command_buffer, stage_mask_src, stage_mask_dst, 0, 0,
+                       nullptr, 0, nullptr, image_barrier_count,
+                       image_barriers);
+}
+
 void RTCache::BeginRenderPass(VkCommandBuffer command_buffer,
                               VkFence batch_fence, RTCache::RenderPass* pass) {
-  // TODO(Triang3l): Barriers.
+  SwitchRenderPassTargetUsage(command_buffer, pass,
+                              RenderTargetUsage::kFramebuffer, 0xF, true);
+
   VkRenderPassBeginInfo begin_info;
   begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
   begin_info.pNext = nullptr;
@@ -569,6 +708,7 @@ void RTCache::BeginRenderPass(VkCommandBuffer command_buffer,
   begin_info.renderArea.offset.y = 0;
   begin_info.renderArea.extent.width = pass->width;
   begin_info.renderArea.extent.height = pass->height;
+
   // TODO(Triang3l): Remove clear when EDRAM store is added.
   VkClearValue clear_depth;
   begin_info.pClearValues = &clear_depth;
@@ -579,6 +719,7 @@ void RTCache::BeginRenderPass(VkCommandBuffer command_buffer,
   } else {
     begin_info.clearValueCount = 0;
   }
+
   vkCmdBeginRenderPass(command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
   current_pass_ = pass;
 }

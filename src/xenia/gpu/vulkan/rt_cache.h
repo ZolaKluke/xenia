@@ -89,6 +89,15 @@ class RTCache {
       }
     };
 
+    enum class RenderTargetUsage {
+      // Newly created.
+      kUntransitioned,
+      // Currently used for rendering or EDRAM loading.
+      kFramebuffer,
+      // Currently being stored to the EDRAM.
+      kStoreToEDRAM
+    };
+
     // One render target bound to a specific page.
     struct RenderTarget {
       VkImage image;
@@ -102,6 +111,8 @@ class RTCache {
       // Number of 4 MB pages this render target uses.
       // Up to 6 - pages can't span multiple memory areas.
       uint32_t page_count;
+
+      RenderTargetUsage current_usage;
     };
 
     struct RenderPass {
@@ -129,10 +140,18 @@ class RTCache {
                                RenderTarget* rts_color[4],
                                RenderTarget** rt_depth);
 
+    static VkPipelineStageFlags GetRenderTargetUsageParameters(
+        bool is_depth, RenderTargetUsage usage, VkAccessFlags& access_mask,
+        VkImageLayout& layout);
+
     // Finds or creates a render pass. Returns nullptr in case of an error.
     RenderPass* GetRenderPass(const RenderTargetKey keys_color[4],
                               RenderTargetKey key_depth);
 
+    void SwitchRenderPassTargetUsage(VkCommandBuffer command_buffer,
+                                     RenderPass* pass, RenderTargetUsage usage,
+                                     uint32_t switch_color_mask,
+                                     bool switch_depth);
     void BeginRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence,
                          RenderPass* pass);
     void EndRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence);
