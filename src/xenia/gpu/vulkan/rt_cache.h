@@ -75,10 +75,8 @@ class RTCache {
         uint32_t width_div_80 : 6;  // 6
         uint32_t height_div_16 : 8;  // 14
         uint32_t is_depth : 1;  // 15
-        union {
-          ColorRenderTargetFormat color_format : 4;
-          DepthRenderTargetFormat depth_format : 1;
-        };  // 19
+        // ColorRenderTargetFormat or DepthRenderTargetFormat.
+        uint32_t format : 4;  // 19
         MsaaSamples samples : 2;  // 21
       };
       uint32_t value;

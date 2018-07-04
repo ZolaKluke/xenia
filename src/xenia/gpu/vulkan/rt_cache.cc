@@ -152,14 +152,17 @@ bool RTCache::AllocateRenderTargets(
         assert_always();
         return false;
       }
-      formats[i] = DepthRenderTargetFormatToVkFormat(key.depth_format);
+      formats[i] = DepthRenderTargetFormatToVkFormat(DepthRenderTargetFormat(
+                                                     key.format));
     } else {
       if (key.is_depth) {
         assert_always();
         return false;
       }
-      key.color_format = GetBaseRTFormat(key.color_format);
-      formats[i] = ColorRenderTargetFormatToVkFormat(key.color_format);
+      ColorRenderTargetFormat format = ColorRenderTargetFormat(key.format);
+      format = GetBaseRTFormat(format);
+      key.format = uint32_t(format);
+      formats[i] = ColorRenderTargetFormatToVkFormat(format);
     }
     if (formats[i] == VK_FORMAT_UNDEFINED) {
       assert_always();
@@ -231,6 +234,11 @@ bool RTCache::AllocateRenderTargets(
     }
     VkMemoryRequirements memory_requirements;
     vkGetImageMemoryRequirements(*device_, new_images[i], &memory_requirements);
+    XELOGGPU(
+        "RT Cache: Need memory of size %u and alignment of %u for %ux%u image.\n",
+        uint32_t(memory_requirements.size),
+        uint32_t(memory_requirements.alignment), key.width_div_80 * 80,
+        key.height_div_16 * 16);
     assert_always(memory_requirements.alignment <= (1 << 22));
     if (memory_requirements.size > (6 << 22)) {
       // Can't fit the image in a whole 24 MB block.
@@ -262,8 +270,11 @@ bool RTCache::AllocateRenderTargets(
             });
   // Number of pages allocated in each 24 MB block.
   uint32_t pages_allocated[5] = {};
+  XELOGGPU("RT Cache: Used %u RTs.\n", used_rt_count);
   for (uint32_t i = 0; i < used_rt_count; ++i) {
     RTAllocInfo& alloc_info = alloc_infos[i];
+    XELOGGPU("RT Cache: Used RT %u (%u) has page count of %u.\n", i,
+             alloc_info.rt_index, alloc_info.page_count);
     uint32_t block_index;
     for (block_index = 0; block_index < 5; ++block_index) {
       if (pages_allocated[block_index] + alloc_info.page_count <= 6) {
@@ -384,9 +395,8 @@ bool RTCache::AllocateRenderTargets(
     // TODO(Triang3l): Color and depth format names.
     device_->DbgSetObjectName(
         uint64_t(new_images[rt_index]), VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
-        xe::format_string("RT(%c): %u, %ux, pages [%u,%u)", key.is_depth ? 'd' : 'c',
-                          key.is_depth ? uint32_t(key.depth_format) :
-                                         uint32_t(key.color_format),
+        xe::format_string("RT(%c): %u, %ux, pages [%u,%u)",
+                          key.is_depth ? 'd' : 'c', key.format,
                           1 << uint32_t(key.samples), alloc_info.page_first,
                           alloc_info.page_first + alloc_info.page_count));
     // Add a new entry to the cache.
@@ -398,6 +408,10 @@ bool RTCache::AllocateRenderTargets(
     rt->page_first = alloc_info.page_first;
     rt->page_count = alloc_info.page_count;
     rt->current_usage = RenderTargetUsage::kUntransitioned;
+    XELOGGPU(
+        "RT Cache: Allocated RT %ux%u, format %u, samples %u, page %u, page count %u.\n",
+        key.width_div_80 * 80, key.height_div_16 * 16, key.format, key.samples,
+        alloc_info.page_first, alloc_info.page_count);
     rts_.insert(std::make_pair(key.value, rt));
     rts[rt_index] = rt;
     // It's not "new" anymore, so don't delete it in case of an error.
@@ -498,7 +512,8 @@ RTCache::RenderPass* RTCache::GetRenderPass(
         attachments[pass_info.attachmentCount];
     attachment.flags = 0;
     attachment.format =
-        DepthRenderTargetFormatToVkFormat(key_depth.depth_format);
+        DepthRenderTargetFormatToVkFormat(DepthRenderTargetFormat(
+                                          key_depth.format));
     attachment.samples =
         VkSampleCountFlagBits(1 << uint32_t(key_depth.samples));
     // attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -527,7 +542,8 @@ RTCache::RenderPass* RTCache::GetRenderPass(
     VkAttachmentDescription& attachment =
         attachments[pass_info.attachmentCount];
     attachment.flags = 0;
-    attachment.format = ColorRenderTargetFormatToVkFormat(key.color_format);
+    attachment.format = ColorRenderTargetFormatToVkFormat(
+        ColorRenderTargetFormat(key.format));
     attachment.samples = VkSampleCountFlagBits(1 << uint32_t(key.samples));
     attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -788,12 +804,16 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
       regs.rb_color2_info.value, regs.rb_color3_info.value
   };
   MsaaSamples samples = regs.rb_surface_info.msaa_samples;
+  XELOGGPU("RT Cache: %u samples in this draw.\n", samples);
 
   // Calculate the width of the host render target.
   uint32_t width = regs.rb_surface_info.surface_pitch;
   if (width == 0) {
     EndRenderPass(command_buffer, batch_fence);
     return DrawStatus::kDoNotDraw;
+  }
+  if (samples == MsaaSamples::k4X) {
+    width *= 2;
   }
   width = std::min(width, 2560u);
   // Round up so there are less switches and to make EDRAM load/store safer.
@@ -832,14 +852,14 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
     key_color.width_div_80 = width_div_80;
     key_color.height_div_16 = height_div_16;
     key_color.is_depth = 0;
-    key_color.color_format =
-        ColorRenderTargetFormat((color_info[i] >> 16) & 0xF);
+    key_color.format = (color_info[i] >> 16) & 0xF;
     key_color.samples = samples;
   }
   key_depth.width_div_80 = width_div_80;
   key_depth.height_div_16 = height_div_16;
   key_depth.is_depth = 1;
-  key_depth.depth_format = regs.rb_depth_info.depth_format;
+  DepthRenderTargetFormat depth_format = regs.rb_depth_info.depth_format;
+  key_depth.format = uint32_t(depth_format);
   key_depth.samples = samples;
 
   // Check if we can keep using the old pass.
