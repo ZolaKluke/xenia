@@ -134,7 +134,7 @@ bool RTCache::AllocateRenderTargets(
   // has less different views.
   RenderTargetKey keys[5];
   keys[0].value = key_depth.value;
-  std::memcpy(&keys[1], keys_color, sizeof(keys_color));
+  std::memcpy(&keys[1], keys_color, 4 * sizeof(RenderTargetKey));
 
   // Validate attachments and get their Vulkan formats.
   VkFormat formats[5];
@@ -253,7 +253,7 @@ bool RTCache::AllocateRenderTargets(
     ++used_rt_count;
   }
   if (used_rt_count == 0) {
-    std::memset(rts_color, 0, sizeof(rts_color));
+    std::memset(rts_color, 0, 4 * sizeof(RenderTarget*));
     *rt_depth = nullptr;
     return true;
   }
@@ -420,7 +420,7 @@ bool RTCache::AllocateRenderTargets(
 
   // Return the found or created render targets.
   *rt_depth = rts[0];
-  std::memcpy(rts_color, &rts[1], sizeof(rts_color));
+  std::memcpy(rts_color, &rts[1], 4 * sizeof(RenderTarget*));
   return true;
 }
 
@@ -462,7 +462,8 @@ RTCache::RenderPass* RTCache::GetRenderPass(
   // Check if there is an existing render pass with such render targets.
   // TODO(Triang3l): Use a better structure (though pass count is mostly small).
   for (auto existing_pass : passes_) {
-    if (!std::memcmp(existing_pass->keys_color, keys_color, sizeof(keys_color))
+    if (!std::memcmp(existing_pass->keys_color, keys_color,
+                     4 * sizeof(RenderTargetKey))
         && existing_pass->key_depth.value == key_depth.value) {
       return existing_pass;
     }
@@ -551,8 +552,7 @@ RTCache::RenderPass* RTCache::GetRenderPass(
     attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    attachment_image_views[pass_info.attachmentCount] =
-        rts_color[i]->image_view;
+    attachment_image_views[pass_info.attachmentCount] = rt_color->image_view;
     width_div_80_min = std::min(key.width_div_80, width_div_80_min);
     height_div_16_min = std::min(key.height_div_16, height_div_16_min);
     ++pass_info.attachmentCount;
@@ -593,9 +593,9 @@ RTCache::RenderPass* RTCache::GetRenderPass(
   RenderPass* new_pass = new RenderPass;
   new_pass->pass = pass;
   new_pass->framebuffer = framebuffer;
-  std::memcpy(new_pass->rts_color, rts_color, sizeof(rts_color));
+  std::memcpy(new_pass->rts_color, rts_color, 4 * sizeof(RenderTarget*));
   new_pass->rt_depth = rt_depth;
-  std::memcpy(new_pass->keys_color, keys_color, sizeof(keys_color));
+  std::memcpy(new_pass->keys_color, keys_color, 4 * sizeof(RenderTargetKey));
   new_pass->key_depth = key_depth;
   new_pass->width = framebuffer_info.width;
   new_pass->height = framebuffer_info.height;
@@ -865,7 +865,8 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
   // Check if we can keep using the old pass.
   // TODO(Triang3l): Check if offsets are different when EDRAM store is added.
   if (current_pass_ != nullptr) {
-    if (!std::memcmp(current_pass_->keys_color, keys_color, sizeof(keys_color))
+    if (!std::memcmp(current_pass_->keys_color, keys_color,
+                     4 * sizeof(RenderTargetKey))
         && current_pass_->key_depth.value == key_depth.value) {
       return DrawStatus::kDrawInSamePass;
     }
