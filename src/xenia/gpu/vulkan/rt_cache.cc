@@ -12,6 +12,7 @@
 
 #include "xenia/gpu/vulkan/rt_cache.h"
 #include "xenia/base/assert.h"
+#include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 
 namespace xe {
@@ -106,7 +107,8 @@ void RTCache::Shutdown() {
   }
   passes_.clear();
 
-  for (auto rt : rts_) {
+  for (auto rt_pair : rts_) {
+    auto rt = rt_pair.second;
     if (rt->image_view_stencil != nullptr) {
       vkDestroyImageView(*device_, rt->image_view_stencil, nullptr);
     }
@@ -202,13 +204,13 @@ bool RTCache::AllocateRenderTargets(
     if (key.value == 0) {
       continue;
     }
-    RTAllocInfo& alloc_info = alloc_infos[user_rt_count];
+    RTAllocInfo& alloc_info = alloc_infos[used_rt_count];
     alloc_info.rt_index = i;
     auto found_rt_iter = rts_.find(key.value);
     if (found_rt_iter != rts_.end()) {
       // There is a render target with the requested parameters already.
       // Reusing its page count. It may be aliased, but this doesn't matter.
-      alloc_info.page_count = (*found_rt_iter)->page_count;
+      alloc_info.page_count = found_rt_iter->second->page_count;
       ++used_rt_count;
       continue;
     }
@@ -261,8 +263,9 @@ bool RTCache::AllocateRenderTargets(
   // Number of pages allocated in each 24 MB block.
   uint32_t pages_allocated[5] = {};
   for (uint32_t i = 0; i < used_rt_count; ++i) {
-    const RTAllocInfo& alloc_info = alloc_infos[i];
-    for (uint32_t block_index = 0; block_index < 5; ++block_index) {
+    RTAllocInfo& alloc_info = alloc_infos[i];
+    uint32_t block_index;
+    for (block_index = 0; block_index < 5; ++block_index) {
       if (pages_allocated[block_index] + alloc_info.page_count <= 6) {
         break;
       }
@@ -349,8 +352,8 @@ bool RTCache::AllocateRenderTargets(
     }
     // Bind memory to it and create a view.
     status = vkBindImageMemory(*device_, new_images[rt_index],
-                               rt_memory_[alloc_info->page_first / 6],
-                               (alloc_info->page_first % 6) << 22);
+                               rt_memory_[alloc_info.page_first / 6],
+                               (alloc_info.page_first % 6) << 22);
     CheckResult(status, "vkBindImageMemory");
     VkImageView image_view = nullptr, image_view_stencil = nullptr;
     if (status == VK_SUCCESS) {
@@ -385,7 +388,7 @@ bool RTCache::AllocateRenderTargets(
                           key.is_depth ? uint32_t(key.depth_format) :
                                          uint32_t(key.color_format),
                           1 << uint32_t(key.samples), alloc_info.page_first,
-                          alloc_info.page_first + alloc_info.page_count);
+                          alloc_info.page_first + alloc_info.page_count));
     // Add a new entry to the cache.
     RenderTarget* rt = new RenderTarget;
     rt->image = new_images[rt_index];
@@ -395,7 +398,7 @@ bool RTCache::AllocateRenderTargets(
     rt->page_first = alloc_info.page_first;
     rt->page_count = alloc_info.page_count;
     rt->current_usage = RenderTargetUsage::kUntransitioned;
-    rts_.insert(std::make_pair<uint32_t, RenderTarget*>(key.value, rt));
+    rts_.insert(std::make_pair(key.value, rt));
     rts[rt_index] = rt;
     // It's not "new" anymore, so don't delete it in case of an error.
     new_images[rt_index] = nullptr;
@@ -446,16 +449,19 @@ RTCache::RenderPass* RTCache::GetRenderPass(
   // TODO(Triang3l): Use a better structure (though pass count is mostly small).
   for (auto existing_pass : passes_) {
     if (!std::memcmp(existing_pass->keys_color, keys_color, sizeof(keys_color))
-        && existing_pass->key_depth == key_depth) {
+        && existing_pass->key_depth.value == key_depth.value) {
       return existing_pass;
     }
   }
 
   // Obtain the attachments for the pass.
-  RenderTarget* rts_color[4], rt_depth;
+  RenderTarget* rts_color[4];
+  RenderTarget* rt_depth;
   if (!AllocateRenderTargets(keys_color, key_depth, rts_color, &rt_depth)) {
     return false;
   }
+
+  VkResult status;
 
   // Create a new Vulkan render pass.
   VkRenderPassCreateInfo pass_info;
@@ -511,7 +517,7 @@ RTCache::RenderPass* RTCache::GetRenderPass(
   for (uint32_t i = 0; i < 4; ++i) {
     VkAttachmentReference& color_attachment = color_attachments[i];
     color_attachment.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    RenderTarget* rt_color = rts_colors[i];
+    RenderTarget* rt_color = rts_color[i];
     if (rt_color == nullptr) {
       color_attachment.attachment = VK_ATTACHMENT_UNUSED;
       continue;
@@ -536,7 +542,7 @@ RTCache::RenderPass* RTCache::GetRenderPass(
     ++pass_info.attachmentCount;
   }
   VkRenderPass pass;
-  VkResult status = vkCreateRenderPass(*device_, &pass_info, nullptr, &pass);
+  status = vkCreateRenderPass(*device_, &pass_info, nullptr, &pass);
   CheckResult(status, "vkCreateRenderPass");
   if (status != VK_SUCCESS) {
     return nullptr;
@@ -559,7 +565,7 @@ RTCache::RenderPass* RTCache::GetRenderPass(
   }
   framebuffer_info.layers = 1;
   VkFramebuffer framebuffer;
-  VkResult status = vkCreateFramebuffer(*device_, &framebuffer_info, nullptr,
+  status = vkCreateFramebuffer(*device_, &framebuffer_info, nullptr,
                                         &framebuffer);
   CheckResult(status, "vkCreateFramebuffer");
   if (status != VK_SUCCESS) {
@@ -613,25 +619,28 @@ void RTCache::SwitchRenderPassTargetUsage(
   }
 
   // Switch usage.
-  VkPipelineStageFlagBits stage_mask_src = 0, stage_mask_dst = 0;
+  VkPipelineStageFlagBits stage_mask_src = VkPipelineStageFlagBits(0);
+  VkPipelineStageFlagBits stage_mask_dst = VkPipelineStageFlagBits(0);
   VkImageMemoryBarrier image_barriers[6];
   uint32_t image_barrier_count = 0;
   if (switch_color_mask) {
     VkAccessFlags access_mask_new;
     VkImageLayout layout_new;
-    stage_mask_dst |=
+    stage_mask_dst =
+        VkPipelineStageFlagBits(uint32_t(stage_mask_dst) | uint32_t(
         GetRenderTargetUsageParameters(false, usage, access_mask_new,
-                                       layout_new);
+                                       layout_new)));
     for (uint32_t i = 0; i < 4; ++i) {
       if (!(switch_color_mask & (uint32_t(1) << i))) {
         continue;
       }
       RenderTarget* rt = pass->rts_color[i];
       VkImageMemoryBarrier& image_barrier = image_barriers[image_barrier_count];
-      stage_mask_src |=
+      stage_mask_src =
+          VkPipelineStageFlagBits(uint32_t(stage_mask_src) | uint32_t(
           GetRenderTargetUsageParameters(false, rt->current_usage,
                                          image_barrier.srcAccessMask,
-                                         image_barrier.oldLayout);
+                                         image_barrier.oldLayout)));
       rt->current_usage = usage;
       if (image_barrier.srcAccessMask == access_mask_new &&
           image_barrier.oldLayout == layout_new) {
@@ -655,15 +664,17 @@ void RTCache::SwitchRenderPassTargetUsage(
   if (switch_depth) {
     VkAccessFlags access_mask_new;
     VkImageLayout layout_new;
-    stage_mask_dst |=
+    stage_mask_dst =
+        VkPipelineStageFlagBits(uint32_t(stage_mask_dst) | uint32_t(
         GetRenderTargetUsageParameters(true, usage, access_mask_new,
-                                       layout_new);
+                                       layout_new)));
     RenderTarget* rt = pass->rt_depth;
     VkImageMemoryBarrier& image_barrier = image_barriers[image_barrier_count];
-    stage_mask_src |=
+    stage_mask_src =
+        VkPipelineStageFlagBits(uint32_t(stage_mask_src) | uint32_t(
         GetRenderTargetUsageParameters(true, rt->current_usage,
                                        image_barrier.srcAccessMask,
-                                       image_barrier.oldLayout);
+                                       image_barrier.oldLayout)));
     rt->current_usage = usage;
     if (image_barrier.srcAccessMask != access_mask_new ||
         image_barrier.oldLayout != layout_new) {
@@ -764,19 +775,19 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
   current_shadow_valid_ = true;
 
   // Get the mode, used color render targets and the sample count.
-  ModeControl mode_control = regs.rb_modecontrol.edram_mode;
-  if (mode_control != ModeControl::kColorDepth &&
-      mode_control != ModeControl::kDepth) {
+  xenos::ModeControl mode_control = regs.rb_modecontrol.edram_mode;
+  if (mode_control != xenos::ModeControl::kColorDepth &&
+      mode_control != xenos::ModeControl::kDepth) {
     EndRenderPass(command_buffer, batch_fence);
     return DrawStatus::kDoNotDraw;
   }
   uint32_t color_mask =
-      mode_control == ModeControl::kColorDepth ? regs.rb_color_mask : 0;
+      mode_control == xenos::ModeControl::kColorDepth ? regs.rb_color_mask : 0;
   uint32_t color_info[] = {
       regs.rb_color_info.value, regs.rb_color1_info.value,
       regs.rb_color2_info.value, regs.rb_color3_info.value
   };
-  uint32_t samples = regs.rb_surface_info.msaa_samples;
+  MsaaSamples samples = regs.rb_surface_info.msaa_samples;
 
   // Calculate the width of the host render target.
   uint32_t width = regs.rb_surface_info.surface_pitch;
@@ -802,7 +813,6 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
       any_64bpp = true;
       break;
     }
-    uint32_t color_max_height = EDRAMStore::GetMaxHeight(
   }
   uint32_t height = EDRAMStore::GetMaxHeight(any_64bpp, samples, 0, width);
   if (height == 0) {
@@ -814,7 +824,7 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
   // Get the keys for the render pass.
   RenderTargetKey keys_color[4], key_depth;
   for (uint32_t i = 0; i < 4; ++i) {
-    uint32_t& key_color = keys_color[i];
+    RenderTargetKey& key_color = keys_color[i];
     if (!(color_mask & (0xF << (i * 4)))) {
       key_color.value = 0;
       continue;
@@ -835,8 +845,8 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
   // Check if we can keep using the old pass.
   // TODO(Triang3l): Check if offsets are different when EDRAM store is added.
   if (current_pass_ != nullptr) {
-    if (!std::memcmp(current_pass_->keys_color, keys_color, sizeof(keys_color)
-        && current_pass->key_depth == key_depth)) {
+    if (!std::memcmp(current_pass_->keys_color, keys_color, sizeof(keys_color))
+        && current_pass_->key_depth.value == key_depth.value) {
       return DrawStatus::kDrawInSamePass;
     }
   }
@@ -857,7 +867,7 @@ void RTCache::OnFrameEnd(VkCommandBuffer command_buffer, VkFence batch_fence) {
   EndRenderPass(command_buffer, batch_fence);
 }
 
-VkRenderPass GetCurrentVulkanRenderPass() {
+VkRenderPass RTCache::GetCurrentVulkanRenderPass() {
   if (current_pass_ == nullptr) {
     return nullptr;
   }

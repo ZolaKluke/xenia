@@ -452,8 +452,9 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   VkRect2D rt_rect_adjusted;
   uint32_t edram_add_offset_tiles, edram_pitch_tiles;
   VkExtent2D edram_extent_tiles;
-  if (!GetDimensions(rt_format, rt_samples, edram_offset_tiles, edram_pitch_px,
-                     rt_rect, rt_rect_adjusted, edram_add_offset_tiles,
+  if (!GetDimensions(IsColorFormat64bpp(rt_format), rt_samples,
+                     edram_offset_tiles, edram_pitch_px, rt_rect,
+                     rt_rect_adjusted, edram_add_offset_tiles,
                      edram_extent_tiles, edram_pitch_tiles)) {
     return;
   }

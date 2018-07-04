@@ -671,11 +671,11 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   // Apply changes to the render pass, check if the state must be resubmitted.
   RTCache::DrawStatus rt_cache_status =
       rt_cache_->OnDraw(command_buffer, current_batch_fence_);
-  if (rt_cache_status == RTCache::DrawStatus::kNotInRenderPass) {
+  if (rt_cache_status == RTCache::DrawStatus::kDoNotDraw) {
     // Current render target configuration not supported.
     return false;
   }
-  if (rt_cache_status == RTCache::DrawStatus::kNewRenderPass) {
+  if (rt_cache_status == RTCache::DrawStatus::kDrawInNewPass) {
     full_update = true;
   }
   #else

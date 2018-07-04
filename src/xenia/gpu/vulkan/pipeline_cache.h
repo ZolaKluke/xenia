@@ -15,6 +15,7 @@
 #include "third_party/xxhash/xxhash.h"
 
 #include "xenia/gpu/glsl_shader_translator.h"
+#include "xenia/gpu/registers.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/spirv_shader_translator.h"
 #ifdef RENDER_CACHE_NOT_OBSOLETE

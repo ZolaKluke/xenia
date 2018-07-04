@@ -11,8 +11,9 @@
 #ifndef XENIA_GPU_VULKAN_RT_CACHE_H_
 #define XENIA_GPU_VULKAN_RT_CACHE_H_
 
-#include <unordered_multimap>
+#include <unordered_map>
 
+#include "xenia/gpu/registers.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/vulkan/edram_store.h"
 #include "xenia/ui/vulkan/vulkan.h"
@@ -79,7 +80,7 @@ class RTCache {
           DepthRenderTargetFormat depth_format : 1;
         };  // 19
         MsaaSamples samples : 2;  // 21
-      }
+      };
       uint32_t value;
       inline RenderTargetKey() : value(0) {}
       inline RenderTargetKey(const RenderTargetKey& key) : value(key.value) {}
