@@ -612,6 +612,14 @@ bool RTCache::SetShadowRegister(uint32_t* dest, uint32_t register_name) {
   return true;
 }
 
+uint32_t RTCache::GetShadowEDRAMPitchPx() const {
+  uint32_t pitch = shadow_registers_.rb_surface_info.surface_pitch;
+  if (shadow_registers_.rb_surface_info.msaa_samples == MsaaSamples::k4X) {
+    pitch *= 2;
+  }
+  return pitch;
+}
+
 void RTCache::SwitchRenderPassTargetUsage(
     VkCommandBuffer command_buffer, RenderPass* pass, RenderTargetUsage usage,
     uint32_t switch_color_mask, bool switch_depth) {
@@ -723,9 +731,17 @@ void RTCache::SwitchRenderPassTargetUsage(
 
 void RTCache::BeginRenderPass(VkCommandBuffer command_buffer,
                               VkFence batch_fence, RTCache::RenderPass* pass) {
+  // Store the current values.
+  current_pass_ = pass;
+  auto& regs = shadow_registers_;
+  current_edram_pitch_px_ = GetShadowEDRAMPitchPx();
+  for (uint32_t i = 0; i < 4; ++i) {
+    current_edram_color_offsets_[i] = regs.rb_color_info[i].color_base;
+  }
+
+  // Enter the framebuffer drawing mode.
   SwitchRenderPassTargetUsage(command_buffer, pass,
                               RenderTargetUsage::kFramebuffer, 0xF, true);
-
   VkRenderPassBeginInfo begin_info;
   begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
   begin_info.pNext = nullptr;
@@ -735,7 +751,6 @@ void RTCache::BeginRenderPass(VkCommandBuffer command_buffer,
   begin_info.renderArea.offset.y = 0;
   begin_info.renderArea.extent.width = pass->width;
   begin_info.renderArea.extent.height = pass->height;
-
   // TODO(Triang3l): Remove clear when EDRAM store is added.
   VkClearValue clear_depth;
   begin_info.pClearValues = &clear_depth;
@@ -746,18 +761,62 @@ void RTCache::BeginRenderPass(VkCommandBuffer command_buffer,
   } else {
     begin_info.clearValueCount = 0;
   }
-
   vkCmdBeginRenderPass(command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
-  current_pass_ = pass;
 }
 
 void RTCache::EndRenderPass(VkCommandBuffer command_buffer,
                             VkFence batch_fence) {
+  // Shadow registers NOT valid here - also called from OnFrameEnd!
+
   if (current_pass_ == nullptr) {
     return;
   }
+
   vkCmdEndRenderPass(command_buffer);
+
+  // Export the color to the EDRAM store.
+  // TODO(Triang3l): Export the depth.
+  SwitchRenderPassTargetUsage(command_buffer, current_pass_,
+                              RenderTargetUsage::kStoreToEDRAM, 0xF, false);
+  VkRect2D rt_rect;
+  rt_rect.offset.x = 0;
+  rt_rect.offset.y = 0;
+  rt_rect.extent.width = current_pass_->width;
+  rt_rect.extent.height = current_pass_->height;
+  for (uint32_t i = 0; i < 4; ++i) {
+    RenderTarget* rt = current_pass_->rts_color[i];
+    if (rt == nullptr) {
+      continue;
+    }
+    RenderTargetKey key(current_pass_->keys_color[i]);
+    uint32_t format = key.format;
+    edram_store_.StoreColor(command_buffer, batch_fence, rt->image_view,
+                            ColorRenderTargetFormat(format), key.samples,
+                            rt_rect, current_edram_color_offsets_[i],
+                            current_edram_pitch_px_);
+  }
+
   current_pass_ = nullptr;
+}
+
+bool RTCache::AreCurrentEDRAMParametersValid() const {
+  if (current_pass_ == nullptr) {
+    return false;
+  }
+  auto& regs = shadow_registers_;
+  if (current_edram_pitch_px_ != GetShadowEDRAMPitchPx()) {
+    return false;
+  }
+  for (uint32_t i = 0; i < 4; ++i) {
+    if (!(regs.rb_color_mask & (0xF << (i * 4)))) {
+      continue;
+    }
+    if (current_edram_color_offsets_[i] != regs.rb_color_info[i].color_base) {
+      return false;
+    }
+  }
+  // TODO(Triang3l): Check if depth offset changes.
+  return true;
 }
 
 RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
@@ -770,13 +829,13 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
   dirty |= SetShadowRegister(&regs.rb_surface_info.value,
                              XE_GPU_REG_RB_SURFACE_INFO);
   dirty |=
-      SetShadowRegister(&regs.rb_color_info.value, XE_GPU_REG_RB_COLOR_INFO);
+      SetShadowRegister(&regs.rb_color_info[0].value, XE_GPU_REG_RB_COLOR_INFO);
   dirty |=
-      SetShadowRegister(&regs.rb_color1_info.value, XE_GPU_REG_RB_COLOR1_INFO);
+      SetShadowRegister(&regs.rb_color_info[1].value, XE_GPU_REG_RB_COLOR1_INFO);
   dirty |=
-      SetShadowRegister(&regs.rb_color2_info.value, XE_GPU_REG_RB_COLOR2_INFO);
+      SetShadowRegister(&regs.rb_color_info[2].value, XE_GPU_REG_RB_COLOR2_INFO);
   dirty |=
-      SetShadowRegister(&regs.rb_color3_info.value, XE_GPU_REG_RB_COLOR3_INFO);
+      SetShadowRegister(&regs.rb_color_info[3].value, XE_GPU_REG_RB_COLOR3_INFO);
   dirty |= SetShadowRegister(&regs.rb_color_mask, XE_GPU_REG_RB_COLOR_MASK);
   dirty |=
       SetShadowRegister(&regs.rb_depth_info.value, XE_GPU_REG_RB_DEPTH_INFO);
@@ -799,23 +858,15 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
   }
   uint32_t color_mask =
       mode_control == xenos::ModeControl::kColorDepth ? regs.rb_color_mask : 0;
-  uint32_t color_info[] = {
-      regs.rb_color_info.value, regs.rb_color1_info.value,
-      regs.rb_color2_info.value, regs.rb_color3_info.value
-  };
   MsaaSamples samples = regs.rb_surface_info.msaa_samples;
   XELOGGPU("RT Cache: %u samples in this draw.\n", samples);
 
   // Calculate the width of the host render target.
-  uint32_t width = regs.rb_surface_info.surface_pitch;
+  uint32_t width = std::min(GetShadowEDRAMPitchPx(), 2560u);
   if (width == 0) {
     EndRenderPass(command_buffer, batch_fence);
     return DrawStatus::kDoNotDraw;
   }
-  if (samples == MsaaSamples::k4X) {
-    width *= 2;
-  }
-  width = std::min(width, 2560u);
   // Round up so there are less switches and to make EDRAM load/store safer.
   uint32_t width_div_80 = xe::round_up(width, 80) / 80;
 
@@ -827,9 +878,7 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
     if (!(color_mask & (0xF << (i * 4)))) {
       continue;
     }
-    ColorRenderTargetFormat color_format =
-        ColorRenderTargetFormat((color_info[i] >> 16) & 0xF);
-    if (EDRAMStore::IsColorFormat64bpp(color_format)) {
+    if (EDRAMStore::IsColorFormat64bpp(regs.rb_color_info[i].color_format)) {
       any_64bpp = true;
       break;
     }
@@ -852,7 +901,8 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
     key_color.width_div_80 = width_div_80;
     key_color.height_div_16 = height_div_16;
     key_color.is_depth = 0;
-    key_color.format = (color_info[i] >> 16) & 0xF;
+    ColorRenderTargetFormat color_format = regs.rb_color_info[i].color_format;
+    key_color.format = uint32_t(color_format);
     key_color.samples = samples;
   }
   key_depth.width_div_80 = width_div_80;
@@ -868,7 +918,13 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
     if (!std::memcmp(current_pass_->keys_color, keys_color,
                      4 * sizeof(RenderTargetKey))
         && current_pass_->key_depth.value == key_depth.value) {
-      return DrawStatus::kDrawInSamePass;
+      if (AreCurrentEDRAMParametersValid()) {
+        return DrawStatus::kDrawInSamePass;
+      }
+      RenderPass* last_pass = current_pass_;
+      EndRenderPass(command_buffer, batch_fence);
+      BeginRenderPass(command_buffer, batch_fence, last_pass);
+      return DrawStatus::kDrawInNewPass;
     }
   }
 

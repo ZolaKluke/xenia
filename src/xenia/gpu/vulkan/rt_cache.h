@@ -154,6 +154,7 @@ class RTCache {
     void BeginRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence,
                          RenderPass* pass);
     void EndRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence);
+    bool AreCurrentEDRAMParametersValid() const;
 
     RegisterFile* register_file_ = nullptr;
     ui::vulkan::VulkanDevice* device_ = nullptr;
@@ -175,10 +176,7 @@ class RTCache {
     struct ShadowRegisters {
       reg::RB_MODECONTROL rb_modecontrol;
       reg::RB_SURFACE_INFO rb_surface_info;
-      reg::RB_COLOR_INFO rb_color_info;
-      reg::RB_COLOR_INFO rb_color1_info;
-      reg::RB_COLOR_INFO rb_color2_info;
-      reg::RB_COLOR_INFO rb_color3_info;
+      reg::RB_COLOR_INFO rb_color_info[4];
       uint32_t rb_color_mask;
       reg::RB_DEPTH_INFO rb_depth_info;
       uint32_t pa_sc_window_scissor_tl;
@@ -188,11 +186,13 @@ class RTCache {
       void Reset() { std::memset(this, 0, sizeof(*this)); }
     } shadow_registers_;
     bool SetShadowRegister(uint32_t* dest, uint32_t register_name);
+    uint32_t GetShadowEDRAMPitchPx() const;
 
     // Current state.
     RenderPass* current_pass_ = nullptr;
-    uint32_t current_edram_color_tiles_[4];
-    uint32_t current_edram_depth_tile_;
+    uint32_t current_edram_pitch_px_;
+    uint32_t current_edram_color_offsets_[4];
+    uint32_t current_edram_depth_offset_;
     // current_shadow_valid_ is set to false when need to do full OnDraw logic.
     // This may happen after a copy command that ends the pass, for example.
     bool current_shadow_valid_ = false;
