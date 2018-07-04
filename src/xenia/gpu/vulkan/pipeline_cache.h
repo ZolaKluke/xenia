@@ -17,7 +17,9 @@
 #include "xenia/gpu/glsl_shader_translator.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/spirv_shader_translator.h"
+#ifdef RENDER_CACHE_NOT_OBSOLETE
 #include "xenia/gpu/vulkan/render_cache.h"
+#endif
 #include "xenia/gpu/vulkan/vulkan_shader.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/spirv/spirv_disassembler.h"
@@ -56,12 +58,21 @@ class PipelineCache {
   // otherwise a new one may be created. Any state that can be set dynamically
   // in the command buffer is issued at this time.
   // Returns whether the pipeline could be successfully created.
+  #ifndef RENDER_CACHE_NOT_OBSOLETE
+  UpdateStatus ConfigurePipeline(VkCommandBuffer command_buffer,
+                                 VkRenderPass render_pass,
+                                 VulkanShader* vertex_shader,
+                                 VulkanShader* pixel_shader,
+                                 PrimitiveType primitive_type,
+                                 VkPipeline* pipeline_out);
+  #else
   UpdateStatus ConfigurePipeline(VkCommandBuffer command_buffer,
                                  const RenderState* render_state,
                                  VulkanShader* vertex_shader,
                                  VulkanShader* pixel_shader,
                                  PrimitiveType primitive_type,
                                  VkPipeline* pipeline_out);
+  #endif
 
   // Sets required dynamic state on the command buffer.
   // Only state that has changed since the last call will be set unless
@@ -77,7 +88,11 @@ class PipelineCache {
  private:
   // Creates or retrieves an existing pipeline for the currently configured
   // state.
+  #ifndef RENDER_CACHE_NOT_OBSOLETE
+  VkPipeline GetPipeline(VkRenderPass render_pass, uint64_t hash_key);
+  #else
   VkPipeline GetPipeline(const RenderState* render_state, uint64_t hash_key);
+  #endif
 
   bool TranslateShader(VulkanShader* shader, xenos::xe_gpu_program_cntl_t cntl);
 

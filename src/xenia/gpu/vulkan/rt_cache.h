@@ -42,7 +42,6 @@ class RTCache {
       // Started a new Vulkan render pass - need to resubmit state.
       kDrawInNewPass,
       // Still drawing in the same render pass - current state still valid.
-      // Viewport and scissor could have changed though.
       kDrawInSamePass
     };
 
@@ -55,6 +54,7 @@ class RTCache {
     // Returns whether a new render pass has started and need to rebind things.
     DrawStatus OnDraw(VkCommandBuffer command_buffer, VkFence batch_fence);
     void OnFrameEnd(VkCommandBuffer command_buffer, VkFence batch_fence);
+    VkRenderPass GetCurrentVulkanRenderPass();
 
     void ClearCache();
     void Scavenge();

@@ -226,10 +226,17 @@ VulkanShader* PipelineCache::LoadShader(ShaderType shader_type,
   return shader;
 }
 
+#ifndef RENDER_CACHE_NOT_OBSOLETE
+PipelineCache::UpdateStatus PipelineCache::ConfigurePipeline(
+    VkCommandBuffer command_buffer, VkRenderPass render_pass,
+    VulkanShader* vertex_shader, VulkanShader* pixel_shader,
+    PrimitiveType primitive_type, VkPipeline* pipeline_out) {
+#else
 PipelineCache::UpdateStatus PipelineCache::ConfigurePipeline(
     VkCommandBuffer command_buffer, const RenderState* render_state,
     VulkanShader* vertex_shader, VulkanShader* pixel_shader,
     PrimitiveType primitive_type, VkPipeline* pipeline_out) {
+#endif
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
@@ -261,7 +268,11 @@ PipelineCache::UpdateStatus PipelineCache::ConfigurePipeline(
   if (!pipeline) {
     // Should have a hash key produced by the UpdateState pass.
     uint64_t hash_key = XXH64_digest(&hash_state_);
+    #ifndef RENDER_CACHE_NOT_OBSOLETE
+    pipeline = GetPipeline(render_pass, hash_key);
+    #else
     pipeline = GetPipeline(render_state, hash_key);
+    #endif
     current_pipeline_ = pipeline;
     if (!pipeline) {
       // Unable to create pipeline.
@@ -288,8 +299,13 @@ void PipelineCache::ClearCache() {
   shader_map_.clear();
 }
 
+#ifndef RENDER_CACHE_NOT_OBSOLETE
+VkPipeline PipelineCache::GetPipeline(VkRenderPass render_pass,
+                                      uint64_t hash_key) {
+#else
 VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
                                       uint64_t hash_key) {
+#endif
   // Lookup the pipeline in the cache.
   auto it = cached_pipelines_.find(hash_key);
   if (it != cached_pipelines_.end()) {
@@ -333,7 +349,11 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
   pipeline_info.pColorBlendState = &update_color_blend_state_info_;
   pipeline_info.pDynamicState = &dynamic_state_info;
   pipeline_info.layout = pipeline_layout_;
+  #ifndef RENDER_CACHE_NOT_OBSOLETE
+  pipeline_info.renderPass = render_pass;
+  #else
   pipeline_info.renderPass = render_state->render_pass_handle;
+  #endif
   pipeline_info.subpass = 0;
   pipeline_info.basePipelineHandle = nullptr;
   pipeline_info.basePipelineIndex = -1;

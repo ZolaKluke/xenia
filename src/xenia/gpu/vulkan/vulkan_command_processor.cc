@@ -701,9 +701,15 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   // This encodes all render state (blend, depth, etc), our shader stages,
   // and our vertex input layout.
   VkPipeline pipeline = nullptr;
+  #ifndef RENDER_CACHE_NOT_OBSOLETE
+  auto pipeline_status = pipeline_cache_->ConfigurePipeline(
+      command_buffer, rt_cache_->GetCurrentVulkanRenderPass(), vertex_shader,
+      pixel_shader, primitive_type, &pipeline);
+  #else
   auto pipeline_status = pipeline_cache_->ConfigurePipeline(
       command_buffer, current_render_state_, vertex_shader, pixel_shader,
       primitive_type, &pipeline);
+  #endif
   if (pipeline_status == PipelineCache::UpdateStatus::kError) {
     return false;
   } else if (pipeline_status == PipelineCache::UpdateStatus::kMismatch ||

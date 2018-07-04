@@ -854,6 +854,14 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
 }
 
 void RTCache::OnFrameEnd(VkCommandBuffer command_buffer, VkFence batch_fence) {
+  EndRenderPass(command_buffer, batch_fence);
+}
+
+VkRenderPass GetCurrentVulkanRenderPass() {
+  if (current_pass_ == nullptr) {
+    return nullptr;
+  }
+  return current_pass_->pass;
 }
 
 void RTCache::ClearCache() {
