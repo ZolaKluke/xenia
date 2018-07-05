@@ -106,7 +106,8 @@ VkResult RTCache::Initialize() {
   image_info.arrayLayers = 1;
   image_info.samples = VK_SAMPLE_COUNT_4_BIT;
   image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-  image_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+  image_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
   image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   image_info.queueFamilyIndexCount = 0;
   image_info.pQueueFamilyIndices = nullptr;
@@ -302,7 +303,6 @@ bool RTCache::AllocateRenderTargets(
             });
   // Number of pages allocated in each 24 MB block.
   uint32_t pages_allocated[5] = {};
-  XELOGGPU("RT Cache: Used %u RTs.\n", used_rt_count);
   for (uint32_t i = 0; i < used_rt_count; ++i) {
     RTAllocInfo& alloc_info = alloc_infos[i];
     XELOGGPU("RT Cache: Used RT %u (%u) has page count of %u.\n", i,
@@ -332,8 +332,10 @@ bool RTCache::AllocateRenderTargets(
   block_memory_requirements.memoryTypeBits = rt_memory_type_bits_;
   for (uint32_t i = 0; i < 5; ++i) {
     if (pages_allocated[i] != 0 && rt_memory_[i] == nullptr) {
+      // On testing GTX 850M, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT is required.
       rt_memory_[i] =
-          device_->AllocateMemory(block_memory_requirements, 0);
+          device_->AllocateMemory(block_memory_requirements,
+                                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
       if (rt_memory_[i] == nullptr) {
         assert_always();
         for (uint32_t j = 0; j < 5; ++j) {
@@ -392,9 +394,6 @@ bool RTCache::AllocateRenderTargets(
       }
     }
     // Bind memory to it and create a view.
-    XELOGGPU("RT Cache: Binding %u pages from %u to image %u with format %u.\n",
-             alloc_info.page_count, alloc_info.page_first, rt_index,
-             keys[rt_index].format);
     status = vkBindImageMemory(*device_, new_images[rt_index],
                                rt_memory_[alloc_info.page_first / 6],
                                (alloc_info.page_first % 6) << 22);
@@ -893,7 +892,6 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
   uint32_t color_mask =
       mode_control == xenos::ModeControl::kColorDepth ? regs.rb_color_mask : 0;
   MsaaSamples samples = regs.rb_surface_info.msaa_samples;
-  XELOGGPU("RT Cache: %u samples in this draw.\n", samples);
 
   // Calculate the width of the host render target.
   uint32_t width = std::min(GetShadowEDRAMPitchPx(), 2560u);
