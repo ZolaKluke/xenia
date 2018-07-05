@@ -92,6 +92,38 @@ VkResult RTCache::Initialize() {
     return status;
   }
 
+  // Get the usable memory types for the framebuffers.
+  VkImageCreateInfo image_info;
+  image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  image_info.pNext = nullptr;
+  image_info.flags = 0;
+  image_info.imageType = VK_IMAGE_TYPE_2D;
+  image_info.format = VK_FORMAT_D32_SFLOAT_S8_UINT;
+  image_info.extent.width = 1280;
+  image_info.extent.height = 720;
+  image_info.extent.depth = 1;
+  image_info.mipLevels = 1;
+  image_info.arrayLayers = 1;
+  image_info.samples = VK_SAMPLE_COUNT_4_BIT;
+  image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+  image_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+  image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  image_info.queueFamilyIndexCount = 0;
+  image_info.pQueueFamilyIndices = nullptr;
+  image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkImage memory_check_image;
+  status = vkCreateImage(*device_, &image_info, nullptr, &memory_check_image);
+  CheckResult(status, "vkCreateImage");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+  VkMemoryRequirements memory_requirements;
+  vkGetImageMemoryRequirements(*device_, memory_check_image,
+                               &memory_requirements);
+  vkDestroyImage(*device_, memory_check_image, nullptr);
+  assert_true(memory_requirements.alignment <= (1 << 22));
+  rt_memory_type_bits_ = memory_requirements.memoryTypeBits;
+
   current_shadow_valid_ = false;
 
   return VK_SUCCESS;
@@ -190,7 +222,7 @@ bool RTCache::AllocateRenderTargets(
       VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
       VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
   const VkImageUsageFlags image_usage_depth =
-      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+      VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
       VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
   // Find page count for each render target.
@@ -297,13 +329,11 @@ bool RTCache::AllocateRenderTargets(
   VkMemoryRequirements block_memory_requirements;
   block_memory_requirements.size = 6 << 22;
   block_memory_requirements.alignment = 1 << 22;
-  // Let's assume we can just use any device-local memory for render targets.
-  block_memory_requirements.memoryTypeBits = UINT32_MAX;
+  block_memory_requirements.memoryTypeBits = rt_memory_type_bits_;
   for (uint32_t i = 0; i < 5; ++i) {
     if (pages_allocated[i] != 0 && rt_memory_[i] == nullptr) {
       rt_memory_[i] =
-          device_->AllocateMemory(block_memory_requirements,
-                                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+          device_->AllocateMemory(block_memory_requirements, 0);
       if (rt_memory_[i] == nullptr) {
         assert_always();
         for (uint32_t j = 0; j < 5; ++j) {
@@ -362,6 +392,9 @@ bool RTCache::AllocateRenderTargets(
       }
     }
     // Bind memory to it and create a view.
+    XELOGGPU("RT Cache: Binding %u pages from %u to image %u with format %u.\n",
+             alloc_info.page_count, alloc_info.page_first, rt_index,
+             keys[rt_index].format);
     status = vkBindImageMemory(*device_, new_images[rt_index],
                                rt_memory_[alloc_info.page_first / 6],
                                (alloc_info.page_first % 6) << 22);
@@ -433,15 +466,16 @@ VkPipelineStageFlags RTCache::GetRenderTargetUsageParameters(
       layout = VK_IMAGE_LAYOUT_UNDEFINED;
       return VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
     case RenderTargetUsage::kFramebuffer:
-      layout = VK_IMAGE_LAYOUT_GENERAL;
       if (is_depth) {
         access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
                       VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         return VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
                VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
       }
       access_mask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
                     VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+      layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
       return VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     case RenderTargetUsage::kStoreToEDRAM:
       assert_false(is_depth);

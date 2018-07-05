@@ -162,6 +162,8 @@ class RTCache {
     // Storage for the preserving EDRAM contents across different views.
     EDRAMStore edram_store_;
 
+    // Memory types that can be used for render targets.
+    uint32_t rt_memory_type_bits_;
     // 24 MB memory blocks backing render targets.
     VkDeviceMemory rt_memory_[5] = {};
 
