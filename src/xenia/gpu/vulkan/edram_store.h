@@ -60,7 +60,8 @@ class EDRAMStore {
   // StageMask & VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
   // AccessMask & VK_ACCESS_SHADER_READ_BIT
   // Layout VK_IMAGE_LAYOUT_GENERAL
-  // It must be created with usage & VK_IMAGE_USAGE_STORAGE_BIT.
+  // It must be created with usage & VK_IMAGE_USAGE_STORAGE_BIT for color,
+  // VK_IMAGE_USAGE_SAMPLED_BIT for depth.
   void StoreColor(VkCommandBuffer command_buffer, VkFence fence,
                   VkImageView rt_image_view, ColorRenderTargetFormat rt_format,
                   MsaaSamples rt_samples, VkRect2D rt_rect,
@@ -82,22 +83,19 @@ class EDRAMStore {
   enum class Mode {
     k_ModeUnsupported = -1,
 
-    // 32-bit image format, non-multisampled.
+    // 32-bit color image format, non-multisampled.
     k_32bpp_1X,
-    // 64-bit image format, non-multisampled.
+    // 64-bit color image format, non-multisampled.
     k_64bpp_1X,
 
     k_ModeCount
   };
 
-  static inline bool IsMode64bpp(Mode mode) {
-    return mode == Mode::k_64bpp_1X;
-  }
-  static inline MsaaSamples GetModeMsaaSamples(Mode mode) {
-    return MsaaSamples::k1X;
-  }
-
   struct ModeInfo {
+    bool is_depth;
+    bool is_64bpp;
+    MsaaSamples samples;
+
     const uint8_t* store_shader_code;
     size_t store_shader_code_size;
     const char* store_shader_debug_name;
@@ -152,10 +150,18 @@ class EDRAMStore {
   EDRAMImageStatus edram_image_status_ = EDRAMImageStatus::kUntransitioned;
 
   // Store pipeline layout.
-  VkDescriptorSetLayout store_descriptor_set_layout_ = nullptr;
-  VkPipelineLayout store_pipeline_layout_ = nullptr;
+  // 2 storage descriptor (EDRAM, render target for imageLoad).
+  VkDescriptorSetLayout store_descriptor_set_layout_storage_color_ = nullptr;
+  // 1 storage descriptor (EDRAM).
+  VkDescriptorSetLayout store_descriptor_set_layout_storage_depth_ = nullptr;
+  // 2 sampled descriptors (depth, stencil for texelFetch).
+  VkDescriptorSetLayout store_descriptor_set_layout_sampled_depth_ = nullptr;
+  VkPipelineLayout store_pipeline_layout_color_ = nullptr;
+  VkPipelineLayout store_pipeline_layout_depth_ = nullptr;
+
   // Load pipeline layout.
-  VkDescriptorSetLayout load_descriptor_set_layout_ = nullptr;
+  // 1 storage descriptor (EDRAM).
+  VkDescriptorSetLayout load_descriptor_set_layout_storage_ = nullptr;
   VkPipelineLayout load_pipeline_layout_ = nullptr;
 
   // Descriptor pool for shader invocations.

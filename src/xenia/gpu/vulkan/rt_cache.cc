@@ -106,8 +106,7 @@ VkResult RTCache::Initialize() {
   image_info.arrayLayers = 1;
   image_info.samples = VK_SAMPLE_COUNT_4_BIT;
   image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-  image_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+  image_info.usage = kUsageFlagsDepth;
   image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   image_info.queueFamilyIndexCount = 0;
   image_info.pQueueFamilyIndices = nullptr;
@@ -219,12 +218,6 @@ bool RTCache::AllocateRenderTargets(
   image_info.queueFamilyIndexCount = 0;
   image_info.pQueueFamilyIndices = nullptr;
   image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  const VkImageUsageFlags image_usage_color =
-      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-      VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-  const VkImageUsageFlags image_usage_depth =
-      VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-      VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
   // Find page count for each render target.
   struct RTAllocInfo {
@@ -256,7 +249,7 @@ bool RTCache::AllocateRenderTargets(
     image_info.extent.width = key.width_div_80 * 80;
     image_info.extent.height = key.height_div_16 * 16;
     image_info.samples = VkSampleCountFlagBits(1 << uint32_t(key.samples));
-    image_info.usage = key.is_depth ? image_usage_depth : image_usage_color;
+    image_info.usage = key.is_depth ? kUsageFlagsDepth : kUsageFlagsColor;
     status = vkCreateImage(*device_, &image_info, nullptr, &new_images[i]);
     CheckResult(status, "vkCreateImage");
     if (status != VK_SUCCESS) {
@@ -383,7 +376,7 @@ bool RTCache::AllocateRenderTargets(
       image_info.extent.width = key.width_div_80 * 80;
       image_info.extent.height = key.height_div_16 * 16;
       image_info.samples = VkSampleCountFlagBits(1 << uint32_t(key.samples));
-      image_info.usage = key.is_depth ? image_usage_depth : image_usage_color;
+      image_info.usage = key.is_depth ? kUsageFlagsDepth : kUsageFlagsColor;
       status = vkCreateImage(*device_, &image_info, nullptr, &new_images[rt_index]);
       CheckResult(status, "vkCreateImage");
       if (status != VK_SUCCESS) {

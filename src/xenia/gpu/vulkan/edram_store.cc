@@ -24,10 +24,10 @@ using xe::ui::vulkan::CheckResult;
 
 const EDRAMStore::ModeInfo EDRAMStore::mode_info_[
     size_t(EDRAMStore::Mode::k_ModeCount)] = {
-    {edram_store_32bpp1x_comp, sizeof(edram_store_32bpp1x_comp),
-     "S(c): EDRAM Store 32bpp 1x"},
-    {edram_store_64bpp1x_comp, sizeof(edram_store_64bpp1x_comp),
-     "S(c): EDRAM Store 64bpp 1x"}
+    {false, false, MsaaSamples::k1X, edram_store_32bpp1x_comp,
+     sizeof(edram_store_32bpp1x_comp), "S(c): EDRAM Store 32bpp 1x"},
+    {false, true, MsaaSamples::k1X, edram_store_64bpp1x_comp,
+     sizeof(edram_store_64bpp1x_comp), "S(c): EDRAM Store 64bpp 1x"}
 };
 
 EDRAMStore::EDRAMStore(ui::vulkan::VulkanDevice* device) : device_(device) {}
@@ -102,41 +102,66 @@ VkResult EDRAMStore::Initialize() {
   }
 
   // Create the descriptor set layout for the load and store pipelines.
-  // Store - 2 descriptors for compute shaders: EDRAM and render target.
   VkDescriptorSetLayoutCreateInfo descriptor_set_layout_info;
+  VkDescriptorSetLayoutBinding descriptor_set_layout_bindings[2];
   descriptor_set_layout_info.sType =
       VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
   descriptor_set_layout_info.pNext = nullptr;
   descriptor_set_layout_info.flags = 0;
-  descriptor_set_layout_info.bindingCount = 2;
-  VkDescriptorSetLayoutBinding descriptor_set_layout_bindings[2];
-  // EDRAM.
+  descriptor_set_layout_info.pBindings = descriptor_set_layout_bindings;
   descriptor_set_layout_bindings[0].binding = 0;
+  descriptor_set_layout_bindings[0].descriptorCount = 1;
+  descriptor_set_layout_bindings[0].pImmutableSamplers = nullptr;
+  descriptor_set_layout_bindings[1].binding = 1;
+  descriptor_set_layout_bindings[1].descriptorCount = 1;
+  descriptor_set_layout_bindings[1].pImmutableSamplers = nullptr;
+  // Store.
+  descriptor_set_layout_bindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+  descriptor_set_layout_bindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+  // Store, storage.
   descriptor_set_layout_bindings[0].descriptorType =
       VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-  descriptor_set_layout_bindings[0].descriptorCount = 1;
-  descriptor_set_layout_bindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-  descriptor_set_layout_bindings[0].pImmutableSamplers = nullptr;
-  // Render target.
-  descriptor_set_layout_bindings[1].binding = 1;
   descriptor_set_layout_bindings[1].descriptorType =
       VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-  descriptor_set_layout_bindings[1].descriptorCount = 1;
-  descriptor_set_layout_bindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-  descriptor_set_layout_bindings[1].pImmutableSamplers = nullptr;
-  descriptor_set_layout_info.pBindings =
-      descriptor_set_layout_bindings;
-  status = vkCreateDescriptorSetLayout(*device_, &descriptor_set_layout_info,
-                                       nullptr, &store_descriptor_set_layout_);
+  // Store, storage - color (EDRAM and render target).
+  descriptor_set_layout_info.bindingCount = 2;
+  status = vkCreateDescriptorSetLayout(
+      *device_, &descriptor_set_layout_info, nullptr,
+      &store_descriptor_set_layout_storage_color_);
   CheckResult(status, "vkCreateDescriptorSetLayout");
   if (status != VK_SUCCESS) {
     return status;
   }
-  // Load - only EDRAM, for fragment shader.
+  // Store, storage - depth (EDRAM only).
   descriptor_set_layout_info.bindingCount = 1;
+  status = vkCreateDescriptorSetLayout(
+      *device_, &descriptor_set_layout_info, nullptr,
+      &store_descriptor_set_layout_storage_depth_);
+  CheckResult(status, "vkCreateDescriptorSetLayout");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+  // Store, sampled - depth and stencil buffers.
+  descriptor_set_layout_info.bindingCount = 2;
+  descriptor_set_layout_bindings[0].descriptorType =
+      VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+  descriptor_set_layout_bindings[1].descriptorType =
+      VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+  status = vkCreateDescriptorSetLayout(
+      *device_, &descriptor_set_layout_info, nullptr,
+      &store_descriptor_set_layout_sampled_depth_);
+  CheckResult(status, "vkCreateDescriptorSetLayout");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+  // Load - EDRAM (storage image).
+  descriptor_set_layout_info.bindingCount = 1;
+  descriptor_set_layout_bindings[0].descriptorType =
+      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
   descriptor_set_layout_bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
   status = vkCreateDescriptorSetLayout(*device_, &descriptor_set_layout_info,
-                                       nullptr, &load_descriptor_set_layout_);
+                                       nullptr,
+                                       &load_descriptor_set_layout_storage_);
   CheckResult(status, "vkCreateDescriptorSetLayout");
   if (status != VK_SUCCESS) {
     return status;
@@ -144,25 +169,40 @@ VkResult EDRAMStore::Initialize() {
 
   // Create the layouts for the store and load pipelines.
   VkPipelineLayoutCreateInfo pipeline_layout_info;
+  VkDescriptorSetLayout descriptor_set_layouts[2];
+  VkPushConstantRange push_constant_range;
   pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   pipeline_layout_info.pNext = nullptr;
   pipeline_layout_info.flags = 0;
-  pipeline_layout_info.setLayoutCount = 1;
-  pipeline_layout_info.pSetLayouts = &store_descriptor_set_layout_;
+  pipeline_layout_info.pSetLayouts = descriptor_set_layouts;
   pipeline_layout_info.pushConstantRangeCount = 1;
-  VkPushConstantRange push_constant_range;
-  push_constant_range.offset = 0;
   pipeline_layout_info.pPushConstantRanges = &push_constant_range;
+  push_constant_range.offset = 0;
   // Store.
   push_constant_range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
   push_constant_range.size = sizeof(StorePushConstants);
+  // Store - color.
+  pipeline_layout_info.setLayoutCount = 1;
+  descriptor_set_layouts[0] = store_descriptor_set_layout_storage_color_;
   status = vkCreatePipelineLayout(*device_, &pipeline_layout_info, nullptr,
-                                  &store_pipeline_layout_);
+                                  &store_pipeline_layout_color_);
+  CheckResult(status, "vkCreatePipelineLayout");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+  // Store - depth.
+  pipeline_layout_info.setLayoutCount = 2;
+  descriptor_set_layouts[0] = store_descriptor_set_layout_storage_depth_;
+  descriptor_set_layouts[1] = store_descriptor_set_layout_sampled_depth_;
+  status = vkCreatePipelineLayout(*device_, &pipeline_layout_info, nullptr,
+                                  &store_pipeline_layout_depth_);
   CheckResult(status, "vkCreatePipelineLayout");
   if (status != VK_SUCCESS) {
     return status;
   }
   // Load.
+  pipeline_layout_info.setLayoutCount = 1;
+  descriptor_set_layouts[0] = load_descriptor_set_layout_storage_;
   push_constant_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
   push_constant_range.size = sizeof(LoadPushConstants);
   status = vkCreatePipelineLayout(*device_, &pipeline_layout_info, nullptr,
@@ -173,9 +213,11 @@ VkResult EDRAMStore::Initialize() {
   }
 
   // Create the pool for storage images used during loading and storing.
-  VkDescriptorPoolSize pool_sizes[1];
-  pool_sizes[0].descriptorCount = 4096;
+  VkDescriptorPoolSize pool_sizes[2];
+  pool_sizes[0].descriptorCount = 2048;
   pool_sizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+  pool_sizes[1].descriptorCount = 2048;
+  pool_sizes[1].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
   descriptor_pool_ = std::make_unique<ui::vulkan::DescriptorPool>(
       *device_, 4096,
       std::vector<VkDescriptorPoolSize>(pool_sizes, std::end(pool_sizes)));
@@ -196,7 +238,6 @@ VkResult EDRAMStore::Initialize() {
   store_pipeline_info.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
   store_pipeline_info.stage.pName = "main";
   store_pipeline_info.stage.pSpecializationInfo = nullptr;
-  store_pipeline_info.layout = store_pipeline_layout_;
   store_pipeline_info.basePipelineHandle = nullptr;
   store_pipeline_info.basePipelineIndex = -1;
   for (int mode_index = 0; mode_index < int(Mode::k_ModeCount); ++mode_index) {
@@ -215,6 +256,9 @@ VkResult EDRAMStore::Initialize() {
                               VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
                               mode_info.store_shader_debug_name);
     store_pipeline_info.stage.module = mode_data.store_shader_module;
+    store_pipeline_info.layout =
+        mode_info.is_depth ? store_pipeline_layout_depth_ :
+                             store_pipeline_layout_color_;
     status = vkCreateComputePipelines(*device_, nullptr, 1,
                                       &store_pipeline_info, nullptr,
                                       &mode_data.store_pipeline);
@@ -229,34 +273,32 @@ VkResult EDRAMStore::Initialize() {
 
 void EDRAMStore::Shutdown() {
   // TODO(Triang3l): Wait for idle.
+
   for (int mode_index = 0; mode_index < int(Mode::k_ModeCount); ++mode_index) {
     ModeData& mode_data = mode_data_[mode_index];
-    if (mode_data.store_pipeline) {
-      vkDestroyPipeline(*device_, mode_data.store_pipeline, nullptr);
-      mode_data.store_pipeline = nullptr;
-    }
-    if (mode_data.store_shader_module) {
-      vkDestroyShaderModule(*device_, mode_data.store_shader_module, nullptr);
-      mode_data.store_shader_module = nullptr;
-    }
+    VK_SAFE_DESTROY(vkDestroyPipeline, *device_, mode_data.store_pipeline,
+                    nullptr);
+    VK_SAFE_DESTROY(vkDestroyShaderModule, *device_,
+                    mode_data.store_shader_module, nullptr);
   }
-  if (store_pipeline_layout_) {
-    vkDestroyPipelineLayout(*device_, store_pipeline_layout_, nullptr);
-    store_pipeline_layout_ = nullptr;
-  }
-  if (store_descriptor_set_layout_) {
-    vkDestroyDescriptorSetLayout(*device_, store_descriptor_set_layout_,
-                                 nullptr);
-    store_descriptor_set_layout_ = nullptr;
-  }
-  if (edram_image_) {
-    vkDestroyImage(*device_, edram_image_, nullptr);
-    edram_image_ = nullptr;
-  }
-  if (edram_memory_) {
-    vkFreeMemory(*device_, edram_memory_, nullptr);
-    edram_memory_ = nullptr;
-  }
+
+  VK_SAFE_DESTROY(vkDestroyPipelineLayout, *device_, load_pipeline_layout_,
+                  nullptr);
+  VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
+                  load_descriptor_set_layout_storage_, nullptr);
+  VK_SAFE_DESTROY(vkDestroyPipelineLayout, *device_,
+                  store_pipeline_layout_depth_, nullptr);
+  VK_SAFE_DESTROY(vkDestroyPipelineLayout, *device_,
+                  store_pipeline_layout_color_, nullptr);
+  VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
+                  store_descriptor_set_layout_sampled_depth_, nullptr);
+  VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
+                  store_descriptor_set_layout_storage_depth_, nullptr);
+  VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
+                  store_descriptor_set_layout_storage_color_, nullptr);
+
+  VK_SAFE_DESTROY(vkDestroyImage, *device_, edram_image_, nullptr);
+  VK_SAFE_DESTROY(vkFreeMemory, *device_, edram_memory_, nullptr);
 }
 
 void EDRAMStore::TransitionEDRAMImage(VkCommandBuffer command_buffer,
@@ -465,8 +507,9 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   if (!descriptor_pool_->has_open_batch()) {
     descriptor_pool_->BeginBatch(fence);
   }
-  auto set = descriptor_pool_->AcquireEntry(store_descriptor_set_layout_);
-  if (!set) {
+  auto set_storage = descriptor_pool_->AcquireEntry(
+      store_descriptor_set_layout_storage_color_);
+  if (!set_storage) {
     assert_always();
     descriptor_pool_->CancelBatch();
     return;
@@ -479,7 +522,7 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   VkWriteDescriptorSet descriptors[2];
   descriptors[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
   descriptors[0].pNext = nullptr;
-  descriptors[0].dstSet = set;
+  descriptors[0].dstSet = set_storage;
   descriptors[0].dstBinding = 0;
   descriptors[0].dstArrayElement = 0;
   descriptors[0].descriptorCount = 1;
@@ -493,7 +536,7 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   descriptors[0].pTexelBufferView = nullptr;
   descriptors[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
   descriptors[1].pNext = nullptr;
-  descriptors[1].dstSet = set;
+  descriptors[1].dstSet = set_storage;
   descriptors[1].dstBinding = 1;
   descriptors[1].dstArrayElement = 0;
   descriptors[1].descriptorCount = 1;
@@ -507,17 +550,18 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   descriptors[1].pTexelBufferView = nullptr;
   vkUpdateDescriptorSets(*device_, 2, descriptors, 0, nullptr);
 
-  // Dispatch the computation descriptors.
+  // Dispatch the computation.
   vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                     mode_data.store_pipeline);
   vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          store_pipeline_layout_, 0, 1, &set, 0, nullptr);
+                          store_pipeline_layout_color_, 0, 1, &set_storage, 0,
+                          nullptr);
   StorePushConstants push_constants;
   push_constants.edram_offset = edram_offset_tiles + edram_add_offset_tiles;
   push_constants.edram_pitch = edram_pitch_tiles;
   push_constants.rt_offset[0] = uint32_t(rt_rect_adjusted.offset.x);
   push_constants.rt_offset[1] = uint32_t(rt_rect_adjusted.offset.y);
-  vkCmdPushConstants(command_buffer, store_pipeline_layout_,
+  vkCmdPushConstants(command_buffer, store_pipeline_layout_color_,
                      VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants),
                      &push_constants);
   uint32_t group_count_x = edram_extent_tiles.width;
