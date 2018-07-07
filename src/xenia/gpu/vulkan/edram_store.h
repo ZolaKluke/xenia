@@ -56,16 +56,20 @@ class EDRAMStore {
            format == ColorRenderTargetFormat::k_32_32_FLOAT;
   }
 
+  VkFormat GetStoreColorImageViewFormat(ColorRenderTargetFormat format);
+
   // Prior to storing, the render target must be in the following state:
-  // StageMask & VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
-  // AccessMask & VK_ACCESS_SHADER_READ_BIT
-  // Layout VK_IMAGE_LAYOUT_GENERAL
-  // It must be created with usage & VK_IMAGE_USAGE_STORAGE_BIT for color,
-  // VK_IMAGE_USAGE_SAMPLED_BIT for depth.
+  // StageMask & VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT.
+  // AccessMask & VK_ACCESS_SHADER_READ_BIT.
+  // Layout VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL.
+  // It must be created with usage & VK_IMAGE_USAGE_SAMPLED_BIT.
+  // The image view must be in the R32_UINT format for 32bpp (on the host)
+  // images, and R32G32_UINT for 64bpp (use GetStoreColorImageViewFormat).
   void StoreColor(VkCommandBuffer command_buffer, VkFence fence,
-                  VkImageView rt_image_view, ColorRenderTargetFormat rt_format,
-                  MsaaSamples rt_samples, VkRect2D rt_rect,
-                  uint32_t edram_offset_tiles, uint32_t edram_pitch_px);
+                  VkImageView rt_image_view_u32,
+                  ColorRenderTargetFormat rt_format, MsaaSamples rt_samples,
+                  VkRect2D rt_rect, uint32_t edram_offset_tiles,
+                  uint32_t edram_pitch_px);
 
   // Returns the maximum height of a render target in pixels.
   static uint32_t GetMaxHeight(bool format_64bpp, MsaaSamples samples,
@@ -150,10 +154,12 @@ class EDRAMStore {
   EDRAMImageStatus edram_image_status_ = EDRAMImageStatus::kUntransitioned;
 
   // Store pipeline layout.
-  // 2 storage descriptor (EDRAM, render target for imageLoad).
-  VkDescriptorSetLayout store_descriptor_set_layout_storage_color_ = nullptr;
+  // Sampler for the render target image.
+  VkSampler store_rt_sampler_ = nullptr;
   // 1 storage descriptor (EDRAM).
-  VkDescriptorSetLayout store_descriptor_set_layout_storage_depth_ = nullptr;
+  VkDescriptorSetLayout store_descriptor_set_layout_storage_ = nullptr;
+  // 1 sampled descriptor (render target).
+  VkDescriptorSetLayout store_descriptor_set_layout_sampled_color_ = nullptr;
   // 2 sampled descriptors (depth, stencil for texelFetch).
   VkDescriptorSetLayout store_descriptor_set_layout_sampled_depth_ = nullptr;
   VkPipelineLayout store_pipeline_layout_color_ = nullptr;

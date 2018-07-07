@@ -101,6 +101,33 @@ VkResult EDRAMStore::Initialize() {
     return status;
   }
 
+  // Create the sampler to bind the RT as a sampled image.
+  VkSamplerCreateInfo sampler_info;
+  sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  sampler_info.pNext = nullptr;
+  sampler_info.flags = 0;
+  sampler_info.magFilter = VK_FILTER_NEAREST;
+  sampler_info.minFilter = VK_FILTER_NEAREST;
+  sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  sampler_info.mipLodBias = 0.0f;
+  sampler_info.anisotropyEnable = VK_FALSE;
+  sampler_info.maxAnisotropy = 1.0f;
+  sampler_info.compareEnable = VK_FALSE;
+  sampler_info.compareOp = VK_COMPARE_OP_NEVER;
+  sampler_info.minLod = 0.0f;
+  sampler_info.maxLod = 0.0f;
+  sampler_info.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+  sampler_info.unnormalizedCoordinates = VK_FALSE;
+  status = vkCreateSampler(*device_, &sampler_info, nullptr,
+                           &store_rt_sampler_);
+  CheckResult(status, "vkCreateSampler");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+
   // Create the descriptor set layout for the load and store pipelines.
   VkDescriptorSetLayoutCreateInfo descriptor_set_layout_info;
   VkDescriptorSetLayoutBinding descriptor_set_layout_bindings[2];
@@ -111,42 +138,41 @@ VkResult EDRAMStore::Initialize() {
   descriptor_set_layout_info.pBindings = descriptor_set_layout_bindings;
   descriptor_set_layout_bindings[0].binding = 0;
   descriptor_set_layout_bindings[0].descriptorCount = 1;
-  descriptor_set_layout_bindings[0].pImmutableSamplers = nullptr;
   descriptor_set_layout_bindings[1].binding = 1;
   descriptor_set_layout_bindings[1].descriptorCount = 1;
-  descriptor_set_layout_bindings[1].pImmutableSamplers = nullptr;
   // Store.
   descriptor_set_layout_bindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
   descriptor_set_layout_bindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
   // Store, storage.
+  descriptor_set_layout_info.bindingCount = 1;
   descriptor_set_layout_bindings[0].descriptorType =
       VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-  descriptor_set_layout_bindings[1].descriptorType =
-      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-  // Store, storage - color (EDRAM and render target).
-  descriptor_set_layout_info.bindingCount = 2;
-  status = vkCreateDescriptorSetLayout(
-      *device_, &descriptor_set_layout_info, nullptr,
-      &store_descriptor_set_layout_storage_color_);
+  descriptor_set_layout_bindings[0].pImmutableSamplers = nullptr;
+  status = vkCreateDescriptorSetLayout(*device_, &descriptor_set_layout_info,
+                                       nullptr,
+                                       &store_descriptor_set_layout_storage_);
   CheckResult(status, "vkCreateDescriptorSetLayout");
   if (status != VK_SUCCESS) {
     return status;
   }
-  // Store, storage - depth (EDRAM only).
+  // Store, sampled.
+  descriptor_set_layout_bindings[0].descriptorType =
+      VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+  descriptor_set_layout_bindings[0].pImmutableSamplers = &store_rt_sampler_;
+  descriptor_set_layout_bindings[1].descriptorType =
+      VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+  descriptor_set_layout_bindings[1].pImmutableSamplers = &store_rt_sampler_;
+  // Store, sampled - color buffer.
   descriptor_set_layout_info.bindingCount = 1;
   status = vkCreateDescriptorSetLayout(
       *device_, &descriptor_set_layout_info, nullptr,
-      &store_descriptor_set_layout_storage_depth_);
+      &store_descriptor_set_layout_sampled_color_);
   CheckResult(status, "vkCreateDescriptorSetLayout");
   if (status != VK_SUCCESS) {
     return status;
   }
   // Store, sampled - depth and stencil buffers.
   descriptor_set_layout_info.bindingCount = 2;
-  descriptor_set_layout_bindings[0].descriptorType =
-      VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-  descriptor_set_layout_bindings[1].descriptorType =
-      VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
   status = vkCreateDescriptorSetLayout(
       *device_, &descriptor_set_layout_info, nullptr,
       &store_descriptor_set_layout_sampled_depth_);
@@ -159,6 +185,7 @@ VkResult EDRAMStore::Initialize() {
   descriptor_set_layout_bindings[0].descriptorType =
       VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
   descriptor_set_layout_bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+  descriptor_set_layout_bindings[0].pImmutableSamplers = nullptr;
   status = vkCreateDescriptorSetLayout(*device_, &descriptor_set_layout_info,
                                        nullptr,
                                        &load_descriptor_set_layout_storage_);
@@ -179,11 +206,12 @@ VkResult EDRAMStore::Initialize() {
   pipeline_layout_info.pPushConstantRanges = &push_constant_range;
   push_constant_range.offset = 0;
   // Store.
+  pipeline_layout_info.setLayoutCount = 2;
+  descriptor_set_layouts[0] = store_descriptor_set_layout_storage_;
   push_constant_range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
   push_constant_range.size = sizeof(StorePushConstants);
   // Store - color.
-  pipeline_layout_info.setLayoutCount = 1;
-  descriptor_set_layouts[0] = store_descriptor_set_layout_storage_color_;
+  descriptor_set_layouts[1] = store_descriptor_set_layout_sampled_color_;
   status = vkCreatePipelineLayout(*device_, &pipeline_layout_info, nullptr,
                                   &store_pipeline_layout_color_);
   CheckResult(status, "vkCreatePipelineLayout");
@@ -191,8 +219,6 @@ VkResult EDRAMStore::Initialize() {
     return status;
   }
   // Store - depth.
-  pipeline_layout_info.setLayoutCount = 2;
-  descriptor_set_layouts[0] = store_descriptor_set_layout_storage_depth_;
   descriptor_set_layouts[1] = store_descriptor_set_layout_sampled_depth_;
   status = vkCreatePipelineLayout(*device_, &pipeline_layout_info, nullptr,
                                   &store_pipeline_layout_depth_);
@@ -217,7 +243,7 @@ VkResult EDRAMStore::Initialize() {
   pool_sizes[0].descriptorCount = 2048;
   pool_sizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
   pool_sizes[1].descriptorCount = 2048;
-  pool_sizes[1].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+  pool_sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
   descriptor_pool_ = std::make_unique<ui::vulkan::DescriptorPool>(
       *device_, 4096,
       std::vector<VkDescriptorPoolSize>(pool_sizes, std::end(pool_sizes)));
@@ -293,9 +319,10 @@ void EDRAMStore::Shutdown() {
   VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
                   store_descriptor_set_layout_sampled_depth_, nullptr);
   VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
-                  store_descriptor_set_layout_storage_depth_, nullptr);
+                  store_descriptor_set_layout_sampled_color_, nullptr);
   VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
-                  store_descriptor_set_layout_storage_color_, nullptr);
+                  store_descriptor_set_layout_storage_, nullptr);
+  VK_SAFE_DESTROY(vkDestroySampler, *device_, store_rt_sampler_, nullptr);
 
   VK_SAFE_DESTROY(vkDestroyImage, *device_, edram_image_, nullptr);
   VK_SAFE_DESTROY(vkFreeMemory, *device_, edram_memory_, nullptr);
@@ -363,6 +390,21 @@ EDRAMStore::Mode EDRAMStore::GetColorMode(ColorRenderTargetFormat format,
       break;
   }
   return Mode::k_ModeUnsupported;
+}
+
+VkFormat EDRAMStore::GetStoreColorImageViewFormat(
+    ColorRenderTargetFormat format) {
+  switch (format) {
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+    case ColorRenderTargetFormat::k_16_16_16_16:
+    case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+    case ColorRenderTargetFormat::k_32_32_FLOAT:
+      return VK_FORMAT_R32G32_UINT;
+    default:
+      break;
+  }
+  return VK_FORMAT_R32_UINT;
 }
 
 void EDRAMStore::GetPixelEDRAMSizePower(bool format_64bpp, MsaaSamples samples,
@@ -473,7 +515,7 @@ uint32_t EDRAMStore::GetMaxHeight(bool format_64bpp, MsaaSamples samples,
 }
 
 void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
-                            VkImageView rt_image_view,
+                            VkImageView rt_image_view_u32,
                             ColorRenderTargetFormat rt_format,
                             MsaaSamples rt_samples, VkRect2D rt_rect,
                             uint32_t edram_offset_tiles,
@@ -507,9 +549,17 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   if (!descriptor_pool_->has_open_batch()) {
     descriptor_pool_->BeginBatch(fence);
   }
-  auto set_storage = descriptor_pool_->AcquireEntry(
-      store_descriptor_set_layout_storage_color_);
-  if (!set_storage) {
+  VkDescriptorSet sets[2];
+  sets[0] = descriptor_pool_->AcquireEntry(
+      store_descriptor_set_layout_storage_);
+  if (!sets[0]) {
+    assert_always();
+    descriptor_pool_->CancelBatch();
+    return;
+  }
+  sets[1] = descriptor_pool_->AcquireEntry(
+      store_descriptor_set_layout_sampled_color_);
+  if (!sets[1]) {
     assert_always();
     descriptor_pool_->CancelBatch();
     return;
@@ -522,7 +572,7 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   VkWriteDescriptorSet descriptors[2];
   descriptors[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
   descriptors[0].pNext = nullptr;
-  descriptors[0].dstSet = set_storage;
+  descriptors[0].dstSet = sets[0];
   descriptors[0].dstBinding = 0;
   descriptors[0].dstArrayElement = 0;
   descriptors[0].descriptorCount = 1;
@@ -536,15 +586,16 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   descriptors[0].pTexelBufferView = nullptr;
   descriptors[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
   descriptors[1].pNext = nullptr;
-  descriptors[1].dstSet = set_storage;
-  descriptors[1].dstBinding = 1;
+  descriptors[1].dstSet = sets[1];
+  descriptors[1].dstBinding = 0;
   descriptors[1].dstArrayElement = 0;
   descriptors[1].descriptorCount = 1;
-  descriptors[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+  descriptors[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
   VkDescriptorImageInfo image_info_rt;
+  // The sampler is immutable.
   image_info_rt.sampler = nullptr;
-  image_info_rt.imageView = rt_image_view;
-  image_info_rt.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+  image_info_rt.imageView = rt_image_view_u32;
+  image_info_rt.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
   descriptors[1].pImageInfo = &image_info_rt;
   descriptors[1].pBufferInfo = nullptr;
   descriptors[1].pTexelBufferView = nullptr;
@@ -554,8 +605,7 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                     mode_data.store_pipeline);
   vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          store_pipeline_layout_color_, 0, 1, &set_storage, 0,
-                          nullptr);
+                          store_pipeline_layout_color_, 0, 2, sets, 0, nullptr);
   StorePushConstants push_constants;
   push_constants.edram_offset = edram_offset_tiles + edram_add_offset_tiles;
   push_constants.edram_pitch = edram_pitch_tiles;

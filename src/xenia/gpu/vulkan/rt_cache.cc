@@ -141,6 +141,9 @@ void RTCache::Shutdown() {
 
   for (auto rt_pair : rts_) {
     auto rt = rt_pair.second;
+    if (rt->image_view_color_edram_store != nullptr) {
+      vkDestroyImageView(*device_, rt->image_view_color_edram_store, nullptr);
+    }
     if (rt->image_view_stencil != nullptr) {
       vkDestroyImageView(*device_, rt->image_view_stencil, nullptr);
     }
@@ -391,7 +394,9 @@ bool RTCache::AllocateRenderTargets(
                                rt_memory_[alloc_info.page_first / 6],
                                (alloc_info.page_first % 6) << 22);
     CheckResult(status, "vkBindImageMemory");
-    VkImageView image_view = nullptr, image_view_stencil = nullptr;
+    VkImageView image_view = nullptr;
+    VkImageView image_view_stencil = nullptr;
+    VkImageView image_view_color_edram_store = nullptr;
     if (status == VK_SUCCESS) {
       image_view_info.image = new_images[rt_index];
       image_view_info.format = formats[rt_index];
@@ -400,11 +405,18 @@ bool RTCache::AllocateRenderTargets(
       status = vkCreateImageView(*device_, &image_view_info, nullptr,
                                  &image_view);
       CheckResult(status, "vkCreateImageView");
-      if (status == VK_SUCCESS && key.is_depth) {
-        image_view_info.subresourceRange.aspectMask =
-            VK_IMAGE_ASPECT_STENCIL_BIT;
-        status = vkCreateImageView(*device_, &image_view_info, nullptr,
-                                   &image_view_stencil);
+      if (status == VK_SUCCESS) {
+        if (key.is_depth) {
+          image_view_info.subresourceRange.aspectMask =
+              VK_IMAGE_ASPECT_STENCIL_BIT;
+          status = vkCreateImageView(*device_, &image_view_info, nullptr,
+                                     &image_view_stencil);
+        } else {
+          image_view_info.format = edram_store_.GetStoreColorImageViewFormat(
+              ColorRenderTargetFormat(key.format));
+          status = vkCreateImageView(*device_, &image_view_info, nullptr,
+                                     &image_view_color_edram_store);
+        }
         CheckResult(status, "vkCreateImageView");
         if (status != VK_SUCCESS) {
           vkDestroyImageView(*device_, image_view, nullptr);
@@ -429,6 +441,7 @@ bool RTCache::AllocateRenderTargets(
     rt->image = new_images[rt_index];
     rt->image_view = image_view;
     rt->image_view_stencil = image_view_stencil;
+    rt->image_view_color_edram_store = image_view_color_edram_store;
     rt->key.value = key.value;
     rt->page_first = alloc_info.page_first;
     rt->page_count = alloc_info.page_count;
@@ -472,7 +485,7 @@ VkPipelineStageFlags RTCache::GetRenderTargetUsageParameters(
     case RenderTargetUsage::kStoreToEDRAM:
       assert_false(is_depth);
       access_mask = VK_ACCESS_SHADER_READ_BIT;
-      layout = VK_IMAGE_LAYOUT_GENERAL;
+      layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
       return VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     default:
       assert_unhandled_case(usage);

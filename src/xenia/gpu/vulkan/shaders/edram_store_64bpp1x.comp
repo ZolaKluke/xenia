@@ -21,11 +21,12 @@ layout(push_constant) uniform push_consts_type {
 
 // 1280x2048 (16x128 tiles).
 layout(set = 0, binding = 0, r32ui) uniform writeonly uimage2D edram;
-layout(set = 0, binding = 1, rg32ui) uniform readonly uimage2D rt;
+// R32G32_UINT.
+layout(set = 1, binding = 0) uniform usampler2D rt;
 
 void main() {
-  uvec4 pixel = imageLoad(rt, ivec2(gl_GlobalInvocationID.xy +
-                                    push_constants.rt_offset));
+  uvec4 pixel = texelFetch(rt, ivec2(gl_GlobalInvocationID.xy +
+                                     push_constants.rt_offset), 0);
   uint tile_index = push_constants.edram_offset + gl_WorkGroupID.y *
                     push_constants.edram_pitch + gl_WorkGroupID.x;
   uvec2 edram_coord = uvec2(tile_index & 15, tile_index >> 4) * uvec2(80, 16);

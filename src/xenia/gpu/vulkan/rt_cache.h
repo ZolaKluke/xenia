@@ -102,6 +102,7 @@ class RTCache {
       VkImage image;
       VkImageView image_view;
       VkImageView image_view_stencil;
+      VkImageView image_view_color_edram_store;
 
       RenderTargetKey key;
 
@@ -133,7 +134,7 @@ class RTCache {
     };
 
     static constexpr VkImageUsageFlags kUsageFlagsColor =
-        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     // This assumes sampling (done via texelFetch in this case) of depth buffers
     // is possible in the implementation (this is true for desktop GPUs).
