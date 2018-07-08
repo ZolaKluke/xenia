@@ -20,12 +20,15 @@ using xe::ui::vulkan::CheckResult;
 
 // Generated with `xb genspirv`.
 #include "xenia/gpu/vulkan/shaders/bin/edram_store_32bpp1x_comp.h"
+#include "xenia/gpu/vulkan/shaders/bin/edram_store_32bpp2x_comp.h"
 #include "xenia/gpu/vulkan/shaders/bin/edram_store_64bpp1x_comp.h"
 
 const EDRAMStore::ModeInfo EDRAMStore::mode_info_[
     size_t(EDRAMStore::Mode::k_ModeCount)] = {
     {false, false, MsaaSamples::k1X, edram_store_32bpp1x_comp,
      sizeof(edram_store_32bpp1x_comp), "S(c): EDRAM Store 32bpp 1x"},
+    {false, false, MsaaSamples::k2X, edram_store_32bpp2x_comp,
+     sizeof(edram_store_32bpp2x_comp), "S(c): EDRAM Store 32bpp 2x"},
     {false, true, MsaaSamples::k1X, edram_store_64bpp1x_comp,
      sizeof(edram_store_64bpp1x_comp), "S(c): EDRAM Store 64bpp 1x"}
 };
@@ -368,10 +371,6 @@ void EDRAMStore::TransitionEDRAMImage(VkCommandBuffer command_buffer,
 
 EDRAMStore::Mode EDRAMStore::GetColorMode(ColorRenderTargetFormat format,
                                           MsaaSamples samples) {
-  if (samples != MsaaSamples::k1X) {
-    // MSAA storing not supported yet.
-    return Mode::k_ModeUnsupported;
-  }
   switch (format) {
     case ColorRenderTargetFormat::k_8_8_8_8:
     case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
@@ -380,13 +379,19 @@ EDRAMStore::Mode EDRAMStore::GetColorMode(ColorRenderTargetFormat format,
     case ColorRenderTargetFormat::k_16_16_FLOAT:
     case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
     case ColorRenderTargetFormat::k_32_FLOAT:
-      return Mode::k_32bpp_1X;
+      switch (samples) {
+        case MsaaSamples::k1X: return Mode::k_32bpp_1X;
+        case MsaaSamples::k2X: return Mode::k_32bpp_2X;
+        default: return Mode::k_ModeUnsupported;
+      }
     case ColorRenderTargetFormat::k_16_16_16_16:
     case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
     case ColorRenderTargetFormat::k_32_32_FLOAT:
-      return Mode::k_64bpp_1X;
+      switch (samples) {
+        case MsaaSamples::k1X: return Mode::k_64bpp_1X;
+        default: return Mode::k_ModeUnsupported;
+      }
     default:
-      // 64-bit not supported yet.
       break;
   }
   return Mode::k_ModeUnsupported;
@@ -458,9 +463,9 @@ bool EDRAMStore::GetDimensions(
   uint32_t rt_rect_tiles_left = uint32_t(rt_rect.offset.x) / 80;
   uint32_t rt_rect_tiles_right =
       xe::round_up(uint32_t(rt_rect.offset.x) + rt_rect.extent.width, 80) / 80;
-  uint32_t rt_rect_tiles_top = uint32_t(rt_rect.offset.x) >> 4;
+  uint32_t rt_rect_tiles_top = uint32_t(rt_rect.offset.y) >> 4;
   uint32_t rt_rect_tiles_bottom =
-      xe::round_up(uint32_t(rt_rect.offset.x) + rt_rect.extent.width, 16) >> 4;
+      xe::round_up(uint32_t(rt_rect.offset.y) + rt_rect.extent.height, 16) >> 4;
   uint32_t edram_pitch = xe::round_up(edram_pitch_px, 80) / 80;
 
   // Check if a framebuffer area wider than the surface pitch was requested.
@@ -476,9 +481,7 @@ bool EDRAMStore::GetDimensions(
   // Clamp the height in case the framebuffer size was highly overestimated.
   // This, on the other hand, may happen.
   uint32_t rt_rect_tiles_height = rt_rect_tiles_bottom - rt_rect_tiles_top;
-  uint32_t edram_size =
-      rt_rect_tiles_height * edram_pitch + rt_rect_tiles_width;
-  if (edram_offset + edram_size > 2048) {
+  if (edram_offset + rt_rect_tiles_height * edram_pitch > 2048) {
     rt_rect_tiles_height = (2048 - edram_offset) / edram_pitch;
     if (rt_rect_tiles_height == 0) {
       return false;
@@ -491,7 +494,7 @@ bool EDRAMStore::GetDimensions(
   rt_rect_adjusted.extent.width =
       (rt_rect_tiles_width * 80) >> pixel_width_power;
   rt_rect_adjusted.extent.height =
-      (rt_rect_tiles_width << 4) >> pixel_height_power;
+      (rt_rect_tiles_height << 4) >> pixel_height_power;
   edram_add_offset_tiles = edram_add_offset;
   edram_extent_tiles.width = rt_rect_tiles_width;
   edram_extent_tiles.height = rt_rect_tiles_height;
@@ -607,20 +610,21 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                           store_pipeline_layout_color_, 0, 2, sets, 0, nullptr);
   StorePushConstants push_constants;
-  push_constants.edram_offset = edram_offset_tiles + edram_add_offset_tiles;
-  push_constants.edram_pitch = edram_pitch_tiles;
-  push_constants.rt_offset[0] = uint32_t(rt_rect_adjusted.offset.x);
-  push_constants.rt_offset[1] = uint32_t(rt_rect_adjusted.offset.y);
+  push_constants.edram_offset_tiles = edram_offset_tiles +
+                                      edram_add_offset_tiles;
+  push_constants.edram_pitch_tiles = edram_pitch_tiles;
+  push_constants.rt_offset_px[0] = uint32_t(rt_rect_adjusted.offset.x);
+  push_constants.rt_offset_px[1] = uint32_t(rt_rect_adjusted.offset.y);
   vkCmdPushConstants(command_buffer, store_pipeline_layout_color_,
                      VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants),
                      &push_constants);
-  uint32_t group_count_x = edram_extent_tiles.width;
+  uint32_t group_count_y = edram_extent_tiles.height;
   if (mode == Mode::k_32bpp_1X) {
     // For the 80x16 mode, tiles are split into 2 groups because 1280 threads
     // may be over the limit.
-    group_count_x *= 2;
+    group_count_y *= 2;
   }
-  vkCmdDispatch(command_buffer, group_count_x, edram_extent_tiles.height, 1);
+  vkCmdDispatch(command_buffer, edram_extent_tiles.width, group_count_y, 1);
 
   // Commit the write so loads or overlapping writes won't conflict.
   vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,

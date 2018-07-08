@@ -87,9 +87,10 @@ class EDRAMStore {
   enum class Mode {
     k_ModeUnsupported = -1,
 
-    // 32-bit color image format, non-multisampled.
+    // 32-bit color.
     k_32bpp_1X,
-    // 64-bit color image format, non-multisampled.
+    k_32bpp_2X,
+    // 64-bit color.
     k_64bpp_1X,
 
     k_ModeCount
@@ -113,14 +114,14 @@ class EDRAMStore {
   };
 
   struct StorePushConstants {
-    uint32_t edram_offset;
-    uint32_t edram_pitch;
-    uint32_t rt_offset[2];
+    uint32_t edram_offset_tiles;
+    uint32_t edram_pitch_tiles;
+    uint32_t rt_offset_px[2];
   };
 
   struct LoadPushConstants {
-    uint32_t edram_offset;
-    uint32_t edram_pitch;
+    uint32_t edram_offset_tiles;
+    uint32_t edram_pitch_tiles;
   };
 
   void TransitionEDRAMImage(VkCommandBuffer command_buffer, bool load);
