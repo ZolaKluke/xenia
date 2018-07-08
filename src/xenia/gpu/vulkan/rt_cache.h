@@ -198,7 +198,6 @@ class RTCache {
       void Reset() { std::memset(this, 0, sizeof(*this)); }
     } shadow_registers_;
     bool SetShadowRegister(uint32_t* dest, uint32_t register_name);
-    uint32_t GetShadowEDRAMPitchPx() const;
 
     // Current state.
     RenderPass* current_pass_ = nullptr;

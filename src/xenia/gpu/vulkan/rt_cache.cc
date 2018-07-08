@@ -651,14 +651,6 @@ bool RTCache::SetShadowRegister(uint32_t* dest, uint32_t register_name) {
   return true;
 }
 
-uint32_t RTCache::GetShadowEDRAMPitchPx() const {
-  uint32_t pitch = shadow_registers_.rb_surface_info.surface_pitch;
-  if (shadow_registers_.rb_surface_info.msaa_samples == MsaaSamples::k4X) {
-    pitch *= 2;
-  }
-  return pitch;
-}
-
 void RTCache::SwitchRenderPassTargetUsage(
     VkCommandBuffer command_buffer, RenderPass* pass, RenderTargetUsage usage,
     uint32_t switch_color_mask, bool switch_depth) {
@@ -773,7 +765,7 @@ void RTCache::BeginRenderPass(VkCommandBuffer command_buffer,
   // Store the current values.
   current_pass_ = pass;
   auto& regs = shadow_registers_;
-  current_edram_pitch_px_ = GetShadowEDRAMPitchPx();
+  current_edram_pitch_px_ = regs.rb_surface_info.surface_pitch;
   for (uint32_t i = 0; i < 4; ++i) {
     current_edram_color_offsets_[i] = regs.rb_color_info[i].color_base;
   }
@@ -844,7 +836,7 @@ bool RTCache::AreCurrentEDRAMParametersValid() const {
     return false;
   }
   auto& regs = shadow_registers_;
-  if (current_edram_pitch_px_ != GetShadowEDRAMPitchPx()) {
+  if (current_edram_pitch_px_ != regs.rb_surface_info.surface_pitch) {
     return false;
   }
   for (uint32_t i = 0; i < 4; ++i) {
@@ -901,11 +893,12 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
   MsaaSamples samples = regs.rb_surface_info.msaa_samples;
 
   // Calculate the width of the host render target.
-  uint32_t width = std::min(GetShadowEDRAMPitchPx(), 2560u);
+  uint32_t width = regs.rb_surface_info.surface_pitch;
   if (width == 0) {
     EndRenderPass(command_buffer, batch_fence);
     return DrawStatus::kDoNotDraw;
   }
+  width = std::min(width, 2560u);
   // Round up so there are less switches and to make EDRAM load/store safer.
   uint32_t width_div_80 = xe::round_up(width, 80) / 80;
 

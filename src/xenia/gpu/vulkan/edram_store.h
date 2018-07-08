@@ -38,9 +38,6 @@ namespace vulkan {
 // shader (this is currently not implemented and not very important).
 // In the 1280x2048 image, 16 tiles are laid out every 16-pixel row, and can be
 // indexed as ((tile & 15) * 80, (tile >> 4) * 16).
-//
-// A small API note - when edram_pitch_px is used, it must be pre-multiplied by
-// 2 if using 4x MSAA.
 class EDRAMStore {
  public:
   EDRAMStore(ui::vulkan::VulkanDevice* device);
