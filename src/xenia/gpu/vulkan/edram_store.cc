@@ -90,7 +90,7 @@ VkResult EDRAMStore::Initialize() {
   image_view_info.flags = 0;
   image_view_info.image = edram_image_;
   image_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-  image_view_info.format = VK_FORMAT_R8G8B8A8_UNORM;
+  image_view_info.format = VK_FORMAT_R32_UINT;
   image_view_info.components.r = VK_COMPONENT_SWIZZLE_R;
   image_view_info.components.g = VK_COMPONENT_SWIZZLE_G;
   image_view_info.components.b = VK_COMPONENT_SWIZZLE_B;
