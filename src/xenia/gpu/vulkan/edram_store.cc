@@ -22,6 +22,7 @@ using xe::ui::vulkan::CheckResult;
 #include "xenia/gpu/vulkan/shaders/bin/edram_store_32bpp_1x_comp.h"
 #include "xenia/gpu/vulkan/shaders/bin/edram_store_32bpp_2x_comp.h"
 #include "xenia/gpu/vulkan/shaders/bin/edram_store_64bpp_1x_comp.h"
+#include "xenia/gpu/vulkan/shaders/bin/edram_store_7e3_1x_comp.h"
 
 const EDRAMStore::ModeInfo EDRAMStore::mode_info_[
     size_t(EDRAMStore::Mode::k_ModeCount)] = {
@@ -30,7 +31,9 @@ const EDRAMStore::ModeInfo EDRAMStore::mode_info_[
     {false, false, MsaaSamples::k2X, edram_store_32bpp_2x_comp,
      sizeof(edram_store_32bpp_2x_comp), "S(c): EDRAM Store 32bpp 2x"},
     {false, true, MsaaSamples::k1X, edram_store_64bpp_1x_comp,
-     sizeof(edram_store_64bpp_1x_comp), "S(c): EDRAM Store 64bpp 1x"}
+     sizeof(edram_store_64bpp_1x_comp), "S(c): EDRAM Store 64bpp 1x"},
+    {false, false, MsaaSamples::k1X, edram_store_7e3_1x_comp,
+     sizeof(edram_store_7e3_1x_comp), "S(c): EDRAM Store 7e3 1x"}
 };
 
 EDRAMStore::EDRAMStore(ui::vulkan::VulkanDevice* device) : device_(device) {}
@@ -391,6 +394,12 @@ EDRAMStore::Mode EDRAMStore::GetColorMode(ColorRenderTargetFormat format,
         case MsaaSamples::k1X: return Mode::k_64bpp_1X;
         default: return Mode::k_ModeUnsupported;
       }
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+      switch (samples) {
+        case MsaaSamples::k1X: return Mode::k_7e3_1X;
+        default: return Mode::k_ModeUnsupported;
+      }
     default:
       break;
   }
@@ -534,15 +543,16 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   if (mode == Mode::k_ModeUnsupported) {
     return;
   }
+  const ModeInfo& mode_info = mode_info_[size_t(mode)];
 
   // Get the dimensions for the copying.
   VkRect2D rt_rect_adjusted;
   uint32_t edram_add_offset_tiles, edram_pitch_tiles;
   VkExtent2D edram_extent_tiles;
-  if (!GetDimensions(IsColorFormat64bpp(rt_format), rt_samples,
-                     edram_offset_tiles, edram_pitch_px, rt_rect,
-                     rt_rect_adjusted, edram_add_offset_tiles,
-                     edram_extent_tiles, edram_pitch_tiles)) {
+  if (!GetDimensions(mode_info.is_64bpp, mode_info.samples, edram_offset_tiles,
+                     edram_pitch_px, rt_rect, rt_rect_adjusted,
+                     edram_add_offset_tiles, edram_extent_tiles,
+                     edram_pitch_tiles)) {
     return;
   }
 
@@ -619,7 +629,7 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
                      VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants),
                      &push_constants);
   uint32_t group_count_y = edram_extent_tiles.height;
-  if (mode == Mode::k_32bpp_1X) {
+  if (!mode_info.is_64bpp && mode_info.samples == MsaaSamples::k1X) {
     // For the 80x16 mode, tiles are split into 2 groups because 1280 threads
     // may be over the limit.
     group_count_y *= 2;

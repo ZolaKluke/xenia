@@ -829,7 +829,8 @@ void RTCache::EndRenderPass(VkCommandBuffer command_buffer,
     }
     RenderTargetKey key(current_pass_->keys_color[i]);
     uint32_t format = key.format;
-    edram_store_.StoreColor(command_buffer, batch_fence, rt->image_view,
+    edram_store_.StoreColor(command_buffer, batch_fence,
+                            rt->image_view_color_edram_store,
                             ColorRenderTargetFormat(format), key.samples,
                             rt_rect, current_edram_color_offsets_[i],
                             current_edram_pitch_px_);
