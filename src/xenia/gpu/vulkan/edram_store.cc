@@ -19,18 +19,18 @@ namespace vulkan {
 using xe::ui::vulkan::CheckResult;
 
 // Generated with `xb genspirv`.
-#include "xenia/gpu/vulkan/shaders/bin/edram_store_32bpp1x_comp.h"
-#include "xenia/gpu/vulkan/shaders/bin/edram_store_32bpp2x_comp.h"
-#include "xenia/gpu/vulkan/shaders/bin/edram_store_64bpp1x_comp.h"
+#include "xenia/gpu/vulkan/shaders/bin/edram_store_32bpp_1x_comp.h"
+#include "xenia/gpu/vulkan/shaders/bin/edram_store_32bpp_2x_comp.h"
+#include "xenia/gpu/vulkan/shaders/bin/edram_store_64bpp_1x_comp.h"
 
 const EDRAMStore::ModeInfo EDRAMStore::mode_info_[
     size_t(EDRAMStore::Mode::k_ModeCount)] = {
-    {false, false, MsaaSamples::k1X, edram_store_32bpp1x_comp,
-     sizeof(edram_store_32bpp1x_comp), "S(c): EDRAM Store 32bpp 1x"},
-    {false, false, MsaaSamples::k2X, edram_store_32bpp2x_comp,
-     sizeof(edram_store_32bpp2x_comp), "S(c): EDRAM Store 32bpp 2x"},
-    {false, true, MsaaSamples::k1X, edram_store_64bpp1x_comp,
-     sizeof(edram_store_64bpp1x_comp), "S(c): EDRAM Store 64bpp 1x"}
+    {false, false, MsaaSamples::k1X, edram_store_32bpp_1x_comp,
+     sizeof(edram_store_32bpp_1x_comp), "S(c): EDRAM Store 32bpp 1x"},
+    {false, false, MsaaSamples::k2X, edram_store_32bpp_2x_comp,
+     sizeof(edram_store_32bpp_2x_comp), "S(c): EDRAM Store 32bpp 2x"},
+    {false, true, MsaaSamples::k1X, edram_store_64bpp_1x_comp,
+     sizeof(edram_store_64bpp_1x_comp), "S(c): EDRAM Store 64bpp 1x"}
 };
 
 EDRAMStore::EDRAMStore(ui::vulkan::VulkanDevice* device) : device_(device) {}
