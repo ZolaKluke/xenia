@@ -596,6 +596,8 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   auto& regs = set_dynamic_state_registers_;
 
   // Apply a multiplier to the scissor and the viewport to emulate MSAA via SSAA.
+  bool surface_info_dirty = SetShadowRegister(&regs.rb_surface_info,
+                                              XE_GPU_REG_RB_SURFACE_INFO);
   auto surface_msaa =
       static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
   int32_t window_width_scalar = 1, window_height_scalar = 1;
@@ -625,7 +627,8 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   }
 
   // VK_DYNAMIC_STATE_SCISSOR
-  bool scissor_state_dirty = full_update || window_offset_dirty;
+  bool scissor_state_dirty = full_update || window_offset_dirty ||
+                             surface_info_dirty;
   scissor_state_dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_tl,
                                            XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL);
   scissor_state_dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_br,
@@ -653,9 +656,8 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   }
 
   // VK_DYNAMIC_STATE_VIEWPORT
-  bool viewport_state_dirty = full_update || window_offset_dirty;
-  viewport_state_dirty |=
-      SetShadowRegister(&regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
+  bool viewport_state_dirty = full_update || window_offset_dirty ||
+                              surface_info_dirty;
   viewport_state_dirty |=
       SetShadowRegister(&regs.pa_cl_vte_cntl, XE_GPU_REG_PA_CL_VTE_CNTL);
   viewport_state_dirty |=
