@@ -595,6 +595,17 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
 
   auto& regs = set_dynamic_state_registers_;
 
+  // Apply a multiplier to the scissor and the viewport to emulate MSAA via SSAA.
+  auto surface_msaa =
+      static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
+  int32_t window_width_scalar = 1, window_height_scalar = 1;
+  if (surface_msaa >= MsaaSamples::k2X) {
+    window_height_scalar = 2;
+    if (surface_msaa >= MsaaSamples::k4X) {
+      window_width_scalar = 2;
+    }
+  }
+
   bool window_offset_dirty = SetShadowRegister(&regs.pa_sc_window_offset,
                                                XE_GPU_REG_PA_SC_WINDOW_OFFSET);
   window_offset_dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
@@ -634,10 +645,10 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     int32_t adj_y = ws_y - std::max(ws_y, 0);
 
     VkRect2D scissor_rect;
-    scissor_rect.offset.x = ws_x - adj_x;
-    scissor_rect.offset.y = ws_y - adj_y;
-    scissor_rect.extent.width = std::max(ws_w + adj_x, 0);
-    scissor_rect.extent.height = std::max(ws_h + adj_y, 0);
+    scissor_rect.offset.x = (ws_x - adj_x) * window_width_scalar;
+    scissor_rect.offset.y = (ws_y - adj_y) * window_height_scalar;
+    scissor_rect.extent.width = std::max(ws_w + adj_x, 0) * window_width_scalar;
+    scissor_rect.extent.height = std::max(ws_h + adj_y, 0) * window_height_scalar;
     vkCmdSetScissor(command_buffer, 0, 1, &scissor_rect);
   }
 
@@ -661,23 +672,6 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
                                             XE_GPU_REG_PA_CL_VPORT_YSCALE);
   viewport_state_dirty |= SetShadowRegister(&regs.pa_cl_vport_zscale,
                                             XE_GPU_REG_PA_CL_VPORT_ZSCALE);
-  // RB_SURFACE_INFO
-  auto surface_msaa =
-      static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
-
-  // Apply a multiplier to emulate MSAA.
-  float window_width_scalar = 1;
-  float window_height_scalar = 1;
-  switch (surface_msaa) {
-    case MsaaSamples::k1X:
-      break;
-    case MsaaSamples::k2X:
-      window_height_scalar = 2;
-      break;
-    case MsaaSamples::k4X:
-      window_width_scalar = window_height_scalar = 2;
-      break;
-  }
 
   // Whether each of the viewport settings are enabled.
   // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
@@ -703,18 +697,19 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     float vsx = vport_xscale_enable ? regs.pa_cl_vport_xscale : 1;
     float vsy = vport_yscale_enable ? regs.pa_cl_vport_yscale : 1;
 
-    window_width_scalar = window_height_scalar = 1;
-    vpw = 2 * window_width_scalar * vsx;
-    vph = -2 * window_height_scalar * vsy;
-    vpx = window_width_scalar * vox - vpw / 2 + vtx_window_offset_x;
-    vpy = window_height_scalar * voy - vph / 2 + vtx_window_offset_y;
+    vpw = 2.0f * window_width_scalar * vsx;
+    vph = -2.0f * window_height_scalar * vsy;
+    vpx = (vox + vtx_window_offset_x) * float(window_width_scalar) - vpw * 0.5f;
+    vpy =
+        (voy + vtx_window_offset_y) * float(window_height_scalar) - vph * 0.5f;
   } else {
     // TODO(DrChat): This should be the width/height of the target picture
-    vpw = 2560.0f;
-    vph = 2560.0f;
-    vpx = vtx_window_offset_x;
-    vpy = vtx_window_offset_y;
+    vpw = 2560.0f * window_width_scalar;
+    vph = 2560.0f * window_height_scalar;
+    vpx = vtx_window_offset_x * float(window_width_scalar);
+    vpy = vtx_window_offset_y * float(window_height_scalar);
   }
+  // TODO(Triang3l): Check how the window offset works with SSAA.
 
   if (viewport_state_dirty) {
     VkViewport viewport_rect;

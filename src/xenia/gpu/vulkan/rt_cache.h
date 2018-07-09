@@ -133,6 +133,16 @@ class RTCache {
       uint32_t height;
     };
 
+    static inline void GetSupersampledSize(uint32_t& width, uint32_t& height,
+                                           MsaaSamples samples) {
+      if (samples >= MsaaSamples::k2X) {
+        height *= 2;
+        if (samples >= MsaaSamples::k4X) {
+          width *= 2;
+        }
+      }
+    }
+
     static constexpr VkImageUsageFlags kUsageFlagsColor =
         VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     static constexpr VkImageUsageFlags kUsageFlagsDepth =

@@ -251,6 +251,8 @@ bool RTCache::AllocateRenderTargets(
     image_info.format = formats[i];
     image_info.extent.width = key.width_div_80 * 80;
     image_info.extent.height = key.height_div_16 * 16;
+    GetSupersampledSize(image_info.extent.width, image_info.extent.height,
+                        key.samples);
     image_info.samples = VK_SAMPLE_COUNT_1_BIT;
     image_info.usage = key.is_depth ? kUsageFlagsDepth : kUsageFlagsColor;
     status = vkCreateImage(*device_, &image_info, nullptr, &new_images[i]);
@@ -263,11 +265,6 @@ bool RTCache::AllocateRenderTargets(
     }
     VkMemoryRequirements memory_requirements;
     vkGetImageMemoryRequirements(*device_, new_images[i], &memory_requirements);
-    XELOGGPU(
-        "RT Cache: Need memory of size %u and alignment of %u for %ux%u image.\n",
-        uint32_t(memory_requirements.size),
-        uint32_t(memory_requirements.alignment), key.width_div_80 * 80,
-        key.height_div_16 * 16);
     assert_always(memory_requirements.alignment <= (1 << 22));
     if (memory_requirements.size > (6 << 22)) {
       // Can't fit the image in a whole 24 MB block.
@@ -301,8 +298,6 @@ bool RTCache::AllocateRenderTargets(
   uint32_t pages_allocated[5] = {};
   for (uint32_t i = 0; i < used_rt_count; ++i) {
     RTAllocInfo& alloc_info = alloc_infos[i];
-    XELOGGPU("RT Cache: Used RT %u (%u) has page count of %u.\n", i,
-             alloc_info.rt_index, alloc_info.page_count);
     uint32_t block_index;
     for (block_index = 0; block_index < 5; ++block_index) {
       if (pages_allocated[block_index] + alloc_info.page_count <= 6) {
@@ -378,6 +373,8 @@ bool RTCache::AllocateRenderTargets(
       image_info.format = formats[rt_index];
       image_info.extent.width = key.width_div_80 * 80;
       image_info.extent.height = key.height_div_16 * 16;
+      GetSupersampledSize(image_info.extent.width, image_info.extent.height,
+                          key.samples);
       image_info.samples = VK_SAMPLE_COUNT_1_BIT;
       image_info.usage = key.is_depth ? kUsageFlagsDepth : kUsageFlagsColor;
       status = vkCreateImage(*device_, &image_info, nullptr, &new_images[rt_index]);
@@ -446,10 +443,6 @@ bool RTCache::AllocateRenderTargets(
     rt->page_first = alloc_info.page_first;
     rt->page_count = alloc_info.page_count;
     rt->current_usage = RenderTargetUsage::kUntransitioned;
-    XELOGGPU(
-        "RT Cache: Allocated RT %ux%u, format %u, samples %u, page %u, page count %u.\n",
-        key.width_div_80 * 80, key.height_div_16 * 16, key.format, key.samples,
-        alloc_info.page_first, alloc_info.page_count);
     rts_.insert(std::make_pair(key.value, rt));
     rts[rt_index] = rt;
     // It's not "new" anymore, so don't delete it in case of an error.
@@ -564,8 +557,11 @@ RTCache::RenderPass* RTCache::GetRenderPass(
     attachment.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     attachment_image_views[pass_info.attachmentCount] = rt_depth->image_view;
-    width_div_80_min = std::min(key_depth.width_div_80, width_div_80_min);
-    height_div_16_min = std::min(key_depth.height_div_16, height_div_16_min);
+    uint32_t width_div_80 = key_depth.width_div_80;
+    uint32_t height_div_16 = key_depth.height_div_16;
+    GetSupersampledSize(width_div_80, height_div_16, key_depth.samples);
+    width_div_80_min = std::min(width_div_80, width_div_80_min);
+    height_div_16_min = std::min(height_div_16, height_div_16_min);
     ++pass_info.attachmentCount;
   }
   for (uint32_t i = 0; i < 4; ++i) {
@@ -591,8 +587,11 @@ RTCache::RenderPass* RTCache::GetRenderPass(
     attachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     attachment_image_views[pass_info.attachmentCount] = rt_color->image_view;
-    width_div_80_min = std::min(key.width_div_80, width_div_80_min);
-    height_div_16_min = std::min(key.height_div_16, height_div_16_min);
+    uint32_t width_div_80 = key.width_div_80;
+    uint32_t height_div_16 = key.height_div_16;
+    GetSupersampledSize(width_div_80, height_div_16, key.samples);
+    width_div_80_min = std::min(width_div_80, width_div_80_min);
+    height_div_16_min = std::min(height_div_16, height_div_16_min);
     ++pass_info.attachmentCount;
   }
   VkRenderPass pass;

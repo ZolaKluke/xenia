@@ -399,13 +399,15 @@ bool EDRAMStore::GetDimensions(
     }
   }
 
-  // Return the new dimensions.
-  rt_rect_adjusted.offset.x = (rt_rect_tiles_left * 80) >> pixel_width_power;
-  rt_rect_adjusted.offset.y = (rt_rect_tiles_top << 4) >> pixel_height_power;
-  rt_rect_adjusted.extent.width =
-      (rt_rect_tiles_width * 80) >> pixel_width_power;
-  rt_rect_adjusted.extent.height =
-      (rt_rect_tiles_height << 4) >> pixel_height_power;
+  // Return the new dimensions. Keep SSAA, but revert 64bpp width scale.
+  rt_rect_adjusted.offset.x = rt_rect_tiles_left * 80;
+  rt_rect_adjusted.offset.y = rt_rect_tiles_top << 4;
+  rt_rect_adjusted.extent.width = rt_rect_tiles_width * 80;
+  rt_rect_adjusted.extent.height = rt_rect_tiles_height << 4;
+  if (format_64bpp) {
+    rt_rect_adjusted.offset.x >>= 1;
+    rt_rect_adjusted.extent.width >>= 1;
+  }
   edram_add_offset_tiles = edram_add_offset;
   edram_extent_tiles.width = rt_rect_tiles_width;
   edram_extent_tiles.height = rt_rect_tiles_height;
