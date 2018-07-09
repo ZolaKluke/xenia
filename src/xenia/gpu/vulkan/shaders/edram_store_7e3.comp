@@ -18,7 +18,7 @@ layout(push_constant) uniform push_consts_type {
 } push_constants;
 
 layout(set = 0, binding = 0, r32ui) uniform writeonly uimage2D edram;
-layout(set = 1, binding = 0) uniform usampler2D rt;
+layout(set = 0, binding = 1, rg32ui) uniform readonly uimage2D rt;
 
 // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
 uint Float16x4To7e3(uvec2 rg_ba_u32) {
@@ -42,8 +42,8 @@ uint Float16x4To7e3(uvec2 rg_ba_u32) {
 }
 
 void main() {
-  uvec4 pixel = texelFetch(rt, ivec2(gl_GlobalInvocationID.xy +
-                                     push_constants.rt_offset_px), 0);
+  uvec4 pixel = imageLoad(rt, ivec2(gl_GlobalInvocationID.xy +
+                                    push_constants.rt_offset_px));
   pixel = uvec4(Float16x4To7e3(pixel.rg));
   uint tile_index = push_constants.edram_offset_tiles + (gl_WorkGroupID.y >> 1)
                     * push_constants.edram_pitch_tiles + gl_WorkGroupID.x;

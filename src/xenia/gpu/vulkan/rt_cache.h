@@ -134,13 +134,10 @@ class RTCache {
     };
 
     static constexpr VkImageUsageFlags kUsageFlagsColor =
-        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    // This assumes sampling (done via texelFetch in this case) of depth buffers
-    // is possible in the implementation (this is true for desktop GPUs).
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     static constexpr VkImageUsageFlags kUsageFlagsDepth =
-        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
     // Finds or creates views for the specified render target configuration.
     // Returns true if succeeded, false in case of an error.

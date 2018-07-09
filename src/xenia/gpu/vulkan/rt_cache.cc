@@ -211,7 +211,6 @@ bool RTCache::AllocateRenderTargets(
   VkImageCreateInfo image_info;
   image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
   image_info.pNext = nullptr;
-  image_info.flags = 0;
   image_info.imageType = VK_IMAGE_TYPE_2D;
   image_info.extent.depth = 1;
   image_info.mipLevels = 1;
@@ -248,10 +247,11 @@ bool RTCache::AllocateRenderTargets(
     }
     // Need a new VkImage to get the required memory size.
     // Also will obviously need it for the view as there's no image to reuse.
+    image_info.flags = key.is_depth ? 0 : VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
     image_info.format = formats[i];
     image_info.extent.width = key.width_div_80 * 80;
     image_info.extent.height = key.height_div_16 * 16;
-    image_info.samples = VkSampleCountFlagBits(1 << uint32_t(key.samples));
+    image_info.samples = VK_SAMPLE_COUNT_1_BIT;
     image_info.usage = key.is_depth ? kUsageFlagsDepth : kUsageFlagsColor;
     status = vkCreateImage(*device_, &image_info, nullptr, &new_images[i]);
     CheckResult(status, "vkCreateImage");
@@ -378,7 +378,7 @@ bool RTCache::AllocateRenderTargets(
       image_info.format = formats[rt_index];
       image_info.extent.width = key.width_div_80 * 80;
       image_info.extent.height = key.height_div_16 * 16;
-      image_info.samples = VkSampleCountFlagBits(1 << uint32_t(key.samples));
+      image_info.samples = VK_SAMPLE_COUNT_1_BIT;
       image_info.usage = key.is_depth ? kUsageFlagsDepth : kUsageFlagsColor;
       status = vkCreateImage(*device_, &image_info, nullptr, &new_images[rt_index]);
       CheckResult(status, "vkCreateImage");
@@ -485,7 +485,7 @@ VkPipelineStageFlags RTCache::GetRenderTargetUsageParameters(
     case RenderTargetUsage::kStoreToEDRAM:
       assert_false(is_depth);
       access_mask = VK_ACCESS_SHADER_READ_BIT;
-      layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+      layout = VK_IMAGE_LAYOUT_GENERAL;
       return VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     default:
       assert_unhandled_case(usage);
@@ -554,8 +554,7 @@ RTCache::RenderPass* RTCache::GetRenderPass(
     attachment.format =
         DepthRenderTargetFormatToVkFormat(DepthRenderTargetFormat(
                                           key_depth.format));
-    attachment.samples =
-        VkSampleCountFlagBits(1 << uint32_t(key_depth.samples));
+    attachment.samples = VK_SAMPLE_COUNT_1_BIT;
     // attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     // TODO(Triang3l): Change loadOp to DONT_CARE when EDRAM store is added.
     attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -584,7 +583,7 @@ RTCache::RenderPass* RTCache::GetRenderPass(
     attachment.flags = 0;
     attachment.format = ColorRenderTargetFormatToVkFormat(
         ColorRenderTargetFormat(key.format));
-    attachment.samples = VkSampleCountFlagBits(1 << uint32_t(key.samples));
+    attachment.samples = VK_SAMPLE_COUNT_1_BIT;
     attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;

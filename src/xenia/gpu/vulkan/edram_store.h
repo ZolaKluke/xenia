@@ -58,8 +58,9 @@ class EDRAMStore {
   // Prior to storing, the render target must be in the following state:
   // StageMask & VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT.
   // AccessMask & VK_ACCESS_SHADER_READ_BIT.
-  // Layout VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL.
-  // It must be created with usage & VK_IMAGE_USAGE_SAMPLED_BIT.
+  // Layout VK_IMAGE_LAYOUT_GENERAL.
+  // It must be created with flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT and
+  // usage & VK_IMAGE_USAGE_STORAGE_BIT.
   // The image view must be in the R32_UINT format for 32bpp (on the host)
   // images, and R32G32_UINT for 64bpp (use GetStoreColorImageViewFormat).
   void StoreColor(VkCommandBuffer command_buffer, VkFence fence,
@@ -85,12 +86,11 @@ class EDRAMStore {
     k_ModeUnsupported = -1,
 
     // 32-bit color.
-    k_32bpp_1X,
-    k_32bpp_2X,
+    k_32bpp,
     // 64-bit color.
-    k_64bpp_1X,
+    k_64bpp,
     // Packed 10.10.10.2 float.
-    k_7e3_1X,
+    k_7e3,
 
     k_ModeCount
   };
@@ -153,22 +153,11 @@ class EDRAMStore {
   // The current access mode for the EDRAM image.
   EDRAMImageStatus edram_image_status_ = EDRAMImageStatus::kUntransitioned;
 
-  // Store pipeline layout.
-  // Sampler for the render target image.
-  VkSampler store_rt_sampler_ = nullptr;
-  // 1 storage descriptor (EDRAM).
-  VkDescriptorSetLayout store_descriptor_set_layout_storage_ = nullptr;
-  // 1 sampled descriptor (render target).
-  VkDescriptorSetLayout store_descriptor_set_layout_sampled_color_ = nullptr;
-  // 2 sampled descriptors (depth, stencil for texelFetch).
-  VkDescriptorSetLayout store_descriptor_set_layout_sampled_depth_ = nullptr;
+  // Pipeline layouts.
+  // Color store and load (one EDRAM image and one RT image) descriptor layout.
+  VkDescriptorSetLayout descriptor_set_layout_color_ = nullptr;
   VkPipelineLayout store_pipeline_layout_color_ = nullptr;
-  VkPipelineLayout store_pipeline_layout_depth_ = nullptr;
-
-  // Load pipeline layout.
-  // 1 storage descriptor (EDRAM).
-  VkDescriptorSetLayout load_descriptor_set_layout_storage_ = nullptr;
-  VkPipelineLayout load_pipeline_layout_ = nullptr;
+  VkPipelineLayout load_pipeline_layout_color_ = nullptr;
 
   // Descriptor pool for shader invocations.
   std::unique_ptr<ui::vulkan::DescriptorPool> descriptor_pool_ = nullptr;
