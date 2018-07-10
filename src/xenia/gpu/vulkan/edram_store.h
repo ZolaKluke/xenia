@@ -55,19 +55,21 @@ class EDRAMStore {
 
   VkFormat GetStoreColorImageViewFormat(ColorRenderTargetFormat format);
 
-  // Prior to storing, the render target must be in the following state:
+  // load = false to store the data to the EDRAM, load = true to load back.
+  // Prior to loading/storing, the render target must be in the following state:
   // StageMask & VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT.
-  // AccessMask & VK_ACCESS_SHADER_READ_BIT.
+  // AccessMask & VK_ACCESS_SHADER_READ_BIT for storing.
+  // AccessMask & VK_ACCESS_SHADER_WRITE_BIT for loading.
   // Layout VK_IMAGE_LAYOUT_GENERAL.
   // It must be created with flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT and
   // usage & VK_IMAGE_USAGE_STORAGE_BIT.
   // The image view must be in the R32_UINT format for 32bpp (on the host)
   // images, and R32G32_UINT for 64bpp (use GetStoreColorImageViewFormat).
-  void StoreColor(VkCommandBuffer command_buffer, VkFence fence,
-                  VkImageView rt_image_view_u32,
-                  ColorRenderTargetFormat rt_format, MsaaSamples rt_samples,
-                  VkRect2D rt_rect, uint32_t edram_offset_tiles,
-                  uint32_t edram_pitch_px);
+  void CopyColor(VkCommandBuffer command_buffer, VkFence fence, bool load,
+                 VkImageView rt_image_view_u32,
+                 ColorRenderTargetFormat rt_format, MsaaSamples rt_samples,
+                 VkRect2D rt_rect, uint32_t edram_offset_tiles,
+                 uint32_t edram_pitch_px);
 
   // Returns the maximum height of a render target in pixels.
   static uint32_t GetMaxHeight(bool format_64bpp, MsaaSamples samples,
@@ -90,7 +92,7 @@ class EDRAMStore {
     // 64-bit color.
     k_64bpp,
     // Packed 10.10.10.2 float.
-    k_7e3,
+    // k_7e3,
 
     k_ModeCount
   };
@@ -98,29 +100,28 @@ class EDRAMStore {
   struct ModeInfo {
     bool is_depth;
     bool is_64bpp;
-    MsaaSamples samples;
 
     const uint8_t* store_shader_code;
     size_t store_shader_code_size;
     const char* store_shader_debug_name;
+
+    const uint8_t* load_shader_code;
+    size_t load_shader_code_size;
+    const char* load_shader_debug_name;
   };
 
   struct ModeData {
-    // Store is compute.
+    // Compute shaders and pipelines.
     VkShaderModule store_shader_module = nullptr;
     VkPipeline store_pipeline = nullptr;
-    // Load is graphics.
+    VkShaderModule load_shader_module = nullptr;
+    VkPipeline load_pipeline = nullptr;
   };
 
-  struct StorePushConstants {
+  struct PushConstantsColor {
     uint32_t edram_offset_tiles;
     uint32_t edram_pitch_tiles;
     uint32_t rt_offset_px[2];
-  };
-
-  struct LoadPushConstants {
-    uint32_t edram_offset_tiles;
-    uint32_t edram_pitch_tiles;
   };
 
   void TransitionEDRAMImage(VkCommandBuffer command_buffer, bool load);
@@ -156,8 +157,7 @@ class EDRAMStore {
   // Pipeline layouts.
   // Color store and load (one EDRAM image and one RT image) descriptor layout.
   VkDescriptorSetLayout descriptor_set_layout_color_ = nullptr;
-  VkPipelineLayout store_pipeline_layout_color_ = nullptr;
-  VkPipelineLayout load_pipeline_layout_color_ = nullptr;
+  VkPipelineLayout pipeline_layout_color_ = nullptr;
 
   // Descriptor pool for shader invocations.
   std::unique_ptr<ui::vulkan::DescriptorPool> descriptor_pool_ = nullptr;

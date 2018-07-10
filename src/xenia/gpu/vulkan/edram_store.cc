@@ -20,17 +20,23 @@ using xe::ui::vulkan::CheckResult;
 
 // Generated with `xb genspirv`.
 #include "xenia/gpu/vulkan/shaders/bin/edram_store_32bpp_comp.h"
+#include "xenia/gpu/vulkan/shaders/bin/edram_load_32bpp_comp.h"
 #include "xenia/gpu/vulkan/shaders/bin/edram_store_64bpp_comp.h"
+#include "xenia/gpu/vulkan/shaders/bin/edram_load_64bpp_comp.h"
 #include "xenia/gpu/vulkan/shaders/bin/edram_store_7e3_comp.h"
 
-const EDRAMStore::ModeInfo EDRAMStore::mode_info_[
-    size_t(EDRAMStore::Mode::k_ModeCount)] = {
-    {false, false, MsaaSamples::k1X, edram_store_32bpp_comp,
-     sizeof(edram_store_32bpp_comp), "S(c): EDRAM Store 32bpp"},
-    {false, true, MsaaSamples::k1X, edram_store_64bpp_comp,
-     sizeof(edram_store_64bpp_comp), "S(c): EDRAM Store 64bpp"},
-    {false, false, MsaaSamples::k1X, edram_store_7e3_comp,
-     sizeof(edram_store_7e3_comp), "S(c): EDRAM Store 7e3"}
+const EDRAMStore::ModeInfo EDRAMStore::mode_info_[] = {
+    {false, false, edram_store_32bpp_comp, sizeof(edram_store_32bpp_comp),
+     "S(c): EDRAM Store 32bpp", edram_load_32bpp_comp,
+     sizeof(edram_load_32bpp_comp), "S(c): EDRAM Load 32bpp"},
+
+    {false, true, edram_store_64bpp_comp, sizeof(edram_store_64bpp_comp),
+     "S(c): EDRAM Store 64bpp", edram_load_64bpp_comp,
+     sizeof(edram_load_64bpp_comp), "S(c): EDRAM Load 64bpp"},
+
+    /* {false, false, edram_store_7e3_comp, sizeof(edram_store_7e3_comp),
+     "S(c): EDRAM Store 7e3", edram_load_7e3_comp, sizeof(edram_load_7e3_comp),
+     "S(c): EDRAM Load 7e3"} */
 };
 
 EDRAMStore::EDRAMStore(ui::vulkan::VulkanDevice* device) : device_(device) {}
@@ -150,20 +156,11 @@ VkResult EDRAMStore::Initialize() {
   pipeline_layout_info.pPushConstantRanges = &push_constant_range;
   push_constant_range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
   push_constant_range.offset = 0;
-  // Store - color.
+  // Color pipeline layout.
   descriptor_set_layouts[0] = descriptor_set_layout_color_;
-  push_constant_range.size = sizeof(StorePushConstants);
+  push_constant_range.size = sizeof(PushConstantsColor);
   status = vkCreatePipelineLayout(*device_, &pipeline_layout_info, nullptr,
-                                  &store_pipeline_layout_color_);
-  CheckResult(status, "vkCreatePipelineLayout");
-  if (status != VK_SUCCESS) {
-    return status;
-  }
-  // Load - color.
-  descriptor_set_layouts[0] = descriptor_set_layout_color_;
-  push_constant_range.size = sizeof(LoadPushConstants);
-  status = vkCreatePipelineLayout(*device_, &pipeline_layout_info, nullptr,
-                                  &load_pipeline_layout_color_);
+                                  &pipeline_layout_color_);
   CheckResult(status, "vkCreatePipelineLayout");
   if (status != VK_SUCCESS) {
     return status;
@@ -182,21 +179,24 @@ VkResult EDRAMStore::Initialize() {
   shader_module_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   shader_module_info.pNext = nullptr;
   shader_module_info.flags = 0;
-  VkComputePipelineCreateInfo store_pipeline_info;
-  store_pipeline_info.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-  store_pipeline_info.pNext = nullptr;
-  store_pipeline_info.flags = 0;
-  store_pipeline_info.stage.sType =
+  VkComputePipelineCreateInfo pipeline_info;
+  pipeline_info.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+  pipeline_info.pNext = nullptr;
+  pipeline_info.flags = 0;
+  pipeline_info.stage.sType =
       VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  store_pipeline_info.stage.pNext = nullptr;
-  store_pipeline_info.stage.flags = 0;
-  store_pipeline_info.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-  store_pipeline_info.stage.pName = "main";
-  store_pipeline_info.stage.pSpecializationInfo = nullptr;
-  store_pipeline_info.basePipelineHandle = nullptr;
-  store_pipeline_info.basePipelineIndex = -1;
+  pipeline_info.stage.pNext = nullptr;
+  pipeline_info.stage.flags = 0;
+  pipeline_info.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+  pipeline_info.stage.pName = "main";
+  pipeline_info.stage.pSpecializationInfo = nullptr;
+  pipeline_info.basePipelineHandle = nullptr;
+  pipeline_info.basePipelineIndex = -1;
   for (int mode_index = 0; mode_index < int(Mode::k_ModeCount); ++mode_index) {
     const ModeInfo& mode_info = mode_info_[mode_index];
+    pipeline_info.layout = pipeline_layout_color_;
+
+    // Store pipeline.
     ModeData& mode_data = mode_data_[mode_index];
     shader_module_info.codeSize = mode_info.store_shader_code_size;
     shader_module_info.pCode =
@@ -210,11 +210,30 @@ VkResult EDRAMStore::Initialize() {
     device_->DbgSetObjectName(uint64_t(mode_data.store_shader_module),
                               VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
                               mode_info.store_shader_debug_name);
-    store_pipeline_info.stage.module = mode_data.store_shader_module;
-    store_pipeline_info.layout = store_pipeline_layout_color_;
-    status = vkCreateComputePipelines(*device_, nullptr, 1,
-                                      &store_pipeline_info, nullptr,
-                                      &mode_data.store_pipeline);
+    pipeline_info.stage.module = mode_data.store_shader_module;
+    status = vkCreateComputePipelines(*device_, nullptr, 1, &pipeline_info,
+                                      nullptr, &mode_data.store_pipeline);
+    CheckResult(status, "vkCreateComputePipelines");
+    if (status != VK_SUCCESS) {
+      return status;
+    }
+
+    // Load pipeline.
+    shader_module_info.codeSize = mode_info.load_shader_code_size;
+    shader_module_info.pCode =
+        reinterpret_cast<const uint32_t*>(mode_info.load_shader_code);
+    status = vkCreateShaderModule(*device_, &shader_module_info, nullptr,
+                                  &mode_data.load_shader_module);
+    CheckResult(status, "vkCreateShaderModule");
+    if (status != VK_SUCCESS) {
+      return status;
+    }
+    device_->DbgSetObjectName(uint64_t(mode_data.load_shader_module),
+                              VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
+                              mode_info.load_shader_debug_name);
+    pipeline_info.stage.module = mode_data.load_shader_module;
+    status = vkCreateComputePipelines(*device_, nullptr, 1, &pipeline_info,
+                                      nullptr, &mode_data.load_pipeline);
     CheckResult(status, "vkCreateComputePipelines");
     if (status != VK_SUCCESS) {
       return status;
@@ -229,16 +248,18 @@ void EDRAMStore::Shutdown() {
 
   for (int mode_index = 0; mode_index < int(Mode::k_ModeCount); ++mode_index) {
     ModeData& mode_data = mode_data_[mode_index];
+    VK_SAFE_DESTROY(vkDestroyPipeline, *device_, mode_data.load_pipeline,
+                    nullptr);
+    VK_SAFE_DESTROY(vkDestroyShaderModule, *device_,
+                    mode_data.load_shader_module, nullptr);
     VK_SAFE_DESTROY(vkDestroyPipeline, *device_, mode_data.store_pipeline,
                     nullptr);
     VK_SAFE_DESTROY(vkDestroyShaderModule, *device_,
                     mode_data.store_shader_module, nullptr);
   }
 
-  VK_SAFE_DESTROY(vkDestroyPipelineLayout, *device_,
-                  load_pipeline_layout_color_, nullptr);
-  VK_SAFE_DESTROY(vkDestroyPipelineLayout, *device_,
-                  store_pipeline_layout_color_, nullptr);
+  VK_SAFE_DESTROY(vkDestroyPipelineLayout, *device_, pipeline_layout_color_,
+                  nullptr);
   VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
                   descriptor_set_layout_color_, nullptr);
 
@@ -299,9 +320,9 @@ EDRAMStore::Mode EDRAMStore::GetColorMode(ColorRenderTargetFormat format,
     case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
     case ColorRenderTargetFormat::k_32_32_FLOAT:
       return Mode::k_64bpp;
-    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+    /* case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-      return Mode::k_7e3;
+      return Mode::k_7e3; */
     default:
       break;
   }
@@ -430,14 +451,15 @@ uint32_t EDRAMStore::GetMaxHeight(bool format_64bpp, MsaaSamples samples,
   return std::min(height, 2560u);
 }
 
-void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
-                            VkImageView rt_image_view_u32,
-                            ColorRenderTargetFormat rt_format,
-                            MsaaSamples rt_samples, VkRect2D rt_rect,
-                            uint32_t edram_offset_tiles,
-                            uint32_t edram_pitch_px) {
-  XELOGGPU("EDRAM StoreColor: offset %u, pitch %u, height %u.\n",
-           edram_offset_tiles, edram_pitch_px, rt_rect.extent.height);
+void EDRAMStore::CopyColor(VkCommandBuffer command_buffer, VkFence fence,
+                           bool load, VkImageView rt_image_view_u32,
+                           ColorRenderTargetFormat rt_format,
+                           MsaaSamples rt_samples, VkRect2D rt_rect,
+                           uint32_t edram_offset_tiles,
+                           uint32_t edram_pitch_px) {
+  XELOGGPU("EDRAM StoreColor (%s): offset %u, pitch %u, height %u.\n",
+           load ? "load" : "store", edram_offset_tiles, edram_pitch_px,
+           rt_rect.extent.height);
   if (edram_pitch_px == 0 || rt_rect.extent.width == 0 ||
       rt_rect.extent.height == 0) {
     return;
@@ -453,7 +475,7 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   VkRect2D rt_rect_adjusted;
   uint32_t edram_add_offset_tiles, edram_pitch_tiles;
   VkExtent2D edram_extent_tiles;
-  if (!GetDimensions(mode_info.is_64bpp, mode_info.samples, edram_offset_tiles,
+  if (!GetDimensions(mode_info.is_64bpp, rt_samples, edram_offset_tiles,
                      edram_pitch_px, rt_rect, rt_rect_adjusted,
                      edram_add_offset_tiles, edram_extent_tiles,
                      edram_pitch_tiles)) {
@@ -475,7 +497,7 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   }
 
   // Switch the EDRAM image to storing.
-  TransitionEDRAMImage(command_buffer, false);
+  TransitionEDRAMImage(command_buffer, load);
 
   // Write the descriptors.
   VkWriteDescriptorSet descriptors[2];
@@ -511,17 +533,17 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
 
   // Dispatch the computation.
   vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                    mode_data.store_pipeline);
+                    load ? mode_data.load_pipeline : mode_data.store_pipeline);
   vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          store_pipeline_layout_color_, 0, 1, &descriptor_set,
+                          pipeline_layout_color_, 0, 1, &descriptor_set,
                           0, nullptr);
-  StorePushConstants push_constants;
+  PushConstantsColor push_constants;
   push_constants.edram_offset_tiles = edram_offset_tiles +
                                       edram_add_offset_tiles;
   push_constants.edram_pitch_tiles = edram_pitch_tiles;
   push_constants.rt_offset_px[0] = uint32_t(rt_rect_adjusted.offset.x);
   push_constants.rt_offset_px[1] = uint32_t(rt_rect_adjusted.offset.y);
-  vkCmdPushConstants(command_buffer, store_pipeline_layout_color_,
+  vkCmdPushConstants(command_buffer, pipeline_layout_color_,
                      VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants),
                      &push_constants);
   uint32_t group_count_y = edram_extent_tiles.height;
@@ -532,10 +554,12 @@ void EDRAMStore::StoreColor(VkCommandBuffer command_buffer, VkFence fence,
   }
   vkCmdDispatch(command_buffer, edram_extent_tiles.width, group_count_y, 1);
 
-  // Commit the write so loads or overlapping writes won't conflict.
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0,
-                       nullptr, 0, nullptr);
+  if (!load) {
+    // Commit the write so loads or overlapping writes won't conflict.
+    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0,
+                         nullptr, 0, nullptr);
+  }
 }
 
 void EDRAMStore::Scavenge() {

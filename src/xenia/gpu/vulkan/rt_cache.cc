@@ -480,6 +480,11 @@ VkPipelineStageFlags RTCache::GetRenderTargetUsageParameters(
       access_mask = VK_ACCESS_SHADER_READ_BIT;
       layout = VK_IMAGE_LAYOUT_GENERAL;
       return VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    case RenderTargetUsage::kLoadFromEDRAM:
+      assert_false(is_depth);
+      access_mask = VK_ACCESS_SHADER_WRITE_BIT;
+      layout = VK_IMAGE_LAYOUT_GENERAL;
+      return VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     default:
       assert_unhandled_case(usage);
   };
@@ -681,8 +686,8 @@ void RTCache::SwitchRenderPassTargetUsage(
     VkImageLayout layout_new;
     stage_mask_dst =
         VkPipelineStageFlagBits(uint32_t(stage_mask_dst) | uint32_t(
-        GetRenderTargetUsageParameters(false, usage, access_mask_new,
-                                       layout_new)));
+            GetRenderTargetUsageParameters(false, usage, access_mask_new,
+                                           layout_new)));
     for (uint32_t i = 0; i < 4; ++i) {
       if (!(switch_color_mask & (uint32_t(1) << i))) {
         continue;
@@ -691,9 +696,9 @@ void RTCache::SwitchRenderPassTargetUsage(
       VkImageMemoryBarrier& image_barrier = image_barriers[image_barrier_count];
       stage_mask_src =
           VkPipelineStageFlagBits(uint32_t(stage_mask_src) | uint32_t(
-          GetRenderTargetUsageParameters(false, rt->current_usage,
-                                         image_barrier.srcAccessMask,
-                                         image_barrier.oldLayout)));
+              GetRenderTargetUsageParameters(false, rt->current_usage,
+                                             image_barrier.srcAccessMask,
+                                             image_barrier.oldLayout)));
       rt->current_usage = usage;
       if (image_barrier.srcAccessMask == access_mask_new &&
           image_barrier.oldLayout == layout_new) {
@@ -768,6 +773,29 @@ void RTCache::BeginRenderPass(VkCommandBuffer command_buffer,
     current_edram_color_offsets_[i] = regs.rb_color_info[i].color_base;
   }
 
+  // Load the values from the EDRAM.
+  // TODO(Triang3l): Load the depth.
+  SwitchRenderPassTargetUsage(command_buffer, current_pass_,
+                              RenderTargetUsage::kLoadFromEDRAM, 0xF, false);
+  VkRect2D rt_rect;
+  rt_rect.offset.x = 0;
+  rt_rect.offset.y = 0;
+  rt_rect.extent.width = current_pass_->width;
+  rt_rect.extent.height = current_pass_->height;
+  for (uint32_t i = 0; i < 4; ++i) {
+    RenderTarget* rt = current_pass_->rts_color[i];
+    if (rt == nullptr) {
+      continue;
+    }
+    RenderTargetKey key(current_pass_->keys_color[i]);
+    uint32_t format = key.format;
+    edram_store_.CopyColor(command_buffer, batch_fence, true,
+                           rt->image_view_color_edram_store,
+                           ColorRenderTargetFormat(format), key.samples,
+                           rt_rect, current_edram_color_offsets_[i],
+                           current_edram_pitch_px_);
+  }
+
   // Enter the framebuffer drawing mode.
   SwitchRenderPassTargetUsage(command_buffer, pass,
                               RenderTargetUsage::kFramebuffer, 0xF, true);
@@ -819,11 +847,11 @@ void RTCache::EndRenderPass(VkCommandBuffer command_buffer,
     }
     RenderTargetKey key(current_pass_->keys_color[i]);
     uint32_t format = key.format;
-    edram_store_.StoreColor(command_buffer, batch_fence,
-                            rt->image_view_color_edram_store,
-                            ColorRenderTargetFormat(format), key.samples,
-                            rt_rect, current_edram_color_offsets_[i],
-                            current_edram_pitch_px_);
+    edram_store_.CopyColor(command_buffer, batch_fence, false,
+                           rt->image_view_color_edram_store,
+                           ColorRenderTargetFormat(format), key.samples,
+                           rt_rect, current_edram_color_offsets_[i],
+                           current_edram_pitch_px_);
   }
 
   current_pass_ = nullptr;

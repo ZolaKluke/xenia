@@ -94,7 +94,9 @@ class RTCache {
       // Currently used for rendering or EDRAM loading.
       kFramebuffer,
       // Currently being stored to the EDRAM.
-      kStoreToEDRAM
+      kStoreToEDRAM,
+      // Currently being loaded from the EDRAM.
+      kLoadFromEDRAM
     };
 
     // One render target bound to a specific page.

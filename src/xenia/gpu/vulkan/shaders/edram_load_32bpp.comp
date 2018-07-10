@@ -1,0 +1,32 @@
+// NOTE: This file is compiled and embedded into the exe.
+//       Use `xb genspirv` and check in any changes under bin/.
+
+#version 450 core
+#extension all : warn
+#extension GL_ARB_compute_shader : require
+#extension GL_ARB_separate_shader_objects : require
+#extension GL_ARB_shader_image_load_store : require
+#extension GL_ARB_shading_language_420pack : require
+
+// 80x8 RT pixels to 80x8 EDRAM texels (80x16 threads per group is too much).
+layout(local_size_x = 80, local_size_y = 8, local_size_z = 1) in;
+
+layout(push_constant) uniform push_consts_type {
+  uint edram_offset_tiles;
+  uint edram_pitch_tiles;
+  uvec2 rt_offset_px;
+} push_constants;
+
+layout(set = 0, binding = 0, r32ui) uniform readonly uimage2D edram;
+layout(set = 0, binding = 1, r32ui) uniform writeonly uimage2D rt;
+
+void main() {
+  uint tile_index = push_constants.edram_offset_tiles + (gl_WorkGroupID.y >> 1)
+                    * push_constants.edram_pitch_tiles + gl_WorkGroupID.x;
+  uvec2 edram_coord = uvec2(tile_index & 15, tile_index >> 4) * uvec2(80, 16) +
+                      gl_LocalInvocationID.xy;
+  edram_coord.y += (gl_WorkGroupID.y & 1) << 3;
+  uvec4 pixel = imageLoad(edram, ivec2(edram_coord));
+  imageStore(rt, ivec2(gl_GlobalInvocationID.xy + push_constants.rt_offset_px),
+             pixel);
+}
