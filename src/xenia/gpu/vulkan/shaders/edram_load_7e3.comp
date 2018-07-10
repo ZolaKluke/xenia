@@ -1,0 +1,60 @@
+// NOTE: This file is compiled and embedded into the exe.
+//       Use `xb genspirv` and check in any changes under bin/.
+
+#version 450 core
+#extension all : warn
+#extension GL_ARB_compute_shader : require
+#extension GL_ARB_separate_shader_objects : require
+#extension GL_ARB_shader_image_load_store : require
+#extension GL_ARB_shading_language_420pack : require
+
+// 80x8 RT pixels to 80x8 EDRAM texels (80x16 threads per group is too much).
+layout(local_size_x = 80, local_size_y = 8, local_size_z = 1) in;
+
+layout(push_constant) uniform push_consts_type {
+  uint edram_offset_tiles;
+  uint edram_pitch_tiles;
+  uvec2 rt_offset_px;
+} push_constants;
+
+layout(set = 0, binding = 0, r32ui) uniform readonly uimage2D edram;
+layout(set = 0, binding = 1, rg32ui) uniform writeonly uimage2D rt;
+
+// https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
+uvec2 Float7e3To16(uint rgba_packed) {
+  uvec3 rgb_u10 = (uvec3(rgba_packed) >> uvec3(20u, 10u, 0u)) & 0x3ffu;
+  uvec3 mantissa = rgb_u10 & 0x7fu;
+  uvec3 exponent = rgb_u10 >> 7u;
+
+  // Calculate the values for denormalized components.
+  // Exponent = 1;
+  // do { Exponent--; Mantissa <<= 1; } while ((Mantissa & 0x80) == 0);
+  bvec3 is_denormalized = equal(exponent, uvec3(0u));
+  uvec3 mantissa_lzcnt = uvec3(ivec3(7) - findMSB(mantissa));
+  exponent = mix(exponent, uvec3(1u) - mantissa_lzcnt, is_denormalized);
+  mantissa = mix(mantissa, (mantissa << mantissa_lzcnt) & 0x7fu,
+                 is_denormalized);
+
+  // Combine into 32-bit float bits.
+  uvec3 rgb_f32_u32 = ((exponent + 124u) << 23u) | (mantissa << 16u);
+
+  // Clear zeros.
+  rgb_f32_u32 = mix(rgb_f32_u32, uvec3(0u), equal(rgb_u10, uvec3(0u)));
+
+  // Convert to 16-bit floats.
+  vec4 rgba_f32 = vec4(uintBitsToFloat(rgb_f32_u32),
+                       float(rgba_packed >> 30u) * (1.0f / 3.0f));
+  return uvec2(packHalf2x16(rgba_f32.rg), packHalf2x16(rgba_f32.ba));
+}
+
+void main() {
+  uint tile_index = push_constants.edram_offset_tiles + (gl_WorkGroupID.y >> 1)
+                    * push_constants.edram_pitch_tiles + gl_WorkGroupID.x;
+  uvec2 edram_coord = uvec2(tile_index & 15, tile_index >> 4) * uvec2(80, 16) +
+                      gl_LocalInvocationID.xy;
+  edram_coord.y += (gl_WorkGroupID.y & 1) << 3;
+  uvec4 pixel = imageLoad(edram, ivec2(edram_coord));
+  pixel = Float7e3To16(pixel.r).rgrg;
+  imageStore(rt, ivec2(gl_GlobalInvocationID.xy + push_constants.rt_offset_px),
+             pixel);
+}

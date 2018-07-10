@@ -24,6 +24,7 @@ using xe::ui::vulkan::CheckResult;
 #include "xenia/gpu/vulkan/shaders/bin/edram_store_64bpp_comp.h"
 #include "xenia/gpu/vulkan/shaders/bin/edram_load_64bpp_comp.h"
 #include "xenia/gpu/vulkan/shaders/bin/edram_store_7e3_comp.h"
+#include "xenia/gpu/vulkan/shaders/bin/edram_load_7e3_comp.h"
 
 const EDRAMStore::ModeInfo EDRAMStore::mode_info_[] = {
     {false, false, edram_store_32bpp_comp, sizeof(edram_store_32bpp_comp),
@@ -34,9 +35,9 @@ const EDRAMStore::ModeInfo EDRAMStore::mode_info_[] = {
      "S(c): EDRAM Store 64bpp", edram_load_64bpp_comp,
      sizeof(edram_load_64bpp_comp), "S(c): EDRAM Load 64bpp"},
 
-    /* {false, false, edram_store_7e3_comp, sizeof(edram_store_7e3_comp),
+    {false, false, edram_store_7e3_comp, sizeof(edram_store_7e3_comp),
      "S(c): EDRAM Store 7e3", edram_load_7e3_comp, sizeof(edram_load_7e3_comp),
-     "S(c): EDRAM Load 7e3"} */
+     "S(c): EDRAM Load 7e3"}
 };
 
 EDRAMStore::EDRAMStore(ui::vulkan::VulkanDevice* device) : device_(device) {}
@@ -320,9 +321,9 @@ EDRAMStore::Mode EDRAMStore::GetColorMode(ColorRenderTargetFormat format,
     case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
     case ColorRenderTargetFormat::k_32_32_FLOAT:
       return Mode::k_64bpp;
-    /* case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-      return Mode::k_7e3; */
+      return Mode::k_7e3;
     default:
       break;
   }

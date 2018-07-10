@@ -92,7 +92,7 @@ class EDRAMStore {
     // 64-bit color.
     k_64bpp,
     // Packed 10.10.10.2 float.
-    // k_7e3,
+    k_7e3,
 
     k_ModeCount
   };
