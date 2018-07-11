@@ -905,10 +905,6 @@ bool VulkanCommandProcessor::PopulateSamplers(VkCommandBuffer command_buffer,
 }
 
 bool VulkanCommandProcessor::IssueCopy() {
-  #ifndef RENDER_CACHE_NOT_OBSOLETE
-  return true;
-
-  #else
   SCOPE_profile_cpu_f("gpu");
   auto& regs = *register_file_;
 
@@ -1100,6 +1096,14 @@ bool VulkanCommandProcessor::IssueCopy() {
   // For debugging purposes only (trace viewer)
   last_copy_base_ = texture->texture_info.memory.base_address;
 
+  #ifndef RENDER_CACHE_NOT_OBSOLETE
+  if (!frame_open_) {
+    BeginFrame();
+  } else {
+    // Copy commands cannot be issued within a render pass.
+    rt_cache_->EndRenderPass(current_command_buffer_, current_batch_fence_);
+  }
+  #else
   if (!frame_open_) {
     BeginFrame();
   } else if (current_render_state_) {
@@ -1107,6 +1111,7 @@ bool VulkanCommandProcessor::IssueCopy() {
     render_cache_->EndRenderPass();
     current_render_state_ = nullptr;
   }
+  #endif
   auto command_buffer = current_command_buffer_;
 
   if (texture->image_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
@@ -1190,6 +1195,16 @@ bool VulkanCommandProcessor::IssueCopy() {
       */
 
       // Blit with blitter.
+      #ifndef RENDER_CACHE_NOT_OBSOLETE
+      VkExtent2D resolve_image_size;
+      VkImageView resolve_image_view =
+          rt_cache_->LoadResolveImage(command_buffer, current_batch_fence_,
+          edram_base, surface_pitch, surface_msaa, !is_color_source, src_format,
+          resolve_image_size);
+      if (!resolve_image_view) {
+        break;
+      }
+      #else
       auto view = render_cache_->FindTileView(
           edram_base, surface_pitch, surface_msaa, is_color_source, src_format);
       if (!view) {
@@ -1221,6 +1236,7 @@ bool VulkanCommandProcessor::IssueCopy() {
                            VK_PIPELINE_STAGE_TRANSFER_BIT |
                                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                            0, 0, nullptr, 0, nullptr, 1, &tile_image_barrier);
+      #endif
 
       auto render_pass =
           blitter_->GetRenderPass(texture->format, is_color_source);
@@ -1250,6 +1266,14 @@ bool VulkanCommandProcessor::IssueCopy() {
           {0, 0},
           resolve_extent,
       };
+      #ifndef RENDER_CACHE_NOT_OBSOLETE
+      if (surface_msaa >= MsaaSamples::k2X) {
+        src_rect.extent.height *= 2;
+        if (surface_msaa >= MsaaSamples::k4X) {
+          src_rect.extent.width *= 2;
+        }
+      }
+      #endif
 
       VkRect2D dst_rect = {
           {resolve_offset.x, resolve_offset.y},
@@ -1297,6 +1321,14 @@ bool VulkanCommandProcessor::IssueCopy() {
           {scissor_br_x - scissor_tl_x, scissor_br_y - scissor_tl_y},
       };
 
+      #ifndef RENDER_CACHE_NOT_OBSOLETE
+      blitter_->BlitTexture2D(
+          command_buffer, current_batch_fence_, resolve_image_view, src_rect,
+          resolve_image_size, texture->format, dst_rect,
+          {copy_dest_pitch, copy_dest_height}, texture->framebuffer, viewport,
+          scissor, filter, is_color_source,
+          copy_regs->copy_dest_info.copy_dest_swap != 0);
+      #else
       blitter_->BlitTexture2D(
           command_buffer, current_batch_fence_,
           is_color_source ? view->image_view : view->image_view_depth, src_rect,
@@ -1314,6 +1346,7 @@ bool VulkanCommandProcessor::IssueCopy() {
                                VK_PIPELINE_STAGE_TRANSFER_BIT,
                            VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, nullptr, 0,
                            nullptr, 1, &tile_image_barrier);
+      #endif
     } break;
 
     case CopyCommand::kConstantOne:
@@ -1342,6 +1375,7 @@ bool VulkanCommandProcessor::IssueCopy() {
   uint32_t copy_color_clear_low = regs[XE_GPU_REG_RB_COLOR_CLEAR_LOW].u32;
   assert_true(copy_color_clear == copy_color_clear_low);
 
+  #ifdef RENDER_CACHE_NOT_OBSOLETE
   if (color_clear_enabled) {
     // If color clear is enabled, we can only clear a selected color target!
     assert_true(is_color_source);
@@ -1368,9 +1402,9 @@ bool VulkanCommandProcessor::IssueCopy() {
         command_buffer, depth_edram_base, depth_format, surface_pitch,
         resolve_extent.height, surface_msaa, depth, stencil);
   }
+  #endif
 
   return true;
-  #endif
 }
 
 }  // namespace vulkan

@@ -501,12 +501,66 @@ VkPipelineStageFlags RTCache::GetRenderTargetUsageParameters(
       access_mask = VK_ACCESS_SHADER_WRITE_BIT;
       layout = VK_IMAGE_LAYOUT_GENERAL;
       return VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    case RenderTargetUsage::kResolve:
+      assert_false(is_depth);
+      access_mask = VK_ACCESS_SHADER_READ_BIT;
+      layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+      return VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
     default:
       assert_unhandled_case(usage);
   };
   access_mask = 0;
   layout = VK_IMAGE_LAYOUT_GENERAL;
   return VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+}
+
+void RTCache::SwitchSingleRenderTargetUsage(VkCommandBuffer command_buffer,
+                                            RenderTarget* rt,
+                                            RenderTargetUsage usage) {
+  if (rt->current_usage == usage) {
+    return;
+  }
+  VkImageMemoryBarrier image_barriers[2];
+  uint32_t image_barrier_count = 0;
+  VkPipelineStageFlags stage_mask_src, stage_mask_dst;
+  VkAccessFlags access_mask_old, access_mask_new;
+  VkImageLayout layout_old, layout_new;
+  uint32_t is_depth = rt->key.is_depth;
+  stage_mask_src =
+      GetRenderTargetUsageParameters(bool(is_depth), rt->current_usage,
+                                     access_mask_old, layout_old);
+  stage_mask_dst =
+      GetRenderTargetUsageParameters(bool(is_depth), usage, access_mask_new,
+                                     layout_new);
+  if (access_mask_old != access_mask_new && layout_old != layout_new) {
+    VkImageMemoryBarrier& image_barrier = image_barriers[image_barrier_count];
+    image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    image_barrier.pNext = nullptr;
+    image_barrier.dstAccessMask = access_mask_new;
+    image_barrier.newLayout = layout_new;
+    image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    image_barrier.image = rt->image;
+    image_barrier.subresourceRange.aspectMask =
+        is_depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+    image_barrier.subresourceRange.baseMipLevel = 0;
+    image_barrier.subresourceRange.levelCount = 1;
+    image_barrier.subresourceRange.baseArrayLayer = 0;
+    image_barrier.subresourceRange.layerCount = 1;
+    ++image_barrier_count;
+    if (is_depth) {
+      VkImageMemoryBarrier& image_barrier_stencil =
+          image_barriers[image_barrier_count];
+      image_barrier_stencil = image_barrier;
+      image_barrier_stencil.subresourceRange.aspectMask =
+          VK_IMAGE_ASPECT_STENCIL_BIT;
+      ++image_barrier_count;
+    }
+  }
+  vkCmdPipelineBarrier(command_buffer, stage_mask_src, stage_mask_dst, 0, 0,
+                       nullptr, 0, nullptr, image_barrier_count,
+                       image_barriers);
+  rt->current_usage = usage;
 }
 
 RTCache::RenderPass* RTCache::GetRenderPass(
@@ -693,28 +747,25 @@ void RTCache::SwitchRenderPassTargetUsage(
   }
 
   // Switch usage.
-  VkPipelineStageFlagBits stage_mask_src = VkPipelineStageFlagBits(0);
-  VkPipelineStageFlagBits stage_mask_dst = VkPipelineStageFlagBits(0);
+  VkPipelineStageFlags stage_mask_src = 0, stage_mask_dst = 0;
   VkImageMemoryBarrier image_barriers[6];
   uint32_t image_barrier_count = 0;
   if (switch_color_mask) {
     VkAccessFlags access_mask_new;
     VkImageLayout layout_new;
-    stage_mask_dst =
-        VkPipelineStageFlagBits(uint32_t(stage_mask_dst) | uint32_t(
-            GetRenderTargetUsageParameters(false, usage, access_mask_new,
-                                           layout_new)));
+    stage_mask_dst |=
+        GetRenderTargetUsageParameters(false, usage, access_mask_new,
+                                       layout_new);
     for (uint32_t i = 0; i < 4; ++i) {
       if (!(switch_color_mask & (uint32_t(1) << i))) {
         continue;
       }
       RenderTarget* rt = pass->rts_color[i];
       VkImageMemoryBarrier& image_barrier = image_barriers[image_barrier_count];
-      stage_mask_src =
-          VkPipelineStageFlagBits(uint32_t(stage_mask_src) | uint32_t(
-              GetRenderTargetUsageParameters(false, rt->current_usage,
-                                             image_barrier.srcAccessMask,
-                                             image_barrier.oldLayout)));
+      stage_mask_src |=
+            GetRenderTargetUsageParameters(false, rt->current_usage,
+                                           image_barrier.srcAccessMask,
+                                           image_barrier.oldLayout);
       rt->current_usage = usage;
       if (image_barrier.srcAccessMask == access_mask_new &&
           image_barrier.oldLayout == layout_new) {
@@ -738,17 +789,15 @@ void RTCache::SwitchRenderPassTargetUsage(
   if (switch_depth) {
     VkAccessFlags access_mask_new;
     VkImageLayout layout_new;
-    stage_mask_dst =
-        VkPipelineStageFlagBits(uint32_t(stage_mask_dst) | uint32_t(
+    stage_mask_dst |=
         GetRenderTargetUsageParameters(true, usage, access_mask_new,
-                                       layout_new)));
+                                       layout_new);
     RenderTarget* rt = pass->rt_depth;
     VkImageMemoryBarrier& image_barrier = image_barriers[image_barrier_count];
-    stage_mask_src =
-        VkPipelineStageFlagBits(uint32_t(stage_mask_src) | uint32_t(
+    stage_mask_src |=
         GetRenderTargetUsageParameters(true, rt->current_usage,
                                        image_barrier.srcAccessMask,
-                                       image_barrier.oldLayout)));
+                                       image_barrier.oldLayout);
     rt->current_usage = usage;
     if (image_barrier.srcAccessMask != access_mask_new ||
         image_barrier.oldLayout != layout_new) {
@@ -1023,6 +1072,71 @@ VkRenderPass RTCache::GetCurrentVulkanRenderPass() {
     return nullptr;
   }
   return current_pass_->pass;
+}
+
+VkImageView RTCache::LoadResolveImage(
+    VkCommandBuffer command_buffer, VkFence batch_fence, uint32_t edram_base,
+    uint32_t surface_pitch, MsaaSamples samples, bool is_depth, uint32_t format,
+    VkExtent2D& image_size) {
+  if (is_depth) {
+    // TODO(Triang3l): Support depth resolving when depth loading is done.
+    return nullptr;
+  }
+
+  // Calculate the image size.
+  if (surface_pitch == 0) {
+    return nullptr;
+  }
+  surface_pitch = std::min(surface_pitch, 2560u);
+  uint32_t width_div_80 = xe::round_up(surface_pitch, 80) / 80;
+  bool is_64bpp = false;
+  if (!is_depth) {
+    is_64bpp = EDRAMStore::IsColorFormat64bpp(ColorRenderTargetFormat(format));
+  }
+  uint32_t height = EDRAMStore::GetMaxHeight(is_64bpp, samples, 0,
+                                             surface_pitch);
+  if (height == 0) {
+    return nullptr;
+  }
+  uint32_t height_div_16 = xe::round_up(height, 16) / 16;
+
+  // Use any existing RT image with the needed parameters or create a new one.
+  RenderTargetKey key;
+  key.width_div_80 = width_div_80;
+  key.height_div_16 = height_div_16;
+  key.is_depth = uint32_t(is_depth);
+  key.format = format;
+  key.samples = samples;
+  RenderTarget* rt;
+  auto found_rt_iter = rts_.find(key.value);
+  if (found_rt_iter != rts_.end()) {
+    rt = found_rt_iter->second;
+  } else {
+    rt = FindOrCreateRenderTarget(key, 0);
+    if (rt == nullptr) {
+      return nullptr;
+    }
+  }
+
+  // Load the EDRAM data and return the image in a state suitable for sampling.
+  SwitchSingleRenderTargetUsage(command_buffer, rt,
+                                RenderTargetUsage::kLoadFromEDRAM);
+  VkRect2D rt_rect;
+  rt_rect.offset.x = 0;
+  rt_rect.offset.y = 0;
+  rt_rect.extent.width = width_div_80 * 80;
+  rt_rect.extent.height = height_div_16 * 16;
+  GetSupersampledSize(rt_rect.extent.width, rt_rect.extent.height, samples);
+  if (!is_depth) {
+    edram_store_.CopyColor(command_buffer, batch_fence, true,
+                           rt->image_view_color_edram_store,
+                           ColorRenderTargetFormat(format), key.samples,
+                           rt_rect, edram_base, surface_pitch);
+  }
+  SwitchSingleRenderTargetUsage(command_buffer, rt,
+                                RenderTargetUsage::kResolve);
+  image_size = rt_rect.extent;
+  return rt->image_view;
 }
 
 void RTCache::ClearCache() {

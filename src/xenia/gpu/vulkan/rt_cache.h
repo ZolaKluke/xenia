@@ -56,6 +56,11 @@ class RTCache {
     DrawStatus OnDraw(VkCommandBuffer command_buffer, VkFence batch_fence);
     void OnFrameEnd(VkCommandBuffer command_buffer, VkFence batch_fence);
     VkRenderPass GetCurrentVulkanRenderPass();
+    void EndRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence);
+    VkImageView LoadResolveImage(
+        VkCommandBuffer command_buffer, VkFence batch_fence,
+        uint32_t edram_base, uint32_t surface_pitch, MsaaSamples samples,
+        bool is_depth, uint32_t format, VkExtent2D& image_size);
 
     void ClearCache();
     void Scavenge();
@@ -96,7 +101,9 @@ class RTCache {
       // Currently being stored to the EDRAM.
       kStoreToEDRAM,
       // Currently being loaded from the EDRAM.
-      kLoadFromEDRAM
+      kLoadFromEDRAM,
+      // Currently being used for resolving using the blitter.
+      kResolve
     };
 
     // One render target bound to a specific page.
@@ -136,9 +143,11 @@ class RTCache {
     };
 
     static constexpr VkImageUsageFlags kRTImageUsageFlagsColor =
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     static constexpr VkImageUsageFlags kRTImageUsageFlagsDepth =
         VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+        VK_IMAGE_USAGE_SAMPLED_BIT |
         VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
     static inline void GetSupersampledSize(uint32_t& width, uint32_t& height,
@@ -176,18 +185,20 @@ class RTCache {
     static VkPipelineStageFlags GetRenderTargetUsageParameters(
         bool is_depth, RenderTargetUsage usage, VkAccessFlags& access_mask,
         VkImageLayout& layout);
+    void SwitchSingleRenderTargetUsage(VkCommandBuffer command_buffer,
+                                       RenderTarget* rt,
+                                       RenderTargetUsage usage);
 
     // Finds or creates a render pass. Returns nullptr in case of an error.
     RenderPass* GetRenderPass(const RenderTargetKey keys_color[4],
                               RenderTargetKey key_depth);
-
     void SwitchRenderPassTargetUsage(VkCommandBuffer command_buffer,
                                      RenderPass* pass, RenderTargetUsage usage,
                                      uint32_t switch_color_mask,
                                      bool switch_depth);
+
     void BeginRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence,
                          RenderPass* pass);
-    void EndRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence);
     bool AreCurrentEDRAMParametersValid() const;
 
     RegisterFile* register_file_ = nullptr;
