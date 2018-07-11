@@ -510,10 +510,6 @@ void EDRAMStore::CopyColor(VkCommandBuffer command_buffer, VkFence fence,
   XELOGGPU("EDRAM StoreColor (%s): offset %u, pitch %u, height %u.\n",
            load ? "load" : "store", edram_offset_tiles, edram_pitch_px,
            rt_rect.extent.height);
-  if (edram_pitch_px == 0 || rt_rect.extent.width == 0 ||
-      rt_rect.extent.height == 0) {
-    return;
-  }
 
   Mode mode = GetColorMode(rt_format, rt_samples);
   if (mode == Mode::k_ModeUnsupported) {
@@ -618,9 +614,6 @@ void EDRAMStore::ClearColor(VkCommandBuffer command_buffer, VkFence fence,
                             uint32_t height_px, uint32_t color_high,
                             uint32_t color_low) {
   XELOGGPU("EDRAM ClearColor: pitch %u, height %u.\n", pitch_px, height_px);
-  if (pitch_px == 0 || height_px == 0) {
-    return;
-  }
 
   // Get the clear region size.
   VkRect2D rect;
@@ -686,12 +679,7 @@ void EDRAMStore::ClearColor(VkCommandBuffer command_buffer, VkFence fence,
   vkCmdPushConstants(command_buffer, pipeline_layout_clear_color_,
                      VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants),
                      &push_constants);
-  uint32_t group_count_x = extent_tiles.width;
-  if (!format_64bpp) {
-    // 32bpp images are cleared like 64bpp, but with two words being the same.
-    group_count_x *= 2;
-  }
-  vkCmdDispatch(command_buffer, group_count_x, extent_tiles.height, 1);
+  vkCmdDispatch(command_buffer, extent_tiles.width, extent_tiles.height, 1);
   vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0,
                        nullptr, 0, nullptr);
