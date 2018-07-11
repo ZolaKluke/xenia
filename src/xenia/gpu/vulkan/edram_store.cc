@@ -686,7 +686,7 @@ void EDRAMStore::ClearColor(VkCommandBuffer command_buffer, VkFence fence,
   vkCmdPushConstants(command_buffer, pipeline_layout_clear_color_,
                      VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants),
                      &push_constants);
-  uint32_t group_count_x = extent_tiles.width * 2;
+  uint32_t group_count_x = extent_tiles.width;
   if (!format_64bpp) {
     // 32bpp images are cleared like 64bpp, but with two words being the same.
     group_count_x *= 2;
