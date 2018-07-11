@@ -210,6 +210,9 @@ class EDRAMStore {
   VkDeviceMemory depth_copy_memory_ = nullptr;
   // Buffer for image<->buffer copies of depth and stencil (after depth).
   VkBuffer depth_copy_buffer_ = nullptr;
+  // Views of the depth copy buffer.
+  VkBufferView depth_copy_buffer_view_depth_ = nullptr;
+  VkBufferView depth_copy_buffer_view_stencil_ = nullptr;
   // The current access mode for the depth copy buffer.
   DepthCopyBufferState depth_copy_buffer_state_ =
       DepthCopyBufferState::kUntransitioned;

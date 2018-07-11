@@ -496,19 +496,19 @@ VkPipelineStageFlags RTCache::GetRenderTargetUsageParameters(
       if (is_depth) {
         access_mask = VK_ACCESS_TRANSFER_READ_BIT;
         layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-      } else {
-        access_mask = VK_ACCESS_SHADER_READ_BIT;
-        layout = VK_IMAGE_LAYOUT_GENERAL;
+        return VK_PIPELINE_STAGE_TRANSFER_BIT;
       }
+      access_mask = VK_ACCESS_SHADER_READ_BIT;
+      layout = VK_IMAGE_LAYOUT_GENERAL;
       return VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     case RenderTargetUsage::kLoadFromEDRAM:
       if (is_depth) {
         access_mask = VK_ACCESS_TRANSFER_WRITE_BIT;
         layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-      } else {
-        access_mask = VK_ACCESS_SHADER_WRITE_BIT;
-        layout = VK_IMAGE_LAYOUT_GENERAL;
+        return VK_PIPELINE_STAGE_TRANSFER_BIT;
       }
+      access_mask = VK_ACCESS_SHADER_WRITE_BIT;
+      layout = VK_IMAGE_LAYOUT_GENERAL;
       return VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     case RenderTargetUsage::kResolve:
       assert_false(is_depth);
@@ -529,7 +529,7 @@ void RTCache::SwitchSingleRenderTargetUsage(VkCommandBuffer command_buffer,
   if (rt->current_usage == usage) {
     return;
   }
-  VkImageMemoryBarrier image_barriers[2];
+  VkImageMemoryBarrier image_barrier;
   uint32_t image_barrier_count = 0;
   VkPipelineStageFlags stage_mask_src, stage_mask_dst;
   VkAccessFlags access_mask_old, access_mask_new;
@@ -542,7 +542,6 @@ void RTCache::SwitchSingleRenderTargetUsage(VkCommandBuffer command_buffer,
       GetRenderTargetUsageParameters(bool(is_depth), usage, access_mask_new,
                                      layout_new);
   if (access_mask_old != access_mask_new && layout_old != layout_new) {
-    VkImageMemoryBarrier& image_barrier = image_barriers[image_barrier_count];
     image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     image_barrier.pNext = nullptr;
     image_barrier.dstAccessMask = access_mask_new;
@@ -551,24 +550,17 @@ void RTCache::SwitchSingleRenderTargetUsage(VkCommandBuffer command_buffer,
     image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     image_barrier.image = rt->image;
     image_barrier.subresourceRange.aspectMask =
-        is_depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+        is_depth ? VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT :
+                   VK_IMAGE_ASPECT_COLOR_BIT;
     image_barrier.subresourceRange.baseMipLevel = 0;
     image_barrier.subresourceRange.levelCount = 1;
     image_barrier.subresourceRange.baseArrayLayer = 0;
     image_barrier.subresourceRange.layerCount = 1;
-    ++image_barrier_count;
-    if (is_depth) {
-      VkImageMemoryBarrier& image_barrier_stencil =
-          image_barriers[image_barrier_count];
-      image_barrier_stencil = image_barrier;
-      image_barrier_stencil.subresourceRange.aspectMask =
-          VK_IMAGE_ASPECT_STENCIL_BIT;
-      ++image_barrier_count;
-    }
+    image_barrier_count = 1;
   }
   vkCmdPipelineBarrier(command_buffer, stage_mask_src, stage_mask_dst, 0, 0,
                        nullptr, 0, nullptr, image_barrier_count,
-                       image_barriers);
+                       &image_barrier);
   rt->current_usage = usage;
 }
 
@@ -815,18 +807,12 @@ void RTCache::SwitchRenderPassTargetUsage(
       image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
       image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
       image_barrier.image = rt->image;
-      image_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+      image_barrier.subresourceRange.aspectMask =
+          VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
       image_barrier.subresourceRange.baseMipLevel = 0;
       image_barrier.subresourceRange.levelCount = 1;
       image_barrier.subresourceRange.baseArrayLayer = 0;
       image_barrier.subresourceRange.layerCount = 1;
-      ++image_barrier_count;
-
-      VkImageMemoryBarrier& image_barrier_stencil =
-          image_barriers[image_barrier_count];
-      image_barrier_stencil = image_barrier;
-      image_barrier_stencil.subresourceRange.aspectMask =
-          VK_IMAGE_ASPECT_STENCIL_BIT;
       ++image_barrier_count;
     }
   }

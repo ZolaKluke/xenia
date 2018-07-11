@@ -154,6 +154,29 @@ VkResult EDRAMStore::Initialize() {
   if (status != VK_SUCCESS) {
     return status;
   }
+  VkBufferViewCreateInfo buffer_view_info;
+  buffer_view_info.sType = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO;
+  buffer_view_info.pNext = nullptr;
+  buffer_view_info.flags = 0;
+  buffer_view_info.buffer = depth_copy_buffer_;
+  buffer_view_info.format = VK_FORMAT_R32_UINT;
+  buffer_view_info.offset = 0;
+  buffer_view_info.range = kTotalTexelCount * sizeof(float);
+  status = vkCreateBufferView(*device_, &buffer_view_info, nullptr,
+                              &depth_copy_buffer_view_depth_);
+  CheckResult(status, "vkCreateBufferView");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+  buffer_view_info.format = VK_FORMAT_R8_UINT;
+  buffer_view_info.offset = kTotalTexelCount * sizeof(float);
+  buffer_view_info.range = kTotalTexelCount * sizeof(uint32_t);
+  status = vkCreateBufferView(*device_, &buffer_view_info, nullptr,
+                              &depth_copy_buffer_view_stencil_);
+  CheckResult(status, "vkCreateBufferView");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
   depth_copy_buffer_state_ = DepthCopyBufferState::kUntransitioned;
 
   // Create the descriptor set layouts for the store and load pipelines.
@@ -330,9 +353,9 @@ VkResult EDRAMStore::Initialize() {
   }
 
   // Color clear pipeline.
-  shader_module_info.codeSize = sizeof(edram_store_7e3_comp);
+  shader_module_info.codeSize = sizeof(edram_clear_color_comp);
   shader_module_info.pCode =
-      reinterpret_cast<const uint32_t*>(edram_store_7e3_comp);
+      reinterpret_cast<const uint32_t*>(edram_clear_color_comp);
   status = vkCreateShaderModule(*device_, &shader_module_info, nullptr,
                                 &clear_color_shader_module_);
   CheckResult(status, "vkCreateShaderModule");
@@ -386,6 +409,10 @@ void EDRAMStore::Shutdown() {
   VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
                   descriptor_set_layout_color_, nullptr);
 
+  VK_SAFE_DESTROY(vkDestroyBufferView, *device_,
+                  depth_copy_buffer_view_stencil_, nullptr);
+  VK_SAFE_DESTROY(vkDestroyBufferView, *device_, depth_copy_buffer_view_depth_,
+                  nullptr);
   VK_SAFE_DESTROY(vkDestroyBuffer, *device_, depth_copy_buffer_, nullptr);
   VK_SAFE_DESTROY(vkFreeMemory, *device_, depth_copy_memory_, nullptr);
 
@@ -444,7 +471,7 @@ void EDRAMStore::TransitionDepthCopyBuffer(VkCommandBuffer command_buffer,
   barrier.buffer = depth_copy_buffer_;
   barrier.offset = 0;
   barrier.size = VK_WHOLE_SIZE;
-  VkPipelineStageFlags stage_mask_src = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+  VkPipelineStageFlags stage_mask_src, stage_mask_dst;
   switch (depth_copy_buffer_state_) {
   case DepthCopyBufferState::kUntransitioned:
     barrier.srcAccessMask = 0;
@@ -452,38 +479,47 @@ void EDRAMStore::TransitionDepthCopyBuffer(VkCommandBuffer command_buffer,
     break;
   case DepthCopyBufferState::kRenderTargetToBuffer:
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    stage_mask_src = VK_PIPELINE_STAGE_TRANSFER_BIT;
     break;
   case DepthCopyBufferState::kBufferToEDRAM:
     barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    stage_mask_src = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     break;
   case DepthCopyBufferState::kEDRAMToBuffer:
     barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    stage_mask_src = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     break;
   case DepthCopyBufferState::kBufferToRenderTarget:
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    stage_mask_src = VK_PIPELINE_STAGE_TRANSFER_BIT;
     break;
   default:
     assert_unhandled_case(depth_copy_buffer_state_);
+    return;
   }
   switch (new_state) {
   case DepthCopyBufferState::kRenderTargetToBuffer:
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    stage_mask_dst = VK_PIPELINE_STAGE_TRANSFER_BIT;
     break;
   case DepthCopyBufferState::kBufferToEDRAM:
     barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    stage_mask_dst = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     break;
   case DepthCopyBufferState::kEDRAMToBuffer:
     barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    stage_mask_dst = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     break;
   case DepthCopyBufferState::kBufferToRenderTarget:
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    stage_mask_dst = VK_PIPELINE_STAGE_TRANSFER_BIT;
     break;
   default:
     assert_unhandled_case(new_state);
+    return;
   }
-  vkCmdPipelineBarrier(command_buffer, stage_mask_src,
-                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
-                       &barrier, 0, nullptr);
+  vkCmdPipelineBarrier(command_buffer, stage_mask_src, stage_mask_dst, 0, 0,
+                       nullptr, 1, &barrier, 0, nullptr);
   depth_copy_buffer_state_ = new_state;
 }
 
@@ -790,8 +826,6 @@ void EDRAMStore::CopyDepth(VkCommandBuffer command_buffer, VkFence fence,
   // Prepare for copying to or from the linear buffer.
   // TODO(Triang3l): Copy entirely if granularity is 0 rather than 1.
   // Desktop GPUs have the granularity of 1, but PowerVR has 0.
-  uint32_t pixel_count =
-      rt_rect_adjusted.extent.width * rt_rect_adjusted.extent.height;
   VkBufferImageCopy regions[2];
   regions[0].bufferOffset = 0;
   regions[0].bufferRowLength = rt_rect_adjusted.extent.width;
@@ -807,7 +841,7 @@ void EDRAMStore::CopyDepth(VkCommandBuffer command_buffer, VkFence fence,
   regions[0].imageExtent.height = rt_rect_adjusted.extent.height;
   regions[0].imageExtent.depth = 1;
   regions[1] = regions[0];
-  regions[1].bufferOffset = pixel_count * sizeof(float);
+  regions[1].bufferOffset = kTotalTexelCount * sizeof(float);
   regions[1].imageSubresource.aspectMask = VK_IMAGE_ASPECT_STENCIL_BIT;
 
   // Copy the depth to the linear buffer if we're storing, and transition.
@@ -850,12 +884,8 @@ void EDRAMStore::CopyDepth(VkCommandBuffer command_buffer, VkFence fence,
   descriptors[1].descriptorCount = 1;
   descriptors[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER;
   descriptors[1].pImageInfo = nullptr;
-  VkDescriptorBufferInfo buffer_info_depth;
-  buffer_info_depth.buffer = depth_copy_buffer_;
-  buffer_info_depth.offset = 0;
-  buffer_info_depth.range = pixel_count * sizeof(float);
-  descriptors[1].pBufferInfo = &buffer_info_depth;
-  descriptors[1].pTexelBufferView = nullptr;
+  descriptors[1].pBufferInfo = nullptr;
+  descriptors[1].pTexelBufferView = &depth_copy_buffer_view_depth_;
   // Stencil.
   descriptors[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
   descriptors[2].pNext = nullptr;
@@ -865,12 +895,8 @@ void EDRAMStore::CopyDepth(VkCommandBuffer command_buffer, VkFence fence,
   descriptors[2].descriptorCount = 1;
   descriptors[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER;
   descriptors[2].pImageInfo = nullptr;
-  VkDescriptorBufferInfo buffer_info_stencil;
-  buffer_info_stencil.buffer = depth_copy_buffer_;
-  buffer_info_stencil.offset = buffer_info_depth.range;
-  buffer_info_stencil.range = pixel_count * sizeof(uint8_t);
-  descriptors[2].pBufferInfo = &buffer_info_stencil;
-  descriptors[2].pTexelBufferView = nullptr;
+  descriptors[2].pBufferInfo = nullptr;
+  descriptors[2].pTexelBufferView = &depth_copy_buffer_view_stencil_;
   vkUpdateDescriptorSets(*device_, 3, descriptors, 0, nullptr);
 
   // Dispatch the computation.
