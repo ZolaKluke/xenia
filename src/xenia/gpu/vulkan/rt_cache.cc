@@ -623,11 +623,9 @@ RTCache::RenderPass* RTCache::GetRenderPass(
         DepthRenderTargetFormatToVkFormat(DepthRenderTargetFormat(
                                           key_depth.format));
     attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    // attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    // TODO(Triang3l): Change loadOp to DONT_CARE when EDRAM store is added.
     attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
     attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachment.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -655,9 +653,9 @@ RTCache::RenderPass* RTCache::GetRenderPass(
     attachment.format = ColorRenderTargetFormatToVkFormat(
         ColorRenderTargetFormat(key.format));
     attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
     attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
     attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
