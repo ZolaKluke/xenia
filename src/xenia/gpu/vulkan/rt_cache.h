@@ -57,10 +57,16 @@ class RTCache {
     void OnFrameEnd(VkCommandBuffer command_buffer, VkFence batch_fence);
     VkRenderPass GetCurrentVulkanRenderPass();
     void EndRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence);
+
     VkImageView LoadResolveImage(
         VkCommandBuffer command_buffer, VkFence batch_fence,
         uint32_t edram_base, uint32_t surface_pitch, MsaaSamples samples,
         bool is_depth, uint32_t format, VkExtent2D& image_size);
+    void ClearColor(VkCommandBuffer command_buffer, VkFence fence,
+                    ColorRenderTargetFormat format, MsaaSamples samples,
+                    uint32_t offset_tiles, uint32_t pitch_px,
+                    uint32_t height_px, uint32_t color_high,
+                    uint32_t color_low);
 
     void ClearCache();
     void Scavenge();

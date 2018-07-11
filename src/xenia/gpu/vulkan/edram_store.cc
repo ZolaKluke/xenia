@@ -25,6 +25,7 @@ using xe::ui::vulkan::CheckResult;
 #include "xenia/gpu/vulkan/shaders/bin/edram_load_64bpp_comp.h"
 #include "xenia/gpu/vulkan/shaders/bin/edram_store_7e3_comp.h"
 #include "xenia/gpu/vulkan/shaders/bin/edram_load_7e3_comp.h"
+#include "xenia/gpu/vulkan/shaders/bin/edram_clear_color_comp.h"
 
 const EDRAMStore::ModeInfo EDRAMStore::mode_info_[] = {
     {false, false, edram_store_32bpp_comp, sizeof(edram_store_32bpp_comp),
@@ -143,8 +144,17 @@ VkResult EDRAMStore::Initialize() {
   if (status != VK_SUCCESS) {
     return status;
   }
+  // Clear only needs the EDRAM.
+  descriptor_set_layout_info.bindingCount = 1;
+  status = vkCreateDescriptorSetLayout(*device_, &descriptor_set_layout_info,
+                                       nullptr,
+                                       &descriptor_set_layout_clear_color_);
+  CheckResult(status, "vkCreateDescriptorSetLayout");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
-  // Create the layouts for the store and load pipelines.
+  // Create the layouts for the pipelines.
   VkPipelineLayoutCreateInfo pipeline_layout_info;
   VkDescriptorSetLayout descriptor_set_layouts[1];
   VkPushConstantRange push_constant_range;
@@ -157,11 +167,20 @@ VkResult EDRAMStore::Initialize() {
   pipeline_layout_info.pPushConstantRanges = &push_constant_range;
   push_constant_range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
   push_constant_range.offset = 0;
-  // Color pipeline layout.
+  // Color store/load layout.
   descriptor_set_layouts[0] = descriptor_set_layout_color_;
   push_constant_range.size = sizeof(PushConstantsColor);
   status = vkCreatePipelineLayout(*device_, &pipeline_layout_info, nullptr,
                                   &pipeline_layout_color_);
+  CheckResult(status, "vkCreatePipelineLayout");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+  // Color clear layout.
+  descriptor_set_layouts[0] = descriptor_set_layout_clear_color_;
+  push_constant_range.size = sizeof(PushConstantsClearColor);
+  status = vkCreatePipelineLayout(*device_, &pipeline_layout_info, nullptr,
+                                  &pipeline_layout_clear_color_);
   CheckResult(status, "vkCreatePipelineLayout");
   if (status != VK_SUCCESS) {
     return status;
@@ -241,11 +260,37 @@ VkResult EDRAMStore::Initialize() {
     }
   }
 
+  // Color clear pipeline.
+  shader_module_info.codeSize = sizeof(edram_store_7e3_comp);
+  shader_module_info.pCode =
+      reinterpret_cast<const uint32_t*>(edram_store_7e3_comp);
+  status = vkCreateShaderModule(*device_, &shader_module_info, nullptr,
+                                &clear_color_shader_module_);
+  CheckResult(status, "vkCreateShaderModule");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+  device_->DbgSetObjectName(uint64_t(clear_color_shader_module_),
+                            VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
+                            "S(c): EDRAM Clear Color");
+  pipeline_info.stage.module = clear_color_shader_module_;
+  pipeline_info.layout = pipeline_layout_clear_color_;
+  status = vkCreateComputePipelines(*device_, nullptr, 1, &pipeline_info,
+                                    nullptr, &clear_color_pipeline_);
+  CheckResult(status, "vkCreateComputePipelines");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+
   return VK_SUCCESS;
 }
 
 void EDRAMStore::Shutdown() {
   // TODO(Triang3l): Wait for idle.
+
+  VK_SAFE_DESTROY(vkDestroyPipeline, *device_, clear_color_pipeline_, nullptr);
+  VK_SAFE_DESTROY(vkDestroyShaderModule, *device_, clear_color_shader_module_,
+                  nullptr);
 
   for (int mode_index = 0; mode_index < int(Mode::k_ModeCount); ++mode_index) {
     ModeData& mode_data = mode_data_[mode_index];
@@ -259,6 +304,10 @@ void EDRAMStore::Shutdown() {
                     mode_data.store_shader_module, nullptr);
   }
 
+  VK_SAFE_DESTROY(vkDestroyPipelineLayout, *device_,
+                  pipeline_layout_clear_color_, nullptr);
+  VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
+                  descriptor_set_layout_clear_color_, nullptr);
   VK_SAFE_DESTROY(vkDestroyPipelineLayout, *device_, pipeline_layout_color_,
                   nullptr);
   VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
@@ -497,7 +546,7 @@ void EDRAMStore::CopyColor(VkCommandBuffer command_buffer, VkFence fence,
     return;
   }
 
-  // Switch the EDRAM image to storing.
+  // Switch the EDRAM image to the requested state.
   TransitionEDRAMImage(command_buffer, load);
 
   // Write the descriptors.
@@ -561,6 +610,91 @@ void EDRAMStore::CopyColor(VkCommandBuffer command_buffer, VkFence fence,
                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0,
                          nullptr, 0, nullptr);
   }
+}
+
+void EDRAMStore::ClearColor(VkCommandBuffer command_buffer, VkFence fence,
+                            bool format_64bpp, MsaaSamples samples,
+                            uint32_t offset_tiles, uint32_t pitch_px,
+                            uint32_t height_px, uint32_t color_high,
+                            uint32_t color_low) {
+  XELOGGPU("EDRAM ClearColor: pitch %u, height %u.\n", pitch_px, height_px);
+  if (pitch_px == 0 || height_px == 0) {
+    return;
+  }
+
+  // Get the clear region size.
+  VkRect2D rect;
+  rect.offset.x = 0;
+  rect.offset.y = 0;
+  rect.extent.width = pitch_px;
+  rect.extent.height = height_px;
+  VkRect2D rect_adjusted;
+  uint32_t offset_tiles_add;
+  VkExtent2D extent_tiles;
+  uint32_t pitch_tiles;
+  if (!GetDimensions(format_64bpp, samples, offset_tiles, pitch_px, rect,
+                     rect_adjusted, offset_tiles_add, extent_tiles,
+                     pitch_tiles)) {
+    return;
+  }
+
+  // Allocate space for the descriptors.
+  if (!descriptor_pool_->has_open_batch()) {
+    descriptor_pool_->BeginBatch(fence);
+  }
+  VkDescriptorSet descriptor_set =
+      descriptor_pool_->AcquireEntry(descriptor_set_layout_clear_color_);
+  if (!descriptor_set) {
+    assert_always();
+    descriptor_pool_->CancelBatch();
+    return;
+  }
+
+  // Switch the EDRAM image to storing.
+  TransitionEDRAMImage(command_buffer, false);
+
+  // Write the EDRAM image descriptor.
+  VkWriteDescriptorSet descriptor;
+  descriptor.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  descriptor.pNext = nullptr;
+  descriptor.dstSet = descriptor_set;
+  descriptor.dstBinding = 0;
+  descriptor.dstArrayElement = 0;
+  descriptor.descriptorCount = 1;
+  descriptor.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+  VkDescriptorImageInfo image_info_edram;
+  image_info_edram.sampler = nullptr;
+  image_info_edram.imageView = edram_image_view_;
+  image_info_edram.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+  descriptor.pImageInfo = &image_info_edram;
+  descriptor.pBufferInfo = nullptr;
+  descriptor.pTexelBufferView = nullptr;
+  vkUpdateDescriptorSets(*device_, 1, &descriptor, 0, nullptr);
+
+  // Dispatch the computation.
+  vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                    clear_color_pipeline_);
+  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          pipeline_layout_clear_color_, 0, 1, &descriptor_set,
+                          0, nullptr);
+  PushConstantsClearColor push_constants;
+  push_constants.offset_tiles = offset_tiles + offset_tiles_add;
+  push_constants.pitch_tiles = pitch_tiles;
+  // TODO(Triang3l): Verify component order.
+  push_constants.color_high = color_high;
+  push_constants.color_low = format_64bpp ? color_low : color_high;
+  vkCmdPushConstants(command_buffer, pipeline_layout_clear_color_,
+                     VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants),
+                     &push_constants);
+  uint32_t group_count_x = extent_tiles.width * 2;
+  if (!format_64bpp) {
+    // 32bpp images are cleared like 64bpp, but with two words being the same.
+    group_count_x *= 2;
+  }
+  vkCmdDispatch(command_buffer, group_count_x, extent_tiles.height, 1);
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0,
+                       nullptr, 0, nullptr);
 }
 
 void EDRAMStore::Scavenge() {

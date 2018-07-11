@@ -71,6 +71,12 @@ class EDRAMStore {
                  VkRect2D rt_rect, uint32_t edram_offset_tiles,
                  uint32_t edram_pitch_px);
 
+  void ClearColor(VkCommandBuffer command_buffer, VkFence fence,
+                  bool format_64bpp, MsaaSamples samples,
+                  uint32_t offset_tiles, uint32_t pitch_px,
+                  uint32_t height_px, uint32_t color_high,
+                  uint32_t color_low);
+
   // Returns the maximum height of a render target in pixels.
   static uint32_t GetMaxHeight(bool format_64bpp, MsaaSamples samples,
                                uint32_t offset_tiles, uint32_t pitch_px);
@@ -124,6 +130,13 @@ class EDRAMStore {
     uint32_t rt_offset_px[2];
   };
 
+  struct PushConstantsClearColor {
+    uint32_t offset_tiles;
+    uint32_t pitch_tiles;
+    uint32_t color_high;
+    uint32_t color_low;
+  };
+
   void TransitionEDRAMImage(VkCommandBuffer command_buffer, bool load);
 
   Mode GetColorMode(ColorRenderTargetFormat format, MsaaSamples samples);
@@ -158,6 +171,8 @@ class EDRAMStore {
   // Color store and load (one EDRAM image and one RT image) descriptor layout.
   VkDescriptorSetLayout descriptor_set_layout_color_ = nullptr;
   VkPipelineLayout pipeline_layout_color_ = nullptr;
+  VkDescriptorSetLayout descriptor_set_layout_clear_color_ = nullptr;
+  VkPipelineLayout pipeline_layout_clear_color_ = nullptr;
 
   // Descriptor pool for shader invocations.
   std::unique_ptr<ui::vulkan::DescriptorPool> descriptor_pool_ = nullptr;
@@ -166,6 +181,10 @@ class EDRAMStore {
   static const ModeInfo mode_info_[Mode::k_ModeCount];
   // Mode-dependent data (load/store pipelines and per-mode dependencies).
   ModeData mode_data_[Mode::k_ModeCount];
+
+  // Clear pipelines.
+  VkShaderModule clear_color_shader_module_ = nullptr;
+  VkPipeline clear_color_pipeline_ = nullptr;
 };
 
 }  // namespace vulkan

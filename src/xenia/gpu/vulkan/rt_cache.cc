@@ -1139,6 +1139,18 @@ VkImageView RTCache::LoadResolveImage(
   return rt->image_view;
 }
 
+void RTCache::ClearColor(VkCommandBuffer command_buffer, VkFence fence,
+                         ColorRenderTargetFormat format, MsaaSamples samples,
+                         uint32_t offset_tiles, uint32_t pitch_px,
+                         uint32_t height_px, uint32_t color_high,
+                         uint32_t color_low) {
+  assert_false(current_pass_);
+  edram_store_.ClearColor(command_buffer, fence,
+                          EDRAMStore::IsColorFormat64bpp(format), samples,
+                          offset_tiles, pitch_px, height_px, color_high,
+                          color_low);
+}
+
 void RTCache::ClearCache() {
 }
 

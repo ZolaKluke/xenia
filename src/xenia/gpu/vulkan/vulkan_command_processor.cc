@@ -1373,9 +1373,21 @@ bool VulkanCommandProcessor::IssueCopy() {
   uint32_t copy_depth_clear = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;
   uint32_t copy_color_clear = regs[XE_GPU_REG_RB_COLOR_CLEAR].u32;
   uint32_t copy_color_clear_low = regs[XE_GPU_REG_RB_COLOR_CLEAR_LOW].u32;
-  assert_true(copy_color_clear == copy_color_clear_low);
-
   #ifdef RENDER_CACHE_NOT_OBSOLETE
+  assert_true(copy_color_clear == copy_color_clear_low);
+  #endif
+
+  #ifndef RENDER_CACHE_NOT_OBSOLETE
+  if (color_clear_enabled) {
+    // If color clear is enabled, we can only clear a selected color target!
+    assert_true(is_color_source);
+    // TODO(DrChat): Do we know the surface height at this point?
+    rt_cache_->ClearColor(command_buffer, current_batch_fence_, color_format,
+                          surface_msaa, color_edram_base, surface_pitch,
+                          resolve_extent.height, copy_color_clear,
+                          copy_color_clear_low);
+  }
+  #else
   if (color_clear_enabled) {
     // If color clear is enabled, we can only clear a selected color target!
     assert_true(is_color_source);
