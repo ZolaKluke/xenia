@@ -36,7 +36,7 @@ ColorRenderTargetFormat RTCache::GetBaseRTFormat(
 }
 
 VkFormat RTCache::ColorRenderTargetFormatToVkFormat(
-    ColorRenderTargetFormat format) {
+    ColorRenderTargetFormat format) const {
   switch (format) {
     case ColorRenderTargetFormat::k_8_8_8_8:
     case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
@@ -65,7 +65,7 @@ VkFormat RTCache::ColorRenderTargetFormatToVkFormat(
 }
 
 VkFormat RTCache::DepthRenderTargetFormatToVkFormat(
-    DepthRenderTargetFormat format) {
+    DepthRenderTargetFormat format) const {
   switch (format) {
     case DepthRenderTargetFormat::kD24S8:
       return VK_FORMAT_D24_UNORM_S8_UINT;
@@ -106,7 +106,7 @@ VkResult RTCache::Initialize() {
   image_info.arrayLayers = 1;
   image_info.samples = VK_SAMPLE_COUNT_4_BIT;
   image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-  image_info.usage = kUsageFlagsDepth;
+  image_info.usage = kRTImageUsageFlagsDepth;
   image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   image_info.queueFamilyIndexCount = 0;
   image_info.pQueueFamilyIndices = nullptr;
@@ -160,6 +160,180 @@ void RTCache::Shutdown() {
   edram_store_.Shutdown();
 }
 
+bool RTCache::IsRenderTargetKeyValid(RenderTargetKey key) const {
+  if (key.width_div_80 == 0 || key.height_div_16 == 0) {
+    return false;
+  }
+  return GetRenderTargetKeyVkFormat(key) != VK_FORMAT_UNDEFINED;
+}
+
+void RTCache::FillRenderTargetImageCreateInfo(
+    RenderTargetKey key, VkImageCreateInfo& image_info) const {
+  image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  image_info.pNext = nullptr;
+  image_info.flags = key.is_depth ? 0 : VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+  image_info.imageType = VK_IMAGE_TYPE_2D;
+  image_info.format = GetRenderTargetKeyVkFormat(key);
+  image_info.extent.width = key.width_div_80 * 80;
+  image_info.extent.height = key.height_div_16 * 16;
+  GetSupersampledSize(image_info.extent.width, image_info.extent.height,
+                      key.samples);
+  image_info.extent.depth = 1;
+  image_info.mipLevels = 1;
+  image_info.arrayLayers = 1;
+  image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+  image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+  image_info.usage = key.is_depth ? kRTImageUsageFlagsDepth :
+                                    kRTImageUsageFlagsColor;
+  image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  image_info.queueFamilyIndexCount = 0;
+  image_info.pQueueFamilyIndices = nullptr;
+  image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+}
+
+RTCache::RenderTarget* RTCache::FindOrCreateRenderTarget(RenderTargetKey key,
+                                                         uint32_t page_first) {
+  // Check if there is already the needed render target.
+  auto found_rts = rts_.equal_range(key.value);
+  for (auto iter = found_rts.first; iter != found_rts.second; ++iter) {
+    RenderTarget* found_rt = iter->second;
+    if (found_rt->page_first == page_first) {
+      return found_rt;
+    }
+  }
+
+  VkResult status;
+
+  // Create a new render target image.
+  VkImageCreateInfo image_info;
+  FillRenderTargetImageCreateInfo(key, image_info);
+  VkImage image;
+  status = vkCreateImage(*device_, &image_info, nullptr, &image);
+  CheckResult(status, "vkCreateImage");
+  if (status != VK_SUCCESS) {
+    return false;
+  }
+
+  // Get the page count to store later.
+  VkMemoryRequirements image_memory_requirements;
+  vkGetImageMemoryRequirements(*device_, image, &image_memory_requirements);
+  assert_always(image_memory_requirements.alignment <= (1 << 22));
+  if (image_memory_requirements.size > (6 << 22)) {
+    // Can't fit the image in a whole 24 MB block.
+    assert_always();
+    vkDestroyImage(*device_, image, nullptr);
+    return false;
+  }
+  uint32_t page_count =
+      xe::round_up(uint32_t(image_memory_requirements.size), 1u << 22) >> 22;
+  uint32_t block_index = page_first / 6;
+  uint32_t block_page_index = page_first - (block_index * 6);
+  if (block_page_index + page_count > 6) {
+    // Can't put the image at the requested position in the block.
+    assert_always();
+    vkDestroyImage(*device_, image, nullptr);
+    return false;
+  }
+
+  // Name the image.
+  // TODO(Triang3l): Color and depth format names.
+  device_->DbgSetObjectName(
+      uint64_t(image), VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
+      xe::format_string("RT(%c): %u, %ux, pages %u-%u",
+                        key.is_depth ? 'd' : 'c', key.format,
+                        1 << uint32_t(key.samples), page_first,
+                        page_first + page_count));
+
+  // Allocate the block if it doesn't exist yet.
+  if (rt_memory_[block_index] == nullptr) {
+    VkMemoryRequirements block_memory_requirements;
+    block_memory_requirements.size = 6 << 22;
+    block_memory_requirements.alignment = 1 << 22;
+    block_memory_requirements.memoryTypeBits = rt_memory_type_bits_;
+    // On the testing GTX 850M, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT is required.
+    rt_memory_[block_index] =
+        device_->AllocateMemory(block_memory_requirements,
+                                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (rt_memory_[block_index] == nullptr) {
+      assert_always();
+      vkDestroyImage(*device_, image, nullptr);
+      return false;
+    }
+  }
+
+  // Bind the memory to the image.
+  status = vkBindImageMemory(*device_, image, rt_memory_[block_index],
+                             block_page_index << 22);
+  CheckResult(status, "vkBindImageMemory");
+  if (status != VK_SUCCESS) {
+    vkDestroyImage(*device_, image, nullptr);
+    return false;
+  }
+
+  // Create the needed image views.
+  VkImageViewCreateInfo image_view_info;
+  image_view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+  image_view_info.pNext = nullptr;
+  image_view_info.flags = 0;
+  image_view_info.image = image;
+  image_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+  image_view_info.format = image_info.format;
+  image_view_info.components.r = VK_COMPONENT_SWIZZLE_R;
+  image_view_info.components.g = VK_COMPONENT_SWIZZLE_G;
+  image_view_info.components.b = VK_COMPONENT_SWIZZLE_B;
+  image_view_info.components.a = VK_COMPONENT_SWIZZLE_A;
+  image_view_info.subresourceRange.aspectMask =
+      key.is_depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+  image_view_info.subresourceRange.baseMipLevel = 0;
+  image_view_info.subresourceRange.levelCount = 1;
+  image_view_info.subresourceRange.baseArrayLayer = 0;
+  image_view_info.subresourceRange.layerCount = 1;
+  VkImageView image_view;
+  status = vkCreateImageView(*device_, &image_view_info, nullptr, &image_view);
+  CheckResult(status, "vkCreateImageView");
+  if (status != VK_SUCCESS) {
+    vkDestroyImage(*device_, image, nullptr);
+    return false;
+  }
+  VkImageView image_view_stencil = nullptr;
+  VkImageView image_view_color_edram_store = nullptr;
+  if (key.is_depth) {
+    image_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_STENCIL_BIT;
+    status = vkCreateImageView(*device_, &image_view_info, nullptr,
+                               &image_view_stencil);
+    CheckResult(status, "vkCreateImageView");
+    if (status != VK_SUCCESS) {
+      vkDestroyImageView(*device_, image_view, nullptr);
+      vkDestroyImage(*device_, image, nullptr);
+      return false;
+    }
+  } else {
+    image_view_info.format = edram_store_.GetStoreColorImageViewFormat(
+        ColorRenderTargetFormat(key.format));
+    status = vkCreateImageView(*device_, &image_view_info, nullptr,
+                               &image_view_color_edram_store);
+    CheckResult(status, "vkCreateImageView");
+    if (status != VK_SUCCESS) {
+      vkDestroyImageView(*device_, image_view, nullptr);
+      vkDestroyImage(*device_, image, nullptr);
+      return false;
+    }
+  }
+
+  // Add a new entry to the cache.
+  RenderTarget* rt = new RenderTarget;
+  rt->image = image;
+  rt->image_view = image_view;
+  rt->image_view_stencil = image_view_stencil;
+  rt->image_view_color_edram_store = image_view_color_edram_store;
+  rt->key.value = key.value;
+  rt->page_first = page_first;
+  rt->page_count = page_count;
+  rt->current_usage = RenderTargetUsage::kUntransitioned;
+  rts_.insert(std::make_pair(key.value, rt));
+  return rt;
+}
+
 bool RTCache::AllocateRenderTargets(
     const RTCache::RenderTargetKey keys_color[4],
     RTCache::RenderTargetKey key_depth, RTCache::RenderTarget* rts_color[4],
@@ -171,14 +345,13 @@ bool RTCache::AllocateRenderTargets(
   keys[0].value = key_depth.value;
   std::memcpy(&keys[1], keys_color, 4 * sizeof(RenderTargetKey));
 
-  // Validate attachments and get their Vulkan formats.
-  VkFormat formats[5];
+  // Validate attachments.
   for (uint32_t i = 0; i < 5; ++i) {
     RenderTargetKey& key = keys[i];
     if (key.value == 0) {
       continue;
     }
-    if (key.width_div_80 == 0 || key.height_div_16 == 0) {
+    if (!IsRenderTargetKeyValid(key)) {
       assert_always();
       return false;
     }
@@ -187,8 +360,6 @@ bool RTCache::AllocateRenderTargets(
         assert_always();
         return false;
       }
-      formats[i] = DepthRenderTargetFormatToVkFormat(DepthRenderTargetFormat(
-                                                     key.format));
     } else {
       if (key.is_depth) {
         assert_always();
@@ -197,29 +368,10 @@ bool RTCache::AllocateRenderTargets(
       ColorRenderTargetFormat format = ColorRenderTargetFormat(key.format);
       format = GetBaseRTFormat(format);
       key.format = uint32_t(format);
-      formats[i] = ColorRenderTargetFormatToVkFormat(format);
-    }
-    if (formats[i] == VK_FORMAT_UNDEFINED) {
-      assert_always();
-      return false;
     }
   }
 
   VkResult status;
-
-  // Prepare for image creation.
-  VkImageCreateInfo image_info;
-  image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-  image_info.pNext = nullptr;
-  image_info.imageType = VK_IMAGE_TYPE_2D;
-  image_info.extent.depth = 1;
-  image_info.mipLevels = 1;
-  image_info.arrayLayers = 1;
-  image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-  image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-  image_info.queueFamilyIndexCount = 0;
-  image_info.pQueueFamilyIndices = nullptr;
-  image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
   // Find page count for each render target.
   struct RTAllocInfo {
@@ -229,7 +381,6 @@ bool RTCache::AllocateRenderTargets(
   };
   RTAllocInfo alloc_infos[5];
   uint32_t used_rt_count = 0;
-  VkImage new_images[5] = {};
   for (uint32_t i = 0; i < 5; ++i) {
     RenderTargetKey key(keys[i]);
     if (key.value == 0) {
@@ -245,33 +396,22 @@ bool RTCache::AllocateRenderTargets(
       ++used_rt_count;
       continue;
     }
-    // Need a new VkImage to get the required memory size.
-    // Also will obviously need it for the view as there's no image to reuse.
-    image_info.flags = key.is_depth ? 0 : VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
-    image_info.format = formats[i];
-    image_info.extent.width = key.width_div_80 * 80;
-    image_info.extent.height = key.height_div_16 * 16;
-    GetSupersampledSize(image_info.extent.width, image_info.extent.height,
-                        key.samples);
-    image_info.samples = VK_SAMPLE_COUNT_1_BIT;
-    image_info.usage = key.is_depth ? kUsageFlagsDepth : kUsageFlagsColor;
-    status = vkCreateImage(*device_, &image_info, nullptr, &new_images[i]);
+    // Need a temporary VkImage to get the required memory size.
+    VkImageCreateInfo size_image_info;
+    VkImage size_image;
+    FillRenderTargetImageCreateInfo(key, size_image_info);
+    status = vkCreateImage(*device_, &size_image_info, nullptr, &size_image);
     CheckResult(status, "vkCreateImage");
     if (status != VK_SUCCESS) {
-      for (uint32_t j = 0; j < i; ++j) {
-        VK_SAFE_DESTROY(vkDestroyImage, *device_, new_images[j], nullptr);
-      }
       return false;
     }
     VkMemoryRequirements memory_requirements;
-    vkGetImageMemoryRequirements(*device_, new_images[i], &memory_requirements);
+    vkGetImageMemoryRequirements(*device_, size_image, &memory_requirements);
+    vkDestroyImage(*device_, size_image, nullptr);
     assert_always(memory_requirements.alignment <= (1 << 22));
     if (memory_requirements.size > (6 << 22)) {
       // Can't fit the image in a whole 24 MB block.
       assert_always();
-      for (uint32_t j = 0; j < i; ++j) {
-        VK_SAFE_DESTROY(vkDestroyImage, *device_, new_images[j], nullptr);
-      }
       return false;
     }
     alloc_info.page_count =
@@ -284,7 +424,7 @@ bool RTCache::AllocateRenderTargets(
     return true;
   }
 
-  // Try to pack the framebuffers tightly.
+  // Try to pack the framebuffer 4 MB pages tightly.
   // Start with the largest, they may jump across blocks first, creating holes.
   // Then fill the holes with smaller framebuffers.
   std::sort(alloc_infos, alloc_infos + used_rt_count,
@@ -307,146 +447,22 @@ bool RTCache::AllocateRenderTargets(
     if (block_index >= 5) {
       // Couldn't find a block - this must not happen as there are 5.
       assert_always();
-      for (uint32_t j = 0; j < 5; ++j) {
-        VK_SAFE_DESTROY(vkDestroyImage, *device_, new_images[j], nullptr);
-      }
       return false;
     }
     alloc_info.page_first = block_index * 6 + pages_allocated[block_index];
     pages_allocated[block_index] += alloc_info.page_count;
   }
 
-  // Create the needed memory blocks if they don't exist yet.
-  VkMemoryRequirements block_memory_requirements;
-  block_memory_requirements.size = 6 << 22;
-  block_memory_requirements.alignment = 1 << 22;
-  block_memory_requirements.memoryTypeBits = rt_memory_type_bits_;
-  for (uint32_t i = 0; i < 5; ++i) {
-    if (pages_allocated[i] != 0 && rt_memory_[i] == nullptr) {
-      // On testing GTX 850M, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT is required.
-      rt_memory_[i] =
-          device_->AllocateMemory(block_memory_requirements,
-                                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-      if (rt_memory_[i] == nullptr) {
-        assert_always();
-        for (uint32_t j = 0; j < 5; ++j) {
-          VK_SAFE_DESTROY(vkDestroyImage, *device_, new_images[j], nullptr);
-        }
-        return false;
-      }
-    }
-  }
-
   // Find or create the needed render targets.
   RenderTarget* rts[5] = {};
-  VkImageViewCreateInfo image_view_info;
-  image_view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-  image_view_info.pNext = nullptr;
-  image_view_info.flags = 0;
-  image_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-  image_view_info.components.r = VK_COMPONENT_SWIZZLE_R;
-  image_view_info.components.g = VK_COMPONENT_SWIZZLE_G;
-  image_view_info.components.b = VK_COMPONENT_SWIZZLE_B;
-  image_view_info.components.a = VK_COMPONENT_SWIZZLE_A;
-  image_view_info.subresourceRange.baseMipLevel = 0;
-  image_view_info.subresourceRange.levelCount = 1;
-  image_view_info.subresourceRange.baseArrayLayer = 0;
-  image_view_info.subresourceRange.layerCount = 1;
   for (uint32_t i = 0; i < used_rt_count; ++i) {
     const RTAllocInfo& alloc_info = alloc_infos[i];
     uint32_t rt_index = alloc_info.rt_index;
-    RenderTargetKey key(keys[rt_index]);
-    auto found_rts = rts_.equal_range(key.value);
-    for (auto iter = found_rts.first; iter != found_rts.second; ++iter) {
-      RenderTarget* found_rt = iter->second;
-      if (found_rt->page_first == alloc_info.page_first) {
-        // Found an existing render target in a matching page range, use it.
-        rts[rt_index] = found_rt;
-        break;
-      }
-    }
-    if (rts[rt_index] != nullptr) {
-      continue;
-    }
-    // Create a new render target image if needed.
-    if (new_images[rt_index] == nullptr) {
-      image_info.format = formats[rt_index];
-      image_info.extent.width = key.width_div_80 * 80;
-      image_info.extent.height = key.height_div_16 * 16;
-      GetSupersampledSize(image_info.extent.width, image_info.extent.height,
-                          key.samples);
-      image_info.samples = VK_SAMPLE_COUNT_1_BIT;
-      image_info.usage = key.is_depth ? kUsageFlagsDepth : kUsageFlagsColor;
-      status = vkCreateImage(*device_, &image_info, nullptr, &new_images[rt_index]);
-      CheckResult(status, "vkCreateImage");
-      if (status != VK_SUCCESS) {
-        for (uint32_t j = 0; j < 5; ++j) {
-          VK_SAFE_DESTROY(vkDestroyImage, *device_, new_images[j], nullptr);
-        }
-        return false;
-      }
-    }
-    // Bind memory to it and create a view.
-    status = vkBindImageMemory(*device_, new_images[rt_index],
-                               rt_memory_[alloc_info.page_first / 6],
-                               (alloc_info.page_first % 6) << 22);
-    CheckResult(status, "vkBindImageMemory");
-    VkImageView image_view = nullptr;
-    VkImageView image_view_stencil = nullptr;
-    VkImageView image_view_color_edram_store = nullptr;
-    if (status == VK_SUCCESS) {
-      image_view_info.image = new_images[rt_index];
-      image_view_info.format = formats[rt_index];
-      image_view_info.subresourceRange.aspectMask =
-          key.is_depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
-      status = vkCreateImageView(*device_, &image_view_info, nullptr,
-                                 &image_view);
-      CheckResult(status, "vkCreateImageView");
-      if (status == VK_SUCCESS) {
-        if (key.is_depth) {
-          image_view_info.subresourceRange.aspectMask =
-              VK_IMAGE_ASPECT_STENCIL_BIT;
-          status = vkCreateImageView(*device_, &image_view_info, nullptr,
-                                     &image_view_stencil);
-        } else {
-          image_view_info.format = edram_store_.GetStoreColorImageViewFormat(
-              ColorRenderTargetFormat(key.format));
-          status = vkCreateImageView(*device_, &image_view_info, nullptr,
-                                     &image_view_color_edram_store);
-        }
-        CheckResult(status, "vkCreateImageView");
-        if (status != VK_SUCCESS) {
-          vkDestroyImageView(*device_, image_view, nullptr);
-        }
-      }
-    }
-    if (status != VK_SUCCESS) {
-      for (uint32_t j = 0; j < 5; ++j) {
-        VK_SAFE_DESTROY(vkDestroyImage, *device_, new_images[j], nullptr);
-      }
+    rts[rt_index] = FindOrCreateRenderTarget(keys[rt_index],
+                                             alloc_info.page_first);
+    if (rts[rt_index] == nullptr) {
       return false;
     }
-    // TODO(Triang3l): Color and depth format names.
-    device_->DbgSetObjectName(
-        uint64_t(new_images[rt_index]), VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
-        xe::format_string("RT(%c): %u, %ux, pages [%u,%u)",
-                          key.is_depth ? 'd' : 'c', key.format,
-                          1 << uint32_t(key.samples), alloc_info.page_first,
-                          alloc_info.page_first + alloc_info.page_count));
-    // Add a new entry to the cache.
-    RenderTarget* rt = new RenderTarget;
-    rt->image = new_images[rt_index];
-    rt->image_view = image_view;
-    rt->image_view_stencil = image_view_stencil;
-    rt->image_view_color_edram_store = image_view_color_edram_store;
-    rt->key.value = key.value;
-    rt->page_first = alloc_info.page_first;
-    rt->page_count = alloc_info.page_count;
-    rt->current_usage = RenderTargetUsage::kUntransitioned;
-    rts_.insert(std::make_pair(key.value, rt));
-    rts[rt_index] = rt;
-    // It's not "new" anymore, so don't delete it in case of an error.
-    new_images[rt_index] = nullptr;
   }
 
   // Return the found or created render targets.

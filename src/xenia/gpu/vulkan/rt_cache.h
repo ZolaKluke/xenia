@@ -62,10 +62,10 @@ class RTCache {
 
     static ColorRenderTargetFormat GetBaseRTFormat(
         ColorRenderTargetFormat format);
-    static VkFormat ColorRenderTargetFormatToVkFormat(
-        ColorRenderTargetFormat format);
-    static VkFormat DepthRenderTargetFormatToVkFormat(
-        DepthRenderTargetFormat format);
+    VkFormat ColorRenderTargetFormatToVkFormat(
+        ColorRenderTargetFormat format) const;
+    VkFormat DepthRenderTargetFormatToVkFormat(
+        DepthRenderTargetFormat format) const;
 
   private:
     // Key used to index render targets bound to various 4 MB pages.
@@ -135,6 +135,12 @@ class RTCache {
       uint32_t height;
     };
 
+    static constexpr VkImageUsageFlags kRTImageUsageFlagsColor =
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    static constexpr VkImageUsageFlags kRTImageUsageFlagsDepth =
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
     static inline void GetSupersampledSize(uint32_t& width, uint32_t& height,
                                            MsaaSamples samples) {
       if (samples >= MsaaSamples::k2X) {
@@ -145,11 +151,20 @@ class RTCache {
       }
     }
 
-    static constexpr VkImageUsageFlags kUsageFlagsColor =
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    static constexpr VkImageUsageFlags kUsageFlagsDepth =
-        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    inline VkFormat GetRenderTargetKeyVkFormat(RenderTargetKey key) const {
+      if (key.is_depth) {
+        return DepthRenderTargetFormatToVkFormat(
+            DepthRenderTargetFormat(key.format));
+      }
+      return ColorRenderTargetFormatToVkFormat(
+          ColorRenderTargetFormat(key.format));
+    }
+    bool IsRenderTargetKeyValid(RenderTargetKey key) const;
+    void FillRenderTargetImageCreateInfo(RenderTargetKey key,
+                                         VkImageCreateInfo& image_info) const;
+
+    RenderTarget* FindOrCreateRenderTarget(RenderTargetKey key,
+                                           uint32_t page_first);
 
     // Finds or creates views for the specified render target configuration.
     // Returns true if succeeded, false in case of an error.
