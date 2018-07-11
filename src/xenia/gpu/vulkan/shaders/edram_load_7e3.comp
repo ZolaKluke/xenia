@@ -22,17 +22,17 @@ layout(set = 0, binding = 1, rg32ui) uniform writeonly uimage2D rt;
 
 // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
 uvec2 Float7e3To16(uint rgba_packed) {
-  uvec3 rgb_u10 = (uvec3(rgba_packed) >> uvec3(20u, 10u, 0u)) & 0x3ffu;
-  uvec3 mantissa = rgb_u10 & 0x7fu;
+  uvec3 rgb_u10 = (uvec3(rgba_packed) >> uvec3(20u, 10u, 0u)) & 0x3FFu;
+  uvec3 mantissa = rgb_u10 & 0x7Fu;
   uvec3 exponent = rgb_u10 >> 7u;
 
-  // Calculate the values for denormalized components.
+  // Normalize the values for the denormalized components.
   // Exponent = 1;
   // do { Exponent--; Mantissa <<= 1; } while ((Mantissa & 0x80) == 0);
   bvec3 is_denormalized = equal(exponent, uvec3(0u));
   uvec3 mantissa_lzcnt = uvec3(ivec3(7) - findMSB(mantissa));
   exponent = mix(exponent, uvec3(1u) - mantissa_lzcnt, is_denormalized);
-  mantissa = mix(mantissa, (mantissa << mantissa_lzcnt) & 0x7fu,
+  mantissa = mix(mantissa, (mantissa << mantissa_lzcnt) & 0x7Fu,
                  is_denormalized);
 
   // Combine into 32-bit float bits.

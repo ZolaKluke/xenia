@@ -67,6 +67,9 @@ class RTCache {
                     uint32_t offset_tiles, uint32_t pitch_px,
                     uint32_t height_px, uint32_t color_high,
                     uint32_t color_low);
+    void ClearDepth(VkCommandBuffer command_buffer, VkFence fence,
+                    MsaaSamples samples, uint32_t offset_tiles, uint32_t pitch_px,
+                    uint32_t height_px, uint32_t stencil_depth);
 
     void ClearCache();
     void Scavenge();

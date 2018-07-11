@@ -68,7 +68,8 @@ VkFormat RTCache::DepthRenderTargetFormatToVkFormat(
     DepthRenderTargetFormat format) const {
   switch (format) {
     case DepthRenderTargetFormat::kD24S8:
-      return VK_FORMAT_D24_UNORM_S8_UINT;
+      // TODO(Triang3l): Add VK_FORMAT_D24_UNORM_S8_UINT to the EDRAM Store.
+      return VK_FORMAT_D32_SFLOAT_S8_UINT;
     case DepthRenderTargetFormat::kD24FS8:
       // Vulkan doesn't support 24-bit floats, so just promote it to 32-bit.
       return VK_FORMAT_D32_SFLOAT_S8_UINT;
@@ -492,14 +493,22 @@ VkPipelineStageFlags RTCache::GetRenderTargetUsageParameters(
       layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
       return VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     case RenderTargetUsage::kStoreToEDRAM:
-      assert_false(is_depth);
-      access_mask = VK_ACCESS_SHADER_READ_BIT;
-      layout = VK_IMAGE_LAYOUT_GENERAL;
+      if (is_depth) {
+        access_mask = VK_ACCESS_TRANSFER_READ_BIT;
+        layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+      } else {
+        access_mask = VK_ACCESS_SHADER_READ_BIT;
+        layout = VK_IMAGE_LAYOUT_GENERAL;
+      }
       return VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     case RenderTargetUsage::kLoadFromEDRAM:
-      assert_false(is_depth);
-      access_mask = VK_ACCESS_SHADER_WRITE_BIT;
-      layout = VK_IMAGE_LAYOUT_GENERAL;
+      if (is_depth) {
+        access_mask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+      } else {
+        access_mask = VK_ACCESS_SHADER_WRITE_BIT;
+        layout = VK_IMAGE_LAYOUT_GENERAL;
+      }
       return VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     case RenderTargetUsage::kResolve:
       assert_false(is_depth);
@@ -623,7 +632,7 @@ RTCache::RenderPass* RTCache::GetRenderPass(
         DepthRenderTargetFormatToVkFormat(DepthRenderTargetFormat(
                                           key_depth.format));
     attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
     attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
     attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -835,11 +844,11 @@ void RTCache::BeginRenderPass(VkCommandBuffer command_buffer,
   for (uint32_t i = 0; i < 4; ++i) {
     current_edram_color_offsets_[i] = regs.rb_color_info[i].color_base;
   }
+  current_edram_depth_offset_ = regs.rb_depth_info.depth_base;
 
   // Load the values from the EDRAM.
-  // TODO(Triang3l): Load the depth.
   SwitchRenderPassTargetUsage(command_buffer, current_pass_,
-                              RenderTargetUsage::kLoadFromEDRAM, 0xF, false);
+                              RenderTargetUsage::kLoadFromEDRAM, 0xF, true);
   VkRect2D rt_rect;
   rt_rect.offset.x = 0;
   rt_rect.offset.y = 0;
@@ -858,6 +867,15 @@ void RTCache::BeginRenderPass(VkCommandBuffer command_buffer,
                            rt_rect, current_edram_color_offsets_[i],
                            current_edram_pitch_px_);
   }
+  RenderTarget* rt_depth = current_pass_->rt_depth;
+  if (rt_depth != nullptr) {
+    RenderTargetKey key(current_pass_->key_depth);
+    uint32_t format = key.format;
+    edram_store_.CopyDepth(command_buffer, batch_fence, true, rt_depth->image,
+                           DepthRenderTargetFormat(format), key.samples,
+                           rt_rect, current_edram_depth_offset_,
+                           current_edram_pitch_px_);
+  }
 
   // Enter the framebuffer drawing mode.
   SwitchRenderPassTargetUsage(command_buffer, pass,
@@ -871,16 +889,8 @@ void RTCache::BeginRenderPass(VkCommandBuffer command_buffer,
   begin_info.renderArea.offset.y = 0;
   begin_info.renderArea.extent.width = pass->width;
   begin_info.renderArea.extent.height = pass->height;
-  // TODO(Triang3l): Remove clear when EDRAM store is added.
-  VkClearValue clear_depth;
-  begin_info.pClearValues = &clear_depth;
-  if (pass->rt_depth != nullptr) {
-    clear_depth.depthStencil.depth = 0.0f;
-    clear_depth.depthStencil.stencil = 0;
-    begin_info.clearValueCount = 1;
-  } else {
-    begin_info.clearValueCount = 0;
-  }
+  begin_info.clearValueCount = 0;
+  begin_info.pClearValues = nullptr;
   vkCmdBeginRenderPass(command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
 }
 
@@ -895,9 +905,8 @@ void RTCache::EndRenderPass(VkCommandBuffer command_buffer,
   vkCmdEndRenderPass(command_buffer);
 
   // Export the color to the EDRAM store.
-  // TODO(Triang3l): Export the depth.
   SwitchRenderPassTargetUsage(command_buffer, current_pass_,
-                              RenderTargetUsage::kStoreToEDRAM, 0xF, false);
+                              RenderTargetUsage::kStoreToEDRAM, 0xF, true);
   VkRect2D rt_rect;
   rt_rect.offset.x = 0;
   rt_rect.offset.y = 0;
@@ -914,6 +923,15 @@ void RTCache::EndRenderPass(VkCommandBuffer command_buffer,
                            rt->image_view_color_edram_store,
                            ColorRenderTargetFormat(format), key.samples,
                            rt_rect, current_edram_color_offsets_[i],
+                           current_edram_pitch_px_);
+  }
+  RenderTarget* rt_depth = current_pass_->rt_depth;
+  if (rt_depth != nullptr) {
+    RenderTargetKey key(current_pass_->key_depth);
+    uint32_t format = key.format;
+    edram_store_.CopyDepth(command_buffer, batch_fence, false, rt_depth->image,
+                           DepthRenderTargetFormat(format), key.samples,
+                           rt_rect, current_edram_depth_offset_,
                            current_edram_pitch_px_);
   }
 
@@ -936,7 +954,9 @@ bool RTCache::AreCurrentEDRAMParametersValid() const {
       return false;
     }
   }
-  // TODO(Triang3l): Check if depth offset changes.
+  if (current_edram_depth_offset_ != regs.rb_depth_info.depth_base) {
+    return false;
+  }
   return true;
 }
 
@@ -1034,7 +1054,6 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
   key_depth.samples = samples;
 
   // Check if we can keep using the old pass.
-  // TODO(Triang3l): Check if offsets are different when EDRAM store is added.
   if (current_pass_ != nullptr) {
     if (!std::memcmp(current_pass_->keys_color, keys_color,
                      4 * sizeof(RenderTargetKey))
@@ -1147,6 +1166,15 @@ void RTCache::ClearColor(VkCommandBuffer command_buffer, VkFence fence,
                           EDRAMStore::IsColorFormat64bpp(format), samples,
                           offset_tiles, pitch_px, height_px, color_high,
                           color_low);
+}
+
+void RTCache::ClearDepth(VkCommandBuffer command_buffer, VkFence fence,
+                         MsaaSamples samples, uint32_t offset_tiles,
+                         uint32_t pitch_px, uint32_t height_px,
+                         uint32_t stencil_depth) {
+  assert_false(current_pass_);
+  edram_store_.ClearDepth(command_buffer, fence, samples, offset_tiles,
+                          pitch_px, height_px, stencil_depth);
 }
 
 void RTCache::ClearCache() {

@@ -70,12 +70,27 @@ class EDRAMStore {
                  ColorRenderTargetFormat rt_format, MsaaSamples rt_samples,
                  VkRect2D rt_rect, uint32_t edram_offset_tiles,
                  uint32_t edram_pitch_px);
+  // Prior to loading/storing, the depth image must be in the following state:
+  // StageMask & VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT.
+  // AccessMask & VK_ACCESS_TRANSFER_READ_BIT for storing.
+  // AccessMask & VK_ACCESS_TRANSFER_WRITE_BIT for loading.
+  // Layout VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL for storing.
+  // Layout VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL for loading.
+  // It must be created with usage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT for
+  // storing and flags & VK_IMAGE_USAGE_TRANSFER_DST_BIT for loading.
+  void CopyDepth(VkCommandBuffer command_buffer, VkFence fence, bool load,
+                 VkImage rt_image, DepthRenderTargetFormat rt_format,
+                 MsaaSamples rt_samples, VkRect2D rt_rect,
+                 uint32_t edram_offset_tiles, uint32_t edram_pitch_px);
 
   void ClearColor(VkCommandBuffer command_buffer, VkFence fence,
                   bool format_64bpp, MsaaSamples samples,
                   uint32_t offset_tiles, uint32_t pitch_px,
                   uint32_t height_px, uint32_t color_high,
                   uint32_t color_low);
+  void ClearDepth(VkCommandBuffer command_buffer, VkFence fence,
+                  MsaaSamples samples, uint32_t offset_tiles, uint32_t pitch_px,
+                  uint32_t height_px, uint32_t stencil_depth);
 
   // Returns the maximum height of a render target in pixels.
   static uint32_t GetMaxHeight(bool format_64bpp, MsaaSamples samples,
@@ -84,10 +99,18 @@ class EDRAMStore {
   void Scavenge();
 
  private:
-  enum class EDRAMImageStatus {
+  enum class EDRAMImageState {
     kUntransitioned,
     kStore,
     kLoad
+  };
+
+  enum class DepthCopyBufferState {
+    kUntransitioned,
+    kRenderTargetToBuffer,
+    kBufferToEDRAM,
+    kEDRAMToBuffer,
+    kBufferToRenderTarget
   };
 
   enum class Mode {
@@ -99,6 +122,11 @@ class EDRAMStore {
     k_64bpp,
     // Packed 10.10.10.2 float.
     k_7e3,
+
+    // 24-bit normalized depth.
+    // k_D24,
+    // 20e4 floating-point depth.
+    k_D24F,
 
     k_ModeCount
   };
@@ -130,6 +158,12 @@ class EDRAMStore {
     uint32_t rt_offset_px[2];
   };
 
+  struct PushConstantsDepth {
+    uint32_t edram_offset_tiles;
+    uint32_t edram_pitch_tiles;
+    uint32_t buffer_pitch_px;
+  };
+
   struct PushConstantsClearColor {
     uint32_t offset_tiles;
     uint32_t pitch_tiles;
@@ -138,8 +172,11 @@ class EDRAMStore {
   };
 
   void TransitionEDRAMImage(VkCommandBuffer command_buffer, bool load);
+  void TransitionDepthCopyBuffer(VkCommandBuffer command_buffer,
+                                 DepthCopyBufferState new_state);
 
-  Mode GetColorMode(ColorRenderTargetFormat format, MsaaSamples samples);
+  Mode GetColorMode(ColorRenderTargetFormat format);
+  Mode GetDepthMode(DepthRenderTargetFormat format);
 
   // Returns log2 of how many EDRAM image texels one framebuffer pixel covers.
   static void GetPixelEDRAMSizePower(bool format_64bpp, MsaaSamples samples,
@@ -156,6 +193,8 @@ class EDRAMStore {
                      VkExtent2D& edram_extent_tiles,
                      uint32_t& edram_pitch_tiles);
 
+  static constexpr uint32_t kTotalTexelCount = 80 * 16 * 2048;
+
   ui::vulkan::VulkanDevice* device_ = nullptr;
 
   // Memory backing the 10 MB tile image.
@@ -165,12 +204,24 @@ class EDRAMStore {
   // View of the EDRAM image.
   VkImageView edram_image_view_ = nullptr;
   // The current access mode for the EDRAM image.
-  EDRAMImageStatus edram_image_status_ = EDRAMImageStatus::kUntransitioned;
+  EDRAMImageState edram_image_state_ = EDRAMImageState::kUntransitioned;
+
+  // Memory backing the depth copy buffer.
+  VkDeviceMemory depth_copy_memory_ = nullptr;
+  // Buffer for image<->buffer copies of depth and stencil (after depth).
+  VkBuffer depth_copy_buffer_ = nullptr;
+  // The current access mode for the depth copy buffer.
+  DepthCopyBufferState depth_copy_buffer_state_ =
+      DepthCopyBufferState::kUntransitioned;
 
   // Pipeline layouts.
   // Color store and load (one EDRAM image and one RT image) descriptor layout.
   VkDescriptorSetLayout descriptor_set_layout_color_ = nullptr;
   VkPipelineLayout pipeline_layout_color_ = nullptr;
+  // Depth store and load (one EDRAM image and D/S buffers) descriptor layout.
+  VkDescriptorSetLayout descriptor_set_layout_depth_ = nullptr;
+  VkPipelineLayout pipeline_layout_depth_ = nullptr;
+  // Color clear (EDRAM image only) descriptor layout.
   VkDescriptorSetLayout descriptor_set_layout_clear_color_ = nullptr;
   VkPipelineLayout pipeline_layout_clear_color_ = nullptr;
 
