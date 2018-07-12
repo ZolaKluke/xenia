@@ -579,60 +579,44 @@ VkFormat EDRAMStore::GetStoreColorImageViewFormat(
   return VK_FORMAT_R32_UINT;
 }
 
-void EDRAMStore::GetPixelEDRAMSizePower(bool format_64bpp, MsaaSamples samples,
-                                        uint32_t& width_power, uint32_t& height_power) {
-  // For 64bpp images, each pixel is split into 2 EDRAM texels horizontally.
-  // For 2X MSAA, two samples of each pixels are placed vertically.
-  // For 4X MSAA, the additional samples are also placed horizontally.
-  uint32_t pixel_width_power = 0, pixel_height_power = 0;
-  if (format_64bpp) {
-    ++pixel_width_power;
-  }
-  if (samples >= MsaaSamples::k2X) {
-    ++pixel_height_power;
-    if (samples >= MsaaSamples::k4X) {
-      ++pixel_width_power;
-    }
-  }
-  width_power = pixel_width_power;
-  height_power = pixel_height_power;
-}
-
 bool EDRAMStore::GetDimensions(
     bool format_64bpp, MsaaSamples samples, uint32_t edram_base_offset_tiles,
-    uint32_t edram_pitch_px, VkRect2D rt_rect, VkRect2D& rt_rect_adjusted,
+    uint32_t edram_pitch_px, VkRect2D rt_rect_ss, VkRect2D& rt_rect_adjusted,
     uint32_t& edram_add_offset_tiles, VkExtent2D& edram_extent_tiles,
     uint32_t& edram_pitch_tiles) {
   // Check if the area is not empty or outside the bounds.
   if (edram_base_offset_tiles >= 2048 || edram_pitch_px == 0 ||
-      rt_rect.extent.width == 0 || rt_rect.extent.height == 0 ||
-      uint32_t(rt_rect.offset.x) >= edram_pitch_px) {
+      rt_rect_ss.extent.width == 0 || rt_rect_ss.extent.height == 0) {
     return false;
   }
 
-  // Scales applied to framebuffer dimensions to get tile counts.
   // Tiles are always 5120 bytes long, and at 32bpp without MSAA they're 80x16.
   // The EDRAM storage image is split into 80x16 tiles, but one framebuffer
   // pixel can take multiple texels in the EDRAM image with a 64bpp format or
-  // with multisampling.
-  uint32_t pixel_width_power, pixel_height_power;
-  GetPixelEDRAMSizePower(format_64bpp, samples, pixel_width_power,
-                         pixel_height_power);
+  // with multisampling. However, as we simulate multisampling via
+  // supersampling, this scale is pre-applied to the render target rectangle.
 
-  // Scale the framebuffer area relatively to EDRAM image texels.
-  rt_rect.offset.x <<= pixel_width_power;
-  rt_rect.offset.y <<= pixel_height_power;
-  rt_rect.extent.width <<= pixel_width_power;
-  rt_rect.extent.height <<= pixel_height_power;
-  edram_pitch_px <<= pixel_width_power;
+  if (samples >= MsaaSamples::k4X) {
+    edram_pitch_px <<= 1;
+  }
+  if (uint32_t(rt_rect_ss.offset.x) >= edram_pitch_px) {
+    return false;
+  }
+  if (format_64bpp) {
+    rt_rect_ss.offset.x <<= 1;
+    rt_rect_ss.extent.width <<= 1;
+    edram_pitch_px <<= 1;
+  }
 
   // Snap dimensions to whole tiles.
-  uint32_t rt_rect_tiles_left = uint32_t(rt_rect.offset.x) / 80;
+  uint32_t rt_rect_tiles_left = uint32_t(rt_rect_ss.offset.x) / 80;
   uint32_t rt_rect_tiles_right =
-      xe::round_up(uint32_t(rt_rect.offset.x) + rt_rect.extent.width, 80) / 80;
-  uint32_t rt_rect_tiles_top = uint32_t(rt_rect.offset.y) >> 4;
+      xe::round_up(uint32_t(rt_rect_ss.offset.x) +
+                   rt_rect_ss.extent.width, 80) / 80;
+  uint32_t rt_rect_tiles_top = uint32_t(rt_rect_ss.offset.y) >> 4;
   uint32_t rt_rect_tiles_bottom =
-      xe::round_up(uint32_t(rt_rect.offset.y) + rt_rect.extent.height, 16) >> 4;
+      xe::round_up(uint32_t(rt_rect_ss.offset.y) +
+                   rt_rect_ss.extent.height, 16) >> 4;
   uint32_t edram_pitch = xe::round_up(edram_pitch_px, 80) / 80;
 
   // Check if a framebuffer area wider than the surface pitch was requested.
@@ -676,25 +660,29 @@ uint32_t EDRAMStore::GetMaxHeight(bool format_64bpp, MsaaSamples samples,
   if (pitch_px == 0) {
     return 0;
   }
-  uint32_t pixel_width_power, pixel_height_power;
-  GetPixelEDRAMSizePower(format_64bpp, samples, pixel_width_power,
-                         pixel_height_power);
-  uint32_t edram_pitch_tiles =
-      xe::round_up(pitch_px << pixel_width_power, 80) / 80;
-  uint32_t height = ((2048 - offset_tiles) / edram_pitch_tiles) <<
-                    (4 - pixel_height_power);
+  if (samples >= MsaaSamples::k4X) {
+    pitch_px <<= 1;
+  }
+  if (format_64bpp) {
+    pitch_px <<= 1;
+  }
+  uint32_t edram_pitch_tiles = xe::round_up(pitch_px, 80) / 80;
+  uint32_t height = ((2048 - offset_tiles) / edram_pitch_tiles) << 4;
+  if (samples >= MsaaSamples::k2X) {
+    height >>= 1;
+  }
   return std::min(height, 2560u);
 }
 
 void EDRAMStore::CopyColor(VkCommandBuffer command_buffer, VkFence fence,
                            bool load, VkImageView rt_image_view_u32,
                            ColorRenderTargetFormat rt_format,
-                           MsaaSamples rt_samples, VkRect2D rt_rect,
+                           MsaaSamples rt_samples, VkRect2D rt_rect_ss,
                            uint32_t edram_offset_tiles,
                            uint32_t edram_pitch_px) {
   XELOGGPU("EDRAM StoreColor (%s): offset %u, pitch %u, height %u.\n",
            load ? "load" : "store", edram_offset_tiles, edram_pitch_px,
-           rt_rect.extent.height);
+           rt_rect_ss.extent.height);
 
   Mode mode = GetColorMode(rt_format);
   if (mode == Mode::k_ModeUnsupported) {
@@ -707,7 +695,7 @@ void EDRAMStore::CopyColor(VkCommandBuffer command_buffer, VkFence fence,
   uint32_t edram_add_offset_tiles, edram_pitch_tiles;
   VkExtent2D edram_extent_tiles;
   if (!GetDimensions(mode_info.is_64bpp, rt_samples, edram_offset_tiles,
-                     edram_pitch_px, rt_rect, rt_rect_adjusted,
+                     edram_pitch_px, rt_rect_ss, rt_rect_adjusted,
                      edram_add_offset_tiles, edram_extent_tiles,
                      edram_pitch_tiles)) {
     return;
@@ -797,7 +785,7 @@ void EDRAMStore::CopyColor(VkCommandBuffer command_buffer, VkFence fence,
 void EDRAMStore::CopyDepth(VkCommandBuffer command_buffer, VkFence fence,
                            bool load, VkImage rt_image,
                            DepthRenderTargetFormat rt_format,
-                           MsaaSamples rt_samples, VkRect2D rt_rect,
+                           MsaaSamples rt_samples, VkRect2D rt_rect_ss,
                            uint32_t edram_offset_tiles,
                            uint32_t edram_pitch_px) {
   Mode mode = GetDepthMode(rt_format);
@@ -811,7 +799,7 @@ void EDRAMStore::CopyDepth(VkCommandBuffer command_buffer, VkFence fence,
   uint32_t edram_add_offset_tiles, edram_pitch_tiles;
   VkExtent2D edram_extent_tiles;
   if (!GetDimensions(false, rt_samples, edram_offset_tiles, edram_pitch_px,
-                     rt_rect, rt_rect_adjusted, edram_add_offset_tiles,
+                     rt_rect_ss, rt_rect_adjusted, edram_add_offset_tiles,
                      edram_extent_tiles, edram_pitch_tiles)) {
     return;
   }
@@ -948,16 +936,22 @@ void EDRAMStore::ClearColor(VkCommandBuffer command_buffer, VkFence fence,
   XELOGGPU("EDRAM ClearColor: pitch %u, height %u.\n", pitch_px, height_px);
 
   // Get the clear region size.
-  VkRect2D rect;
-  rect.offset.x = 0;
-  rect.offset.y = 0;
-  rect.extent.width = pitch_px;
-  rect.extent.height = height_px;
+  VkRect2D rect_ss;
+  rect_ss.offset.x = 0;
+  rect_ss.offset.y = 0;
+  rect_ss.extent.width = pitch_px;
+  rect_ss.extent.height = height_px;
+  if (samples >= MsaaSamples::k2X) {
+    rect_ss.extent.height <<= 1;
+    if (samples >= MsaaSamples::k4X) {
+      rect_ss.extent.width <<= 1;
+    }
+  }
   VkRect2D rect_adjusted;
   uint32_t offset_tiles_add;
   VkExtent2D extent_tiles;
   uint32_t pitch_tiles;
-  if (!GetDimensions(format_64bpp, samples, offset_tiles, pitch_px, rect,
+  if (!GetDimensions(format_64bpp, samples, offset_tiles, pitch_px, rect_ss,
                      rect_adjusted, offset_tiles_add, extent_tiles,
                      pitch_tiles)) {
     return;

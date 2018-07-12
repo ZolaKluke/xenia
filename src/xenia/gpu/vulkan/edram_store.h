@@ -65,10 +65,11 @@ class EDRAMStore {
   // usage & VK_IMAGE_USAGE_STORAGE_BIT.
   // The image view must be in the R32_UINT format for 32bpp (on the host)
   // images, and R32G32_UINT for 64bpp (use GetStoreColorImageViewFormat).
+  // rt_rect_ss must be pre-supersampled.
   void CopyColor(VkCommandBuffer command_buffer, VkFence fence, bool load,
                  VkImageView rt_image_view_u32,
                  ColorRenderTargetFormat rt_format, MsaaSamples rt_samples,
-                 VkRect2D rt_rect, uint32_t edram_offset_tiles,
+                 VkRect2D rt_rect_ss, uint32_t edram_offset_tiles,
                  uint32_t edram_pitch_px);
   // Prior to loading/storing, the depth image must be in the following state:
   // StageMask & VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT.
@@ -78,9 +79,10 @@ class EDRAMStore {
   // Layout VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL for loading.
   // It must be created with usage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT for
   // storing and flags & VK_IMAGE_USAGE_TRANSFER_DST_BIT for loading.
+  // rt_rect_ss must be pre-supersampled.
   void CopyDepth(VkCommandBuffer command_buffer, VkFence fence, bool load,
                  VkImage rt_image, DepthRenderTargetFormat rt_format,
-                 MsaaSamples rt_samples, VkRect2D rt_rect,
+                 MsaaSamples rt_samples, VkRect2D rt_rect_ss,
                  uint32_t edram_offset_tiles, uint32_t edram_pitch_px);
 
   void ClearColor(VkCommandBuffer command_buffer, VkFence fence,
@@ -177,11 +179,6 @@ class EDRAMStore {
 
   Mode GetColorMode(ColorRenderTargetFormat format);
   Mode GetDepthMode(DepthRenderTargetFormat format);
-
-  // Returns log2 of how many EDRAM image texels one framebuffer pixel covers.
-  static void GetPixelEDRAMSizePower(bool format_64bpp, MsaaSamples samples,
-                                     uint32_t& width_power,
-                                     uint32_t& height_power);
 
   // Returns false if shouldn't or can't load or store this EDRAM portion.
   // Not necessarily in case of an error, returns false for 0x0 framebuffer too.
