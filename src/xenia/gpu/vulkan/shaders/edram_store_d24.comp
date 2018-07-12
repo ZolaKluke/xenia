@@ -1,0 +1,39 @@
+// NOTE: This file is compiled and embedded into the exe.
+//       Use `xb genspirv` and check in any changes under bin/.
+
+#version 450 core
+#extension all : warn
+#extension GL_ARB_compute_shader : require
+#extension GL_ARB_separate_shader_objects : require
+#extension GL_ARB_shader_image_load_store : require
+#extension GL_ARB_shading_language_420pack : require
+
+// 2 groups per tile (80x16 threads per group is too much).
+layout(local_size_x = 80, local_size_y = 8, local_size_z = 1) in;
+
+layout(push_constant) uniform push_consts_type {
+  uint edram_offset_tiles;
+  uint edram_pitch_tiles;
+  uint buffer_pitch_px;
+} push_constants;
+
+layout(set = 0, binding = 0, r32ui) uniform writeonly uimage2D edram;
+layout(set = 0, binding = 1, r32ui) uniform readonly uimageBuffer buffer_depth;
+layout(set = 0, binding = 2, r8ui) uniform readonly uimageBuffer buffer_stencil;
+
+void main() {
+  int pixel_index =
+      int(gl_GlobalInvocationID.y * push_constants.buffer_pitch_px +
+          gl_GlobalInvocationID.x);
+  // Saturate - if a float is negative, its signed int representation is too.
+  uint depth_f32 =
+      uint(clamp(int(imageLoad(buffer_depth, pixel_index).r), 0, 0x3F800000));
+  uint pixel = (uint(uintBitsToFloat(depth_f32) * 16777215.0) << 8u) |
+               imageLoad(buffer_stencil, pixel_index).r;
+  uint tile_index = push_constants.edram_offset_tiles + (gl_WorkGroupID.y >> 1)
+                    * push_constants.edram_pitch_tiles + gl_WorkGroupID.x;
+  uvec2 edram_coord = uvec2(tile_index & 15, tile_index >> 4) * uvec2(80, 16) +
+                      gl_LocalInvocationID.xy;
+  edram_coord.y += (gl_WorkGroupID.y & 1) << 3;
+  imageStore(edram, ivec2(edram_coord), uvec4(pixel));
+}

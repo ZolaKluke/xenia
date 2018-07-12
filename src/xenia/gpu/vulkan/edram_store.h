@@ -124,7 +124,7 @@ class EDRAMStore {
     k_7e3,
 
     // 24-bit normalized depth.
-    // k_D24,
+    k_D24,
     // 20e4 floating-point depth.
     k_D24F,
 

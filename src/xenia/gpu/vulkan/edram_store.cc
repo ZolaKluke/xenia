@@ -25,6 +25,8 @@ using xe::ui::vulkan::CheckResult;
 #include "xenia/gpu/vulkan/shaders/bin/edram_load_64bpp_comp.h"
 #include "xenia/gpu/vulkan/shaders/bin/edram_store_7e3_comp.h"
 #include "xenia/gpu/vulkan/shaders/bin/edram_load_7e3_comp.h"
+#include "xenia/gpu/vulkan/shaders/bin/edram_store_d24_comp.h"
+#include "xenia/gpu/vulkan/shaders/bin/edram_load_d24_comp.h"
 #include "xenia/gpu/vulkan/shaders/bin/edram_store_d24f_comp.h"
 #include "xenia/gpu/vulkan/shaders/bin/edram_load_d24f_comp.h"
 #include "xenia/gpu/vulkan/shaders/bin/edram_clear_color_comp.h"
@@ -41,6 +43,10 @@ const EDRAMStore::ModeInfo EDRAMStore::mode_info_[] = {
     {false, false, edram_store_7e3_comp, sizeof(edram_store_7e3_comp),
      "S(c): EDRAM Store 7e3", edram_load_7e3_comp, sizeof(edram_load_7e3_comp),
      "S(c): EDRAM Load 7e3"},
+
+    {true, false, edram_store_d24_comp, sizeof(edram_store_d24_comp),
+     "S(c): EDRAM Store D24", edram_load_d24_comp, sizeof(edram_load_d24_comp),
+     "S(c): EDRAM Load D24"},
 
     {true, false, edram_store_d24f_comp, sizeof(edram_store_d24f_comp),
      "S(c): EDRAM Store D24F", edram_load_d24f_comp, sizeof(edram_load_d24f_comp),
@@ -170,7 +176,7 @@ VkResult EDRAMStore::Initialize() {
   }
   buffer_view_info.format = VK_FORMAT_R8_UINT;
   buffer_view_info.offset = kTotalTexelCount * sizeof(float);
-  buffer_view_info.range = kTotalTexelCount * sizeof(uint32_t);
+  buffer_view_info.range = kTotalTexelCount * sizeof(uint8_t);
   status = vkCreateBufferView(*device_, &buffer_view_info, nullptr,
                               &depth_copy_buffer_view_stencil_);
   CheckResult(status, "vkCreateBufferView");
@@ -548,6 +554,8 @@ EDRAMStore::Mode EDRAMStore::GetColorMode(ColorRenderTargetFormat format) {
 
 EDRAMStore::Mode EDRAMStore::GetDepthMode(DepthRenderTargetFormat format) {
   switch (format) {
+    case DepthRenderTargetFormat::kD24S8:
+      return Mode::k_D24;
     case DepthRenderTargetFormat::kD24FS8:
       return Mode::k_D24F;
     default:
