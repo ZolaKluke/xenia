@@ -890,7 +890,11 @@ void RTCache::EndRenderPass(VkCommandBuffer command_buffer,
 
   vkCmdEndRenderPass(command_buffer);
 
-  // Export the color to the EDRAM store.
+  // Export the framebuffers to the EDRAM store.
+  // They are exported from the first in the EDRAM to the last, so in case there
+  // is overlap between multiple framebuffers used in one pass, they won't
+  // overwrite each other.
+  // TODO(Triang3l): Calculate non-overlapping EDRAM areas during pass creation.
   SwitchRenderPassTargetUsage(command_buffer, current_pass_,
                               RenderTargetUsage::kStoreToEDRAM, 0xF, true);
   VkRect2D rt_rect;
@@ -898,27 +902,56 @@ void RTCache::EndRenderPass(VkCommandBuffer command_buffer,
   rt_rect.offset.y = 0;
   rt_rect.extent.width = current_pass_->width;
   rt_rect.extent.height = current_pass_->height;
-  for (uint32_t i = 0; i < 4; ++i) {
-    RenderTarget* rt = current_pass_->rts_color[i];
-    if (rt == nullptr) {
-      continue;
-    }
-    RenderTargetKey key(current_pass_->keys_color[i]);
-    uint32_t format = key.format;
-    edram_store_.CopyColor(command_buffer, batch_fence, false,
-                           rt->image_view_color_edram_store,
-                           ColorRenderTargetFormat(format), key.samples,
-                           rt_rect, current_edram_color_offsets_[i],
-                           current_edram_pitch_px_);
+
+  struct StoreRenderTarget {
+    // -1 for depth (it's more transient than color, and may be aliased (haven't
+    // seen such behavior in any game though) if a game doesn't need depth).
+    // (Such aliasing would actually break non-overlapping region detection).
+    int32_t rt_index;
+    uint32_t edram_base;
+  } store_rts[5];
+  uint32_t store_rt_count = 0;
+  if (current_pass_->rt_depth != nullptr) {
+    StoreRenderTarget& store_rt = store_rts[store_rt_count++];
+    store_rt.rt_index = -1;
+    store_rt.edram_base = current_edram_depth_offset_;
   }
-  RenderTarget* rt_depth = current_pass_->rt_depth;
-  if (rt_depth != nullptr) {
-    RenderTargetKey key(current_pass_->key_depth);
-    uint32_t format = key.format;
-    edram_store_.CopyDepth(command_buffer, batch_fence, false, rt_depth->image,
-                           DepthRenderTargetFormat(format), key.samples,
-                           rt_rect, current_edram_depth_offset_,
-                           current_edram_pitch_px_);
+  for (int32_t i = 0; i < 4; ++i) {
+    if (current_pass_->rts_color[i] != nullptr) {
+      StoreRenderTarget& store_rt = store_rts[store_rt_count++];
+      store_rt.rt_index = i;
+      store_rt.edram_base = current_edram_color_offsets_[i];
+    }
+  }
+  std::sort(store_rts, store_rts + store_rt_count,
+            [](StoreRenderTarget a, StoreRenderTarget b) {
+              if (a.edram_base < b.edram_base) {
+                return true;
+              }
+              return a.rt_index < b.rt_index;
+            });
+
+  for (uint32_t i = 0; i < store_rt_count; ++i) {
+    StoreRenderTarget& store_rt = store_rts[i];
+    int32_t rt_index = store_rt.rt_index;
+    if (rt_index < 0) {
+      RenderTarget* rt = current_pass_->rt_depth;
+      RenderTargetKey key(current_pass_->key_depth);
+      uint32_t format = key.format;
+      edram_store_.CopyDepth(command_buffer, batch_fence, false, rt->image,
+                             DepthRenderTargetFormat(format), key.samples,
+                             rt_rect, current_edram_depth_offset_,
+                             current_edram_pitch_px_);
+    } else {
+      RenderTarget* rt = current_pass_->rts_color[rt_index];
+      RenderTargetKey key(current_pass_->keys_color[rt_index]);
+      uint32_t format = key.format;
+      edram_store_.CopyColor(command_buffer, batch_fence, false,
+                             rt->image_view_color_edram_store,
+                             ColorRenderTargetFormat(format), key.samples,
+                             rt_rect, current_edram_color_offsets_[rt_index],
+                             current_edram_pitch_px_);
+    }
   }
 
   current_pass_ = nullptr;
