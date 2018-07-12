@@ -30,7 +30,7 @@ uint Float32To20e4(uint bits32) {
   if (bits32 < 0x3C800000u) {
     // The number is too small to be represented as a normalized 20e4.
     // Convert it to a denormalized value.
-    bits32 = ((bits32 & 0x7FFFFFu) | 0x800000u) >> (125u - (bits32 >> 23u));
+    bits32 = ((bits32 & 0x7FFFFFu) | 0x800000u) >> (121u - (bits32 >> 23u));
   } else {
     // Rebias the exponent to represent the value as a normalized 20e4.
     bits32 += 0xC4000000u;
