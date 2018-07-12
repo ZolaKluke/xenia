@@ -513,7 +513,9 @@ VkPipelineStageFlags RTCache::GetRenderTargetUsageParameters(
     case RenderTargetUsage::kResolve:
       assert_false(is_depth);
       access_mask = VK_ACCESS_SHADER_READ_BIT;
-      layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+      // TODO(Triang3l): Check if the blitter can be switched to using
+      // VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL.
+      layout = VK_IMAGE_LAYOUT_GENERAL;
       return VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
     default:
       assert_unhandled_case(usage);
@@ -529,23 +531,21 @@ void RTCache::SwitchSingleRenderTargetUsage(VkCommandBuffer command_buffer,
   if (rt->current_usage == usage) {
     return;
   }
+  uint32_t is_depth = rt->key.is_depth;
   VkImageMemoryBarrier image_barrier;
   uint32_t image_barrier_count = 0;
-  VkPipelineStageFlags stage_mask_src, stage_mask_dst;
-  VkAccessFlags access_mask_old, access_mask_new;
-  VkImageLayout layout_old, layout_new;
-  uint32_t is_depth = rt->key.is_depth;
-  stage_mask_src =
+  VkPipelineStageFlags stage_mask_src =
       GetRenderTargetUsageParameters(bool(is_depth), rt->current_usage,
-                                     access_mask_old, layout_old);
-  stage_mask_dst =
-      GetRenderTargetUsageParameters(bool(is_depth), usage, access_mask_new,
-                                     layout_new);
-  if (access_mask_old != access_mask_new && layout_old != layout_new) {
+                                     image_barrier.srcAccessMask,
+                                     image_barrier.oldLayout);
+  VkPipelineStageFlags stage_mask_dst =
+      GetRenderTargetUsageParameters(bool(is_depth), usage,
+                                     image_barrier.dstAccessMask,
+                                     image_barrier.newLayout);
+  if (image_barrier.srcAccessMask != image_barrier.dstAccessMask ||
+      image_barrier.oldLayout != image_barrier.newLayout) {
     image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     image_barrier.pNext = nullptr;
-    image_barrier.dstAccessMask = access_mask_new;
-    image_barrier.newLayout = layout_new;
     image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     image_barrier.image = rt->image;
@@ -762,9 +762,9 @@ void RTCache::SwitchRenderPassTargetUsage(
       RenderTarget* rt = pass->rts_color[i];
       VkImageMemoryBarrier& image_barrier = image_barriers[image_barrier_count];
       stage_mask_src |=
-            GetRenderTargetUsageParameters(false, rt->current_usage,
-                                           image_barrier.srcAccessMask,
-                                           image_barrier.oldLayout);
+          GetRenderTargetUsageParameters(false, rt->current_usage,
+                                         image_barrier.srcAccessMask,
+                                         image_barrier.oldLayout);
       rt->current_usage = usage;
       if (image_barrier.srcAccessMask == access_mask_new &&
           image_barrier.oldLayout == layout_new) {
@@ -786,24 +786,20 @@ void RTCache::SwitchRenderPassTargetUsage(
     }
   }
   if (switch_depth) {
-    VkAccessFlags access_mask_new;
-    VkImageLayout layout_new;
-    stage_mask_dst |=
-        GetRenderTargetUsageParameters(true, usage, access_mask_new,
-                                       layout_new);
     RenderTarget* rt = pass->rt_depth;
     VkImageMemoryBarrier& image_barrier = image_barriers[image_barrier_count];
     stage_mask_src |=
         GetRenderTargetUsageParameters(true, rt->current_usage,
                                        image_barrier.srcAccessMask,
                                        image_barrier.oldLayout);
+    stage_mask_dst |=
+        GetRenderTargetUsageParameters(true, usage, image_barrier.dstAccessMask,
+                                       image_barrier.newLayout);
     rt->current_usage = usage;
-    if (image_barrier.srcAccessMask != access_mask_new ||
-        image_barrier.oldLayout != layout_new) {
+    if (image_barrier.srcAccessMask != image_barrier.dstAccessMask ||
+        image_barrier.oldLayout != image_barrier.newLayout) {
       image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
       image_barrier.pNext = nullptr;
-      image_barrier.dstAccessMask = access_mask_new;
-      image_barrier.newLayout = layout_new;
       image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
       image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
       image_barrier.image = rt->image;

@@ -505,19 +505,19 @@ void EDRAMStore::TransitionDepthCopyBuffer(VkCommandBuffer command_buffer,
   }
   switch (new_state) {
   case DepthCopyBufferState::kRenderTargetToBuffer:
-    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     stage_mask_dst = VK_PIPELINE_STAGE_TRANSFER_BIT;
     break;
   case DepthCopyBufferState::kBufferToEDRAM:
-    barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
     stage_mask_dst = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     break;
   case DepthCopyBufferState::kEDRAMToBuffer:
-    barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
     stage_mask_dst = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     break;
   case DepthCopyBufferState::kBufferToRenderTarget:
-    barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
     stage_mask_dst = VK_PIPELINE_STAGE_TRANSFER_BIT;
     break;
   default:
@@ -931,7 +931,7 @@ void EDRAMStore::CopyDepth(VkCommandBuffer command_buffer, VkFence fence,
     TransitionDepthCopyBuffer(command_buffer,
                               DepthCopyBufferState::kBufferToRenderTarget);
     vkCmdCopyBufferToImage(command_buffer, depth_copy_buffer_, rt_image,
-                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 2, regions);
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 2, regions);
   } else {
     // Commit the write so loads or overlapping writes won't conflict.
     vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
