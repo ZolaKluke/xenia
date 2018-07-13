@@ -91,7 +91,8 @@ class EDRAMStore {
                   uint32_t height_px, uint32_t color_high,
                   uint32_t color_low);
   void ClearDepth(VkCommandBuffer command_buffer, VkFence fence,
-                  MsaaSamples samples, uint32_t offset_tiles, uint32_t pitch_px,
+                  DepthRenderTargetFormat format, MsaaSamples samples,
+                  uint32_t offset_tiles, uint32_t pitch_px,
                   uint32_t height_px, uint32_t stencil_depth);
 
   // Returns the maximum height of a render target in pixels.
@@ -168,19 +169,18 @@ class EDRAMStore {
     uint32_t buffer_pitch_px;
   };
 
-  struct PushConstantsClear {
+  struct PushConstantsClearColor {
     uint32_t offset_tiles;
     uint32_t pitch_tiles;
-    union {
-      struct {
-        uint32_t color_high;
-        uint32_t color_low;
-      };
-      struct {
-        uint32_t stencil_depth;
-        uint32_t depth_host;
-      };
-    };
+    uint32_t color_high;
+    uint32_t color_low;
+  };
+
+  struct PushConstantsClearDepth {
+    uint32_t offset_tiles;
+    uint32_t pitch_tiles;
+    uint32_t stencil_depth;
+    uint32_t depth_host;
   };
 
   void TransitionEDRAMImage(VkCommandBuffer command_buffer, bool depth,
@@ -236,10 +236,12 @@ class EDRAMStore {
   // Pipeline layouts.
   VkDescriptorSetLayout descriptor_set_layout_color_ = nullptr;
   VkDescriptorSetLayout descriptor_set_layout_depth_ = nullptr;
-  VkDescriptorSetLayout descriptor_set_layout_clear_ = nullptr;
+  VkDescriptorSetLayout descriptor_set_layout_clear_color_ = nullptr;
+  VkDescriptorSetLayout descriptor_set_layout_clear_depth_ = nullptr;
   VkPipelineLayout pipeline_layout_color_ = nullptr;
   VkPipelineLayout pipeline_layout_depth_ = nullptr;
-  VkPipelineLayout pipeline_layout_clear_ = nullptr;
+  VkPipelineLayout pipeline_layout_clear_color_ = nullptr;
+  VkPipelineLayout pipeline_layout_clear_depth_ = nullptr;
 
   // Descriptor pool for shader invocations.
   std::unique_ptr<ui::vulkan::DescriptorPool> descriptor_pool_ = nullptr;
@@ -254,6 +256,8 @@ class EDRAMStore {
   VkPipeline host_depth_load_pipeline_ = nullptr;
   VkShaderModule clear_color_shader_module_ = nullptr;
   VkPipeline clear_color_pipeline_ = nullptr;
+  VkShaderModule clear_depth_shader_module_ = nullptr;
+  VkPipeline clear_depth_pipeline_ = nullptr;
 };
 
 }  // namespace vulkan

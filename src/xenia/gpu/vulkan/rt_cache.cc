@@ -1184,11 +1184,11 @@ void RTCache::ClearColor(VkCommandBuffer command_buffer, VkFence fence,
 }
 
 void RTCache::ClearDepth(VkCommandBuffer command_buffer, VkFence fence,
-                         MsaaSamples samples, uint32_t offset_tiles,
-                         uint32_t pitch_px, uint32_t height_px,
-                         uint32_t stencil_depth) {
+                         DepthRenderTargetFormat format, MsaaSamples samples,
+                         uint32_t offset_tiles, uint32_t pitch_px,
+                         uint32_t height_px, uint32_t stencil_depth) {
   assert_false(current_pass_);
-  edram_store_.ClearDepth(command_buffer, fence, samples, offset_tiles,
+  edram_store_.ClearDepth(command_buffer, fence, format, samples, offset_tiles,
                           pitch_px, height_px, stencil_depth);
 }
 

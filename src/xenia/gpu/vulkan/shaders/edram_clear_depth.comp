@@ -1,0 +1,31 @@
+// NOTE: This file is compiled and embedded into the exe.
+//       Use `xb genspirv` and check in any changes under bin/.
+
+#version 450 core
+#extension all : warn
+#extension GL_ARB_compute_shader : require
+#extension GL_ARB_separate_shader_objects : require
+#extension GL_ARB_shader_image_load_store : require
+#extension GL_ARB_shading_language_420pack : require
+
+layout(local_size_x = 40, local_size_y = 16, local_size_z = 1) in;
+
+layout(push_constant) uniform push_consts_type {
+  uint offset_tiles;
+  uint pitch_tiles;
+  uint stencil_depth;
+  uint depth_host;
+} push_constants;
+
+layout(set = 0, binding = 0, r32ui) uniform writeonly uimage2D edram;
+layout(set = 0, binding = 1, r32ui) uniform writeonly uimage2D edram_depth;
+
+void main() {
+  uint tile_index = push_constants.offset_tiles + gl_WorkGroupID.y *
+                    push_constants.pitch_tiles + (gl_WorkGroupID.x >> 1);
+  uvec2 coord = uvec2(tile_index & 15, tile_index >> 4) * uvec2(80, 16);
+  coord.x += (gl_WorkGroupID.x & 1) * 40 + gl_LocalInvocationID.x;
+  coord.y += gl_LocalInvocationID.y;
+  imageStore(edram, ivec2(coord), uvec4(push_constants.stencil_depth));
+  imageStore(edram_depth, ivec2(coord), uvec4(push_constants.depth_host));
+}

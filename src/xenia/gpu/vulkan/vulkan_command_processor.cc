@@ -1389,8 +1389,8 @@ bool VulkanCommandProcessor::IssueCopy() {
   }
   if (depth_clear_enabled) {
     // TODO(DrChat): Do we know the surface height at this point?
-    rt_cache_->ClearDepth(command_buffer, current_batch_fence_, surface_msaa,
-                          color_edram_base, surface_pitch,
+    rt_cache_->ClearDepth(command_buffer, current_batch_fence_, depth_format,
+                          surface_msaa, color_edram_base, surface_pitch,
                           resolve_extent.height, copy_depth_clear);
   }
   #else

@@ -31,6 +31,7 @@ using xe::ui::vulkan::CheckResult;
 #include "xenia/gpu/vulkan/shaders/bin/edram_load_d24f_comp.h"
 #include "xenia/gpu/vulkan/shaders/bin/edram_load_host_depth_comp.h"
 #include "xenia/gpu/vulkan/shaders/bin/edram_clear_color_comp.h"
+#include "xenia/gpu/vulkan/shaders/bin/edram_clear_depth_comp.h"
 
 const EDRAMStore::ModeInfo EDRAMStore::mode_info_[] = {
     {false, false, edram_store_32bpp_comp, sizeof(edram_store_32bpp_comp),
@@ -269,16 +270,25 @@ VkResult EDRAMStore::Initialize() {
   if (status != VK_SUCCESS) {
     return status;
   }
-  // Clear:
-  // 0 - EDRAM color/D24S8 tiles.
-  // 1 - EDRAM tiles in D32.
+  // Color clear:
+  // 0 - EDRAM tiles.
+  descriptor_set_layout_info.bindingCount = 1;
+  descriptor_set_layout_bindings[0].descriptorType =
+      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+  status = vkCreateDescriptorSetLayout(*device_, &descriptor_set_layout_info,
+                                       nullptr,
+                                       &descriptor_set_layout_clear_color_);
+  // Depth clear:
+  // 0 - EDRAM tiles in D24S8.
+  // 0 - EDRAM tiles in D32.
   descriptor_set_layout_info.bindingCount = 2;
   descriptor_set_layout_bindings[0].descriptorType =
       VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
   descriptor_set_layout_bindings[1].descriptorType =
       VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
   status = vkCreateDescriptorSetLayout(*device_, &descriptor_set_layout_info,
-                                       nullptr, &descriptor_set_layout_clear_);
+                                       nullptr,
+                                       &descriptor_set_layout_clear_depth_);
   CheckResult(status, "vkCreateDescriptorSetLayout");
   if (status != VK_SUCCESS) {
     return status;
@@ -313,11 +323,20 @@ VkResult EDRAMStore::Initialize() {
   if (status != VK_SUCCESS) {
     return status;
   }
-  // Clear layout.
-  pipeline_layout_info.pSetLayouts = &descriptor_set_layout_clear_;
-  push_constant_range.size = sizeof(PushConstantsClear);
+  // Color clear.
+  pipeline_layout_info.pSetLayouts = &descriptor_set_layout_clear_color_;
+  push_constant_range.size = sizeof(PushConstantsClearColor);
   status = vkCreatePipelineLayout(*device_, &pipeline_layout_info, nullptr,
-                                  &pipeline_layout_clear_);
+                                  &pipeline_layout_clear_color_);
+  CheckResult(status, "vkCreatePipelineLayout");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+  // Depth clear.
+  pipeline_layout_info.pSetLayouts = &descriptor_set_layout_clear_depth_;
+  push_constant_range.size = sizeof(PushConstantsClearDepth);
+  status = vkCreatePipelineLayout(*device_, &pipeline_layout_info, nullptr,
+                                  &pipeline_layout_clear_depth_);
   CheckResult(status, "vkCreatePipelineLayout");
   if (status != VK_SUCCESS) {
     return status;
@@ -442,9 +461,31 @@ VkResult EDRAMStore::Initialize() {
                             VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
                             "S(c): EDRAM Clear");
   pipeline_info.stage.module = clear_color_shader_module_;
-  pipeline_info.layout = pipeline_layout_clear_;
+  pipeline_info.layout = pipeline_layout_clear_color_;
   status = vkCreateComputePipelines(*device_, nullptr, 1, &pipeline_info,
                                     nullptr, &clear_color_pipeline_);
+  CheckResult(status, "vkCreateComputePipelines");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+
+  // Depth clear pipeline.
+  shader_module_info.codeSize = sizeof(edram_clear_depth_comp);
+  shader_module_info.pCode =
+      reinterpret_cast<const uint32_t*>(edram_clear_depth_comp);
+  status = vkCreateShaderModule(*device_, &shader_module_info, nullptr,
+                                &clear_depth_shader_module_);
+  CheckResult(status, "vkCreateShaderModule");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+  device_->DbgSetObjectName(uint64_t(clear_depth_shader_module_),
+                            VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
+                            "S(c): EDRAM Depth Clear");
+  pipeline_info.stage.module = clear_depth_shader_module_;
+  pipeline_info.layout = pipeline_layout_clear_depth_;
+  status = vkCreateComputePipelines(*device_, nullptr, 1, &pipeline_info,
+                                    nullptr, &clear_depth_pipeline_);
   CheckResult(status, "vkCreateComputePipelines");
   if (status != VK_SUCCESS) {
     return status;
@@ -456,6 +497,9 @@ VkResult EDRAMStore::Initialize() {
 void EDRAMStore::Shutdown() {
   // TODO(Triang3l): Wait for idle.
 
+  VK_SAFE_DESTROY(vkDestroyPipeline, *device_, clear_depth_pipeline_, nullptr);
+  VK_SAFE_DESTROY(vkDestroyShaderModule, *device_, clear_depth_shader_module_,
+                  nullptr);
   VK_SAFE_DESTROY(vkDestroyPipeline, *device_, clear_color_pipeline_, nullptr);
   VK_SAFE_DESTROY(vkDestroyShaderModule, *device_, clear_color_shader_module_,
                   nullptr);
@@ -477,13 +521,17 @@ void EDRAMStore::Shutdown() {
   }
 
   VK_SAFE_DESTROY(vkDestroyPipelineLayout, *device_,
-                  pipeline_layout_clear_, nullptr);
+                  pipeline_layout_clear_depth_, nullptr);
+  VK_SAFE_DESTROY(vkDestroyPipelineLayout, *device_,
+                  pipeline_layout_clear_color_, nullptr);
   VK_SAFE_DESTROY(vkDestroyPipelineLayout, *device_, pipeline_layout_depth_,
                   nullptr);
   VK_SAFE_DESTROY(vkDestroyPipelineLayout, *device_, pipeline_layout_color_,
                   nullptr);
   VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
-                  descriptor_set_layout_clear_, nullptr);
+                  descriptor_set_layout_clear_depth_, nullptr);
+  VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
+                  descriptor_set_layout_clear_color_, nullptr);
   VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
                   descriptor_set_layout_depth_, nullptr);
   VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
@@ -1059,7 +1107,7 @@ void EDRAMStore::ClearColor(VkCommandBuffer command_buffer, VkFence fence,
     descriptor_pool_->BeginBatch(fence);
   }
   VkDescriptorSet descriptor_set =
-      descriptor_pool_->AcquireEntry(descriptor_set_layout_clear_);
+      descriptor_pool_->AcquireEntry(descriptor_set_layout_clear_color_);
   if (!descriptor_set) {
     assert_always();
     descriptor_pool_->CancelBatch();
@@ -1091,15 +1139,15 @@ void EDRAMStore::ClearColor(VkCommandBuffer command_buffer, VkFence fence,
   vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                     clear_color_pipeline_);
   vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          pipeline_layout_clear_, 0, 1, &descriptor_set, 0,
-                          nullptr);
-  PushConstantsClear push_constants;
+                          pipeline_layout_clear_color_, 0, 1, &descriptor_set,
+                          0, nullptr);
+  PushConstantsClearColor push_constants;
   push_constants.offset_tiles = offset_tiles + offset_tiles_add;
   push_constants.pitch_tiles = pitch_tiles;
   // TODO(Triang3l): Verify component order.
   push_constants.color_high = color_high;
   push_constants.color_low = format_64bpp ? color_low : color_high;
-  vkCmdPushConstants(command_buffer, pipeline_layout_clear_,
+  vkCmdPushConstants(command_buffer, pipeline_layout_clear_color_,
                      VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants),
                      &push_constants);
   vkCmdDispatch(command_buffer, extent_tiles.width, extent_tiles.height, 1);
@@ -1109,12 +1157,121 @@ void EDRAMStore::ClearColor(VkCommandBuffer command_buffer, VkFence fence,
 }
 
 void EDRAMStore::ClearDepth(VkCommandBuffer command_buffer, VkFence fence,
-                            MsaaSamples samples, uint32_t offset_tiles,
-                            uint32_t pitch_px, uint32_t height_px,
-                            uint32_t stencil_depth) {
-  // TODO(Triang3l): Clear the host depth when it's added.
-  /* ClearColor(command_buffer, fence, false, samples, offset_tiles, pitch_px,
-             height_px, stencil_depth, stencil_depth); */
+                            DepthRenderTargetFormat format, MsaaSamples samples,
+                            uint32_t offset_tiles, uint32_t pitch_px,
+                            uint32_t height_px, uint32_t stencil_depth) {
+  // Get the clear region size.
+  VkRect2D rect_ss;
+  rect_ss.offset.x = 0;
+  rect_ss.offset.y = 0;
+  rect_ss.extent.width = pitch_px;
+  rect_ss.extent.height = height_px;
+  if (samples >= MsaaSamples::k2X) {
+    rect_ss.extent.height <<= 1;
+    if (samples >= MsaaSamples::k4X) {
+      rect_ss.extent.width <<= 1;
+    }
+  }
+  VkRect2D rect_adjusted;
+  uint32_t offset_tiles_add;
+  VkExtent2D extent_tiles;
+  uint32_t pitch_tiles;
+  if (!GetDimensions(false, samples, offset_tiles, pitch_px, rect_ss,
+                     rect_adjusted, offset_tiles_add, extent_tiles,
+                     pitch_tiles)) {
+    return;
+  }
+
+  // Allocate space for the descriptors.
+  if (!descriptor_pool_->has_open_batch()) {
+    descriptor_pool_->BeginBatch(fence);
+  }
+  VkDescriptorSet descriptor_set =
+      descriptor_pool_->AcquireEntry(descriptor_set_layout_clear_depth_);
+  if (!descriptor_set) {
+    assert_always();
+    descriptor_pool_->CancelBatch();
+    return;
+  }
+
+  // Switch the EDRAM images to storing.
+  TransitionEDRAMImage(command_buffer, false, false);
+  TransitionEDRAMImage(command_buffer, true, false);
+
+  // Write the descriptors.
+  // EDRAM.
+  VkWriteDescriptorSet descriptors[2];
+  descriptors[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  descriptors[0].pNext = nullptr;
+  descriptors[0].dstSet = descriptor_set;
+  descriptors[0].dstBinding = 0;
+  descriptors[0].dstArrayElement = 0;
+  descriptors[0].descriptorCount = 1;
+  descriptors[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+  VkDescriptorImageInfo image_info_edram;
+  image_info_edram.sampler = nullptr;
+  image_info_edram.imageView = edram_image_view_;
+  image_info_edram.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+  descriptors[0].pImageInfo = &image_info_edram;
+  descriptors[0].pBufferInfo = nullptr;
+  descriptors[0].pTexelBufferView = nullptr;
+  // Host depth in EDRAM layout.
+  descriptors[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  descriptors[1].pNext = nullptr;
+  descriptors[1].dstSet = descriptor_set;
+  descriptors[1].dstBinding = 1;
+  descriptors[1].dstArrayElement = 0;
+  descriptors[1].descriptorCount = 1;
+  descriptors[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+  VkDescriptorImageInfo image_info_edram_depth;
+  image_info_edram_depth.sampler = nullptr;
+  image_info_edram_depth.imageView = edram_depth_image_view_;
+  image_info_edram_depth.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+  descriptors[1].pImageInfo = &image_info_edram;
+  descriptors[1].pBufferInfo = nullptr;
+  descriptors[1].pTexelBufferView = nullptr;
+  vkUpdateDescriptorSets(*device_, 2, descriptors, 0, nullptr);
+
+  // Dispatch the computation.
+  vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                    clear_depth_pipeline_);
+  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          pipeline_layout_clear_depth_, 0, 1, &descriptor_set,
+                          0, nullptr);
+  PushConstantsClearDepth push_constants;
+  push_constants.offset_tiles = offset_tiles + offset_tiles_add;
+  push_constants.pitch_tiles = pitch_tiles;
+  push_constants.stencil_depth = stencil_depth;
+  if (format == DepthRenderTargetFormat::kD24FS8) {
+    // Based on the 6e4 code from:
+    // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
+    uint32_t bits24 = stencil_depth >> 8;
+    if (bits24 == 0) {
+      push_constants.depth_host = 0;
+    } else {
+      uint32_t mantissa = bits24 & 0xFFFFFu, exponent = bits24 >> 20;
+      if (exponent == 0) {
+        // Normalize the value in the resulting float.
+        // do { Exponent--; Mantissa <<= 1; } while ((Mantissa & 0x100000) == 0)
+        uint32_t mantissa_lzcnt = xe::lzcnt(mantissa) - (32u - 21u);
+        exponent = 1u - mantissa_lzcnt;
+        mantissa = (mantissa << mantissa_lzcnt) & 0xFFFFFu;
+      }
+      push_constants.depth_host = ((exponent + 120u) << 23) | (mantissa << 3);
+    }
+  } else {
+    assert_true(format == DepthRenderTargetFormat::kD24S8);
+    float depth_host = float(stencil_depth >> 8) * (1.0f / 16777215.0f);
+    push_constants.depth_host = *reinterpret_cast<uint32_t*>(&depth_host);
+  }
+  vkCmdPushConstants(command_buffer, pipeline_layout_clear_depth_,
+                     VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants),
+                     &push_constants);
+  // 2 groups per tile because 80x16 threads may be over the limit.
+  vkCmdDispatch(command_buffer, extent_tiles.width * 2, extent_tiles.height, 1);
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0,
+                       nullptr, 0, nullptr);
 }
 
 void EDRAMStore::Scavenge() {
