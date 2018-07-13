@@ -1101,7 +1101,7 @@ bool VulkanCommandProcessor::IssueCopy() {
     BeginFrame();
   } else {
     // Copy commands cannot be issued within a render pass.
-    rt_cache_->EndRenderPass(current_command_buffer_, current_batch_fence_);
+    rt_cache_->BreakRenderPass(current_command_buffer_, current_batch_fence_);
   }
   #else
   if (!frame_open_) {

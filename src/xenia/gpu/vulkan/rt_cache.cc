@@ -877,8 +877,8 @@ void RTCache::BeginRenderPass(VkCommandBuffer command_buffer,
 }
 
 void RTCache::EndRenderPass(VkCommandBuffer command_buffer,
-                            VkFence batch_fence) {
-  // Shadow registers NOT valid here - also called from OnFrameEnd!
+                            VkFence batch_fence, bool from_begin) {
+  // Shadow registers NOT valid here - also called when copying or ending frame!
 
   if (current_pass_ == nullptr) {
     return;
@@ -951,6 +951,16 @@ void RTCache::EndRenderPass(VkCommandBuffer command_buffer,
   }
 
   current_pass_ = nullptr;
+  if (!from_begin) {
+    // Pass being ended externally - let BeginRenderPass know about that,
+    // otherwise it will continue as if no rendering needs to be done.
+    current_shadow_valid_ = false;
+  }
+}
+
+void RTCache::BreakRenderPass(VkCommandBuffer command_buffer,
+                              VkFence batch_fence) {
+  EndRenderPass(command_buffer, batch_fence, false);
 }
 
 bool RTCache::AreCurrentEDRAMParametersValid() const {
@@ -1009,7 +1019,7 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
   xenos::ModeControl mode_control = regs.rb_modecontrol.edram_mode;
   if (mode_control != xenos::ModeControl::kColorDepth &&
       mode_control != xenos::ModeControl::kDepth) {
-    EndRenderPass(command_buffer, batch_fence);
+    EndRenderPass(command_buffer, batch_fence, true);
     return DrawStatus::kDoNotDraw;
   }
   uint32_t color_mask =
@@ -1019,7 +1029,7 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
   // Calculate the width of the host render target.
   uint32_t width = regs.rb_surface_info.surface_pitch;
   if (width == 0) {
-    EndRenderPass(command_buffer, batch_fence);
+    EndRenderPass(command_buffer, batch_fence, true);
     return DrawStatus::kDoNotDraw;
   }
   width = std::min(width, 2560u);
@@ -1041,7 +1051,7 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
   }
   uint32_t height = EDRAMStore::GetMaxHeight(any_64bpp, samples, 0, width);
   if (height == 0) {
-    EndRenderPass(command_buffer, batch_fence);
+    EndRenderPass(command_buffer, batch_fence, true);
     return DrawStatus::kDoNotDraw;
   }
   uint32_t height_div_16 = xe::round_up(height, 16) / 16;
@@ -1077,13 +1087,13 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
         return DrawStatus::kDrawInSamePass;
       }
       RenderPass* last_pass = current_pass_;
-      EndRenderPass(command_buffer, batch_fence);
+      EndRenderPass(command_buffer, batch_fence, true);
       BeginRenderPass(command_buffer, batch_fence, last_pass);
       return DrawStatus::kDrawInNewPass;
     }
   }
 
-  EndRenderPass(command_buffer, batch_fence);
+  EndRenderPass(command_buffer, batch_fence, true);
 
   // Find or create the render pass and enter it.
   RenderPass* pass = GetRenderPass(keys_color, key_depth);
@@ -1096,7 +1106,7 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
 }
 
 void RTCache::OnFrameEnd(VkCommandBuffer command_buffer, VkFence batch_fence) {
-  EndRenderPass(command_buffer, batch_fence);
+  BreakRenderPass(command_buffer, batch_fence);
 }
 
 VkRenderPass RTCache::GetCurrentVulkanRenderPass() {
@@ -1110,6 +1120,8 @@ VkImageView RTCache::LoadResolveImage(
     VkCommandBuffer command_buffer, VkFence batch_fence, uint32_t edram_base,
     uint32_t surface_pitch, MsaaSamples samples, bool is_depth, uint32_t format,
     VkExtent2D& image_size) {
+  BreakRenderPass(command_buffer, batch_fence);
+
   // Calculate the image size.
   if (surface_pitch == 0) {
     return nullptr;
@@ -1175,7 +1187,7 @@ void RTCache::ClearColor(VkCommandBuffer command_buffer, VkFence fence,
                          uint32_t offset_tiles, uint32_t pitch_px,
                          uint32_t height_px, uint32_t color_high,
                          uint32_t color_low) {
-  assert_false(current_pass_);
+  BreakRenderPass(command_buffer, fence);
   edram_store_.ClearColor(command_buffer, fence,
                           EDRAMStore::IsColorFormat64bpp(format), samples,
                           offset_tiles, pitch_px, height_px, color_high,
@@ -1186,7 +1198,7 @@ void RTCache::ClearDepth(VkCommandBuffer command_buffer, VkFence fence,
                          DepthRenderTargetFormat format, MsaaSamples samples,
                          uint32_t offset_tiles, uint32_t pitch_px,
                          uint32_t height_px, uint32_t stencil_depth) {
-  assert_false(current_pass_);
+  BreakRenderPass(command_buffer, fence);
   edram_store_.ClearDepth(command_buffer, fence, format, samples, offset_tiles,
                           pitch_px, height_px, stencil_depth);
 }

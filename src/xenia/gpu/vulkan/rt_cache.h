@@ -56,7 +56,8 @@ class RTCache {
     DrawStatus OnDraw(VkCommandBuffer command_buffer, VkFence batch_fence);
     void OnFrameEnd(VkCommandBuffer command_buffer, VkFence batch_fence);
     VkRenderPass GetCurrentVulkanRenderPass();
-    void EndRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence);
+
+    void BreakRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence);
 
     VkImageView LoadResolveImage(
         VkCommandBuffer command_buffer, VkFence batch_fence,
@@ -209,6 +210,8 @@ class RTCache {
 
     void BeginRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence,
                          RenderPass* pass);
+    void EndRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence,
+                       bool from_begin);
     bool AreCurrentEDRAMParametersValid() const;
 
     RegisterFile* register_file_ = nullptr;
