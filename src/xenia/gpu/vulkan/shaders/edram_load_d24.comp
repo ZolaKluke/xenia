@@ -8,8 +8,8 @@
 #extension GL_ARB_shader_image_load_store : require
 #extension GL_ARB_shading_language_420pack : require
 
-// 2 groups per tile (80x16 threads per group is too much).
-layout(local_size_x = 80, local_size_y = 8, local_size_z = 1) in;
+// 2 groups per tile (40x16 threads per group is too much).
+layout(local_size_x = 40, local_size_y = 16, local_size_z = 1) in;
 
 layout(push_constant) uniform push_consts_type {
   uint edram_offset_tiles;
@@ -23,11 +23,11 @@ layout(set = 0, binding = 2, r8ui)
     uniform writeonly uimageBuffer buffer_stencil;
 
 void main() {
-  uint tile_index = push_constants.edram_offset_tiles + (gl_WorkGroupID.y >> 1)
-                    * push_constants.edram_pitch_tiles + gl_WorkGroupID.x;
+  uint tile_index = push_constants.edram_offset_tiles + gl_WorkGroupID.y *
+                    push_constants.edram_pitch_tiles + (gl_WorkGroupID.x >> 1);
   uvec2 edram_coord = uvec2(tile_index & 15, tile_index >> 4) * uvec2(80, 16) +
                       gl_LocalInvocationID.xy;
-  edram_coord.y += (gl_WorkGroupID.y & 1) << 3;
+  edram_coord.x += (gl_WorkGroupID.x & 1) * 40;
   uint stencil_depth = imageLoad(edram, ivec2(edram_coord)).r;
   int pixel_index =
       int(gl_GlobalInvocationID.y * push_constants.buffer_pitch_px +

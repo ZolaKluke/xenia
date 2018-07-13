@@ -894,13 +894,13 @@ void EDRAMStore::CopyColor(VkCommandBuffer command_buffer, VkFence fence,
   vkCmdPushConstants(command_buffer, pipeline_layout_color_,
                      VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants),
                      &push_constants);
-  uint32_t group_count_y = edram_extent_tiles.height;
+  uint32_t group_count_x = edram_extent_tiles.width;
   if (!mode_info.is_64bpp) {
     // For 32bpp modes, tiles are split into 2 groups because 1280 threads
     // may be over the limit.
-    group_count_y *= 2;
+    group_count_x *= 2;
   }
-  vkCmdDispatch(command_buffer, edram_extent_tiles.width, group_count_y, 1);
+  vkCmdDispatch(command_buffer, group_count_x, edram_extent_tiles.height, 1);
 
   if (!load) {
     // Commit the write so loads or overlapping writes won't conflict.
@@ -1056,8 +1056,8 @@ void EDRAMStore::CopyDepth(VkCommandBuffer command_buffer, VkFence fence,
                      VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants),
                      &push_constants);
   // 2 groups per tile because 1280 threads may be over the limit.
-  vkCmdDispatch(command_buffer, edram_extent_tiles.width,
-                edram_extent_tiles.height * 2, 1);
+  vkCmdDispatch(command_buffer, edram_extent_tiles.width * 2,
+                edram_extent_tiles.height, 1);
 
   if (load) {
     // Copy the loaded depth to the render target.
