@@ -874,6 +874,13 @@ void RTCache::BeginRenderPass(VkCommandBuffer command_buffer,
   begin_info.clearValueCount = 0;
   begin_info.pClearValues = nullptr;
   vkCmdBeginRenderPass(command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+  // Reset the dirty area.
+  current_dirty_area_[0] = UINT32_MAX;
+  current_dirty_area_[1] = UINT32_MAX;
+  current_dirty_area_[2] = 0;
+  current_dirty_area_[3] = 0;
+  UpdateDirtyArea();
 }
 
 void RTCache::EndRenderPass(VkCommandBuffer command_buffer,
@@ -886,67 +893,91 @@ void RTCache::EndRenderPass(VkCommandBuffer command_buffer,
 
   vkCmdEndRenderPass(command_buffer);
 
-  // Export the framebuffers to the EDRAM store.
-  // They are exported from the first in the EDRAM to the last, so in case there
-  // is overlap between multiple framebuffers used in one pass, they won't
-  // overwrite each other.
-  // TODO(Triang3l): Calculate non-overlapping EDRAM areas during pass creation.
-  SwitchRenderPassTargetUsage(command_buffer, current_pass_,
-                              RenderTargetUsage::kStoreToEDRAM, 0xF, true);
-  VkRect2D rt_rect;
-  rt_rect.offset.x = 0;
-  rt_rect.offset.y = 0;
-  rt_rect.extent.width = current_pass_->width;
-  rt_rect.extent.height = current_pass_->height;
-
-  struct StoreRenderTarget {
-    // -1 for depth (it's more transient than color, and may be aliased (haven't
-    // seen such behavior in any game though) if a game doesn't need depth).
-    // (Such aliasing would actually break non-overlapping region detection).
-    int32_t rt_index;
-    uint32_t edram_base;
-  } store_rts[5];
-  uint32_t store_rt_count = 0;
-  if (current_pass_->rt_depth != nullptr) {
-    StoreRenderTarget& store_rt = store_rts[store_rt_count++];
-    store_rt.rt_index = -1;
-    store_rt.edram_base = current_edram_depth_offset_;
+  // Calculate the area that needs to be stored.
+  VkRect2D store_rect;
+  if (current_dirty_area_[0] >= current_dirty_area_[2] ||
+      current_dirty_area_[1] >= current_dirty_area_[3]) {
+    store_rect.extent.width = 0;
+  } else {
+    uint32_t dirty_left = current_dirty_area_[0];
+    uint32_t dirty_top = current_dirty_area_[1];
+    uint32_t dirty_right = current_dirty_area_[2];
+    uint32_t dirty_bottom = current_dirty_area_[3];
+    // TODO(Triang3l): key_depth is theoretically not impossible to be zero.
+    // Store samples in the whole pass.
+    GetSupersampledSize(dirty_left, dirty_top,
+                        current_pass_->key_depth.samples);
+    GetSupersampledSize(dirty_right, dirty_bottom,
+                        current_pass_->key_depth.samples);
+    dirty_left = std::min(dirty_left, current_pass_->width);
+    dirty_top = std::min(dirty_top, current_pass_->height);
+    dirty_right = std::min(dirty_right, current_pass_->width);
+    dirty_bottom = std::min(dirty_bottom, current_pass_->height);
+    store_rect.offset.x = int32_t(dirty_left);
+    store_rect.offset.y = int32_t(dirty_top);
+    store_rect.extent.width = dirty_right - dirty_left;
+    store_rect.extent.height = dirty_bottom - dirty_top;
+    XELOGGPU("EDRAM store rect %u,%u - %u,%u.\n", dirty_left, dirty_top,
+             dirty_right, dirty_bottom);
   }
-  for (int32_t i = 0; i < 4; ++i) {
-    if (current_pass_->rts_color[i] != nullptr) {
+
+  if (store_rect.extent.width != 0 && store_rect.extent.height != 0) {
+    // Export the framebuffers to the EDRAM store.
+    // They are exported from the first in the EDRAM to the last, so in case
+    // there's overlap between multiple framebuffers used in one pass, they
+    // won't overwrite each other.
+    // TODO(Triang3l): Calculate non-overlapping EDRAM areas when creating pass.
+    SwitchRenderPassTargetUsage(command_buffer, current_pass_,
+                                RenderTargetUsage::kStoreToEDRAM, 0xF, true);
+    struct StoreRenderTarget {
+      // -1 for depth (it's more transient than color, and may be aliased (haven't
+      // seen such behavior in any game though) if a game doesn't need depth).
+      // (Such aliasing would actually break non-overlapping region detection).
+      int32_t rt_index;
+      uint32_t edram_base;
+    } store_rts[5];
+    uint32_t store_rt_count = 0;
+    if (current_pass_->rt_depth != nullptr) {
       StoreRenderTarget& store_rt = store_rts[store_rt_count++];
-      store_rt.rt_index = i;
-      store_rt.edram_base = current_edram_color_offsets_[i];
+      store_rt.rt_index = -1;
+      store_rt.edram_base = current_edram_depth_offset_;
     }
-  }
-  std::sort(store_rts, store_rts + store_rt_count,
-            [](StoreRenderTarget a, StoreRenderTarget b) {
-              if (a.edram_base < b.edram_base) {
-                return true;
-              }
-              return a.rt_index < b.rt_index;
-            });
-
-  for (uint32_t i = 0; i < store_rt_count; ++i) {
-    StoreRenderTarget& store_rt = store_rts[i];
-    int32_t rt_index = store_rt.rt_index;
-    if (rt_index < 0) {
-      RenderTarget* rt = current_pass_->rt_depth;
-      RenderTargetKey key(current_pass_->key_depth);
-      uint32_t format = key.format;
-      edram_store_.CopyDepth(command_buffer, batch_fence, false, rt->image,
-                             DepthRenderTargetFormat(format), key.samples,
-                             rt_rect, current_edram_depth_offset_,
-                             current_edram_pitch_px_);
-    } else {
-      RenderTarget* rt = current_pass_->rts_color[rt_index];
-      RenderTargetKey key(current_pass_->keys_color[rt_index]);
-      uint32_t format = key.format;
-      edram_store_.CopyColor(command_buffer, batch_fence, false,
-                             rt->image_view_color_edram_store,
-                             ColorRenderTargetFormat(format), key.samples,
-                             rt_rect, current_edram_color_offsets_[rt_index],
-                             current_edram_pitch_px_);
+    for (int32_t i = 0; i < 4; ++i) {
+      if (current_pass_->rts_color[i] != nullptr) {
+        StoreRenderTarget& store_rt = store_rts[store_rt_count++];
+        store_rt.rt_index = i;
+        store_rt.edram_base = current_edram_color_offsets_[i];
+      }
+    }
+    std::sort(store_rts, store_rts + store_rt_count,
+              [](StoreRenderTarget a, StoreRenderTarget b) {
+                if (a.edram_base < b.edram_base) {
+                  return true;
+                }
+                return a.rt_index < b.rt_index;
+              });
+    for (uint32_t i = 0; i < store_rt_count; ++i) {
+      StoreRenderTarget& store_rt = store_rts[i];
+      int32_t rt_index = store_rt.rt_index;
+      if (rt_index < 0) {
+        RenderTarget* rt = current_pass_->rt_depth;
+        RenderTargetKey key(current_pass_->key_depth);
+        uint32_t format = key.format;
+        edram_store_.CopyDepth(command_buffer, batch_fence, false, rt->image,
+                               DepthRenderTargetFormat(format), key.samples,
+                               store_rect, current_edram_depth_offset_,
+                               current_edram_pitch_px_);
+      } else {
+        RenderTarget* rt = current_pass_->rts_color[rt_index];
+        RenderTargetKey key(current_pass_->keys_color[rt_index]);
+        uint32_t format = key.format;
+        edram_store_.CopyColor(command_buffer, batch_fence, false,
+                               rt->image_view_color_edram_store,
+                               ColorRenderTargetFormat(format), key.samples,
+                               store_rect,
+                               current_edram_color_offsets_[rt_index],
+                               current_edram_pitch_px_);
+      }
     }
   }
 
@@ -961,6 +992,99 @@ void RTCache::EndRenderPass(VkCommandBuffer command_buffer,
 void RTCache::BreakRenderPass(VkCommandBuffer command_buffer,
                               VkFence batch_fence) {
   EndRenderPass(command_buffer, batch_fence, false);
+}
+
+void RTCache::UpdateDirtyArea() {
+  // See PipelineCache::SetDynamicState for all explanations.
+
+  uint32_t pa_sc_window_offset =
+      register_file_->values[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
+  int16_t window_offset_x = pa_sc_window_offset & 0x7FFF;
+  int16_t window_offset_y = (pa_sc_window_offset >> 16) & 0x7FFF;
+  if (window_offset_x & 0x4000) {
+    window_offset_x |= 0x8000;
+  }
+  if (window_offset_y & 0x4000) {
+    window_offset_y |= 0x8000;
+  }
+
+  // Get the scissor rectangle.
+  uint32_t pa_sc_window_scissor_tl =
+      register_file_->values[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
+  uint32_t pa_sc_window_scissor_br =
+      register_file_->values[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
+  int32_t dirty_left = pa_sc_window_scissor_tl & 0x7FFF;
+  int32_t dirty_top = (pa_sc_window_scissor_tl >> 16) & 0x7FFF;
+  int32_t dirty_right = pa_sc_window_scissor_br & 0x7FFF;
+  int32_t dirty_bottom = (pa_sc_window_scissor_br >> 16) & 0x7FFF;
+  // Apply window offset if not disabled.
+  if (!(pa_sc_window_scissor_tl & 0x80000000)) {
+    dirty_left = std::max(dirty_left + window_offset_x, 0);
+    dirty_top = std::max(dirty_top + window_offset_y, 0);
+    dirty_right += window_offset_x;
+    dirty_bottom += window_offset_y;
+  }
+  if (dirty_left >= dirty_right || dirty_top >= dirty_bottom) {
+    return;
+  }
+
+  // The scissor may be bigger than the framebuffer (may be not set).
+  // So need to intersect it with the viewport.
+  uint32_t pa_cl_vte_cntl =
+      register_file_->values[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
+  // If viewport X and Y scales are enabled, the rectangle can be obtained.
+  if ((pa_cl_vte_cntl & ((1 << 0) | (1 << 2))) == ((1 << 0) | (1 << 2))) {
+    float viewport_offset_x =
+        register_file_->values[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32;
+    float viewport_offset_y =
+        register_file_->values[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32;
+    if (!(pa_cl_vte_cntl & (1 << 1))) {
+      viewport_offset_x = 0.0f;
+    }
+    if (!(pa_cl_vte_cntl & (1 << 3))) {
+      viewport_offset_y = 0.0f;
+    }
+    float viewport_scale_x =
+        std::abs(register_file_->values[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32);
+    float viewport_scale_y =
+        std::abs(register_file_->values[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32);
+    int32_t viewport_left =
+        int32_t(std::floor(viewport_offset_x - viewport_scale_x));
+    int32_t viewport_top =
+        int32_t(std::floor(viewport_offset_y - viewport_scale_y));
+    int32_t viewport_right =
+        int32_t(std::ceil(viewport_offset_x + viewport_scale_x));
+    int32_t viewport_bottom =
+        int32_t(std::ceil(viewport_offset_y + viewport_scale_y));
+    // Apply window offset if enabled.
+    if (register_file_->values[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & (1 << 16)) {
+      viewport_left += window_offset_x;
+      viewport_top += window_offset_y;
+      viewport_right += window_offset_x;
+      viewport_bottom += window_offset_y;
+    }
+    viewport_left = std::max(viewport_left, 0);
+    viewport_top = std::max(viewport_top, 0);
+    if (viewport_left >= viewport_right || viewport_top >= viewport_bottom ||
+        viewport_left >= dirty_right || viewport_top >= dirty_bottom ||
+        viewport_right <= dirty_left || viewport_bottom <= dirty_top) {
+      // Completely negative or not intersecting.
+      return;
+    }
+    dirty_left = std::max(dirty_left, viewport_left);
+    dirty_top = std::max(dirty_top, viewport_top);
+    dirty_right = std::min(dirty_right, viewport_right);
+    dirty_bottom = std::min(dirty_bottom, viewport_bottom);
+  }
+
+  current_dirty_area_[0] = std::min(current_dirty_area_[0],
+                                    uint32_t(dirty_left));
+  current_dirty_area_[1] = std::min(current_dirty_area_[1],
+                                    uint32_t(dirty_top));
+  current_dirty_area_[2] = std::max(current_dirty_area_[2],
+                                    uint32_t(dirty_right));
+  current_dirty_area_[3] = std::max(current_dirty_area_[3],
+                                    uint32_t(dirty_bottom));
 }
 
 bool RTCache::AreCurrentEDRAMParametersValid() const {
@@ -1005,13 +1129,12 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
   dirty |= SetShadowRegister(&regs.rb_color_mask, XE_GPU_REG_RB_COLOR_MASK);
   dirty |=
       SetShadowRegister(&regs.rb_depth_info.value, XE_GPU_REG_RB_DEPTH_INFO);
-  dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_tl,
-                             XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL);
-  dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_br,
-                             XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR);
   if (!dirty) {
-    return current_pass_ != nullptr ? DrawStatus::kDrawInSamePass :
-                                      DrawStatus::kDoNotDraw;
+    if (current_pass_ == nullptr) {
+      return DrawStatus::kDoNotDraw;
+    }
+    UpdateDirtyArea();
+    return DrawStatus::kDrawInSamePass;
   }
   current_shadow_valid_ = true;
 
@@ -1084,6 +1207,7 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
                      4 * sizeof(RenderTargetKey))
         && current_pass_->key_depth.value == key_depth.value) {
       if (AreCurrentEDRAMParametersValid()) {
+        UpdateDirtyArea();
         return DrawStatus::kDrawInSamePass;
       }
       RenderPass* last_pass = current_pass_;

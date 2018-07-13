@@ -212,6 +212,7 @@ class RTCache {
                          RenderPass* pass);
     void EndRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence,
                        bool from_begin);
+    void UpdateDirtyArea();
     bool AreCurrentEDRAMParametersValid() const;
 
     RegisterFile* register_file_ = nullptr;
@@ -239,8 +240,6 @@ class RTCache {
       reg::RB_COLOR_INFO rb_color_info[4];
       uint32_t rb_color_mask;
       reg::RB_DEPTH_INFO rb_depth_info;
-      uint32_t pa_sc_window_scissor_tl;
-      uint32_t pa_sc_window_scissor_br;
 
       ShadowRegisters() { Reset(); }
       void Reset() { std::memset(this, 0, sizeof(*this)); }
@@ -255,6 +254,9 @@ class RTCache {
     // current_shadow_valid_ is set to false when need to do full OnDraw logic.
     // This may happen after a copy command that ends the pass, for example.
     bool current_shadow_valid_ = false;
+    // Area modified by the draw calls during the current pass, for storing.
+    // Left, top, right, bottom.
+    uint32_t current_dirty_area_[4];
 };
 
 }  // namespace vulkan
