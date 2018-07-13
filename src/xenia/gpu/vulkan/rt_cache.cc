@@ -1110,11 +1110,6 @@ VkImageView RTCache::LoadResolveImage(
     VkCommandBuffer command_buffer, VkFence batch_fence, uint32_t edram_base,
     uint32_t surface_pitch, MsaaSamples samples, bool is_depth, uint32_t format,
     VkExtent2D& image_size) {
-  if (is_depth) {
-    // TODO(Triang3l): Support depth resolving when depth loading is done.
-    return nullptr;
-  }
-
   // Calculate the image size.
   if (surface_pitch == 0) {
     return nullptr;
@@ -1159,7 +1154,11 @@ VkImageView RTCache::LoadResolveImage(
   rt_rect.extent.width = width_div_80 * 80;
   rt_rect.extent.height = height_div_16 * 16;
   GetSupersampledSize(rt_rect.extent.width, rt_rect.extent.height, samples);
-  if (!is_depth) {
+  if (is_depth) {
+    edram_store_.CopyDepth(command_buffer, batch_fence, true,
+                           rt->image, DepthRenderTargetFormat(format),
+                           key.samples, rt_rect, edram_base, surface_pitch);
+  } else {
     edram_store_.CopyColor(command_buffer, batch_fence, true,
                            rt->image_view_color_edram_store,
                            ColorRenderTargetFormat(format), key.samples,
