@@ -169,22 +169,22 @@ class EDRAMStore {
     uint32_t buffer_pitch_px;
   };
 
-  struct PushConstantsClearColor {
+  struct PushConstantsClear {
     uint32_t offset_tiles;
     uint32_t pitch_tiles;
-    uint32_t color_high;
-    uint32_t color_low;
+    union {
+      struct {
+        uint32_t color_high;
+        uint32_t color_low;
+      };
+      struct {
+        uint32_t stencil_depth;
+        uint32_t depth_host;
+      };
+    };
   };
 
-  struct PushConstantsClearDepth {
-    uint32_t offset_tiles;
-    uint32_t pitch_tiles;
-    uint32_t stencil_depth;
-    uint32_t depth_host;
-  };
-
-  void TransitionEDRAMImage(VkCommandBuffer command_buffer, bool depth,
-                            bool load);
+  void TransitionEDRAMImage(VkCommandBuffer command_buffer, bool load);
   void TransitionDepthCopyBuffer(VkCommandBuffer command_buffer,
                                  DepthCopyBufferState new_state);
 
@@ -205,22 +205,14 @@ class EDRAMStore {
 
   ui::vulkan::VulkanDevice* device_ = nullptr;
 
-  // Memory backing the 10 MB tile image and the host depth tile image.
+  // Memory backing the 20 MB tile and host depth image array.
   VkDeviceMemory edram_memory_ = nullptr;
-  // Memory backing the host depth.
-  VkDeviceMemory edram_depth_memory_ = nullptr;
-  // 1280x2048 image storing EDRAM tiles.
+  // 1280x2048 image storing EDRAM tiles in layer 0 and 32-bit depth in layer 1.
   VkImage edram_image_ = nullptr;
-  // 1280x2048 image storing depth in host format in EDRAM layout.
-  VkImage edram_depth_image_ = nullptr;
   // View of the EDRAM image.
   VkImageView edram_image_view_ = nullptr;
-  // View of the EDRAM depth image.
-  VkImageView edram_depth_image_view_ = nullptr;
   // The current access mode for the EDRAM image.
   EDRAMImageState edram_image_state_ = EDRAMImageState::kUntransitioned;
-  // The current access mode for the EDRAM depth image.
-  EDRAMImageState edram_depth_image_state_ = EDRAMImageState::kUntransitioned;
 
   // Memory backing the depth copy buffer.
   VkDeviceMemory depth_copy_memory_ = nullptr;
@@ -236,12 +228,10 @@ class EDRAMStore {
   // Pipeline layouts.
   VkDescriptorSetLayout descriptor_set_layout_color_ = nullptr;
   VkDescriptorSetLayout descriptor_set_layout_depth_ = nullptr;
-  VkDescriptorSetLayout descriptor_set_layout_clear_color_ = nullptr;
-  VkDescriptorSetLayout descriptor_set_layout_clear_depth_ = nullptr;
+  VkDescriptorSetLayout descriptor_set_layout_clear_ = nullptr;
   VkPipelineLayout pipeline_layout_color_ = nullptr;
   VkPipelineLayout pipeline_layout_depth_ = nullptr;
-  VkPipelineLayout pipeline_layout_clear_color_ = nullptr;
-  VkPipelineLayout pipeline_layout_clear_depth_ = nullptr;
+  VkPipelineLayout pipeline_layout_clear_ = nullptr;
 
   // Descriptor pool for shader invocations.
   std::unique_ptr<ui::vulkan::DescriptorPool> descriptor_pool_ = nullptr;

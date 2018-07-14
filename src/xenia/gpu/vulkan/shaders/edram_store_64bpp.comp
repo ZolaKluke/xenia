@@ -17,7 +17,7 @@ layout(push_constant) uniform push_consts_type {
   uvec2 rt_offset_px;
 } push_constants;
 
-layout(set = 0, binding = 0, r32ui) uniform writeonly uimage2D edram;
+layout(set = 0, binding = 0, r32ui) uniform writeonly uimage2DArray edram;
 layout(set = 0, binding = 1, rg32ui) uniform readonly uimage2D rt;
 
 void main() {
@@ -25,10 +25,11 @@ void main() {
                                     push_constants.rt_offset_px));
   uint tile_index = push_constants.edram_offset_tiles + gl_WorkGroupID.y *
                     push_constants.edram_pitch_tiles + gl_WorkGroupID.x;
-  uvec2 edram_coord = uvec2(tile_index & 15, tile_index >> 4) * uvec2(80, 16);
+  uvec3 edram_coord =
+      uvec3(tile_index & 15, tile_index >> 4, 0) * uvec3(80, 16, 0);
   edram_coord.x += gl_LocalInvocationID.x << 1;
   edram_coord.y += gl_LocalInvocationID.y;
-  imageStore(edram, ivec2(edram_coord), uvec4(pixel.r));
+  imageStore(edram, ivec3(edram_coord), uvec4(pixel.r));
   ++edram_coord.x;
-  imageStore(edram, ivec2(edram_coord), uvec4(pixel.g));
+  imageStore(edram, ivec3(edram_coord), uvec4(pixel.g));
 }
