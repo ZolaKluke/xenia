@@ -63,6 +63,9 @@ VkResult EDRAMStore::Initialize() {
   VkResult status = VK_SUCCESS;
   VkMemoryRequirements memory_requirements;
 
+  // Will be creating new storage objects.
+  storage_prepared_ = false;
+
   // Create the 1280x2048x2 image to store raw EDRAM tile data in guest format
   // and depth in host format (to ensure depth precision invariance).
   VkImageCreateInfo image_info;
@@ -93,7 +96,6 @@ VkResult EDRAMStore::Initialize() {
   }
   device_->DbgSetObjectName(uint64_t(edram_image_),
                             VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT, "EDRAM");
-  edram_image_state_ = EDRAMImageState::kUntransitioned;
 
   // Bind memory to the tile image.
   vkGetImageMemoryRequirements(*device_, edram_image_, &memory_requirements);
@@ -490,42 +492,105 @@ void EDRAMStore::Shutdown() {
   VK_SAFE_DESTROY(vkFreeMemory, *device_, edram_memory_, nullptr);
 }
 
-void EDRAMStore::TransitionEDRAMImage(VkCommandBuffer command_buffer,
-                                      bool load) {
-  EDRAMImageState new_state =
-      load ? EDRAMImageState::kLoad : EDRAMImageState::kStore;
-  if (edram_image_state_ == new_state) {
-    return;
-  }
-  VkImageMemoryBarrier barrier;
-  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-  barrier.pNext = nullptr;
-  barrier.dstAccessMask =
-      load ? VK_ACCESS_SHADER_READ_BIT : VK_ACCESS_SHADER_WRITE_BIT;
-  barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.image = edram_image_;
-  barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-  barrier.subresourceRange.baseMipLevel = 0;
-  barrier.subresourceRange.levelCount = 1;
-  barrier.subresourceRange.baseArrayLayer = 0;
-  barrier.subresourceRange.layerCount = 2;
-  VkPipelineStageFlags stage_mask_src;
-  if (edram_image_state_ == EDRAMImageState::kUntransitioned) {
-    barrier.srcAccessMask = 0;
-    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    stage_mask_src = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-  } else {
-    barrier.srcAccessMask =
-        load ? VK_ACCESS_SHADER_WRITE_BIT : VK_ACCESS_SHADER_READ_BIT;
-    barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-    stage_mask_src = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-  }
-  vkCmdPipelineBarrier(command_buffer, stage_mask_src,
+void EDRAMStore::CommitStorageWrite(VkCommandBuffer command_buffer) {
+  // Simple memory barrier not transitioning anything.
+  VkImageMemoryBarrier image_barrier;
+  image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  image_barrier.pNext = nullptr;
+  image_barrier.srcAccessMask =
+      VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+  image_barrier.dstAccessMask =
+      VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+  image_barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+  image_barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+  image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  image_barrier.image = edram_image_;
+  image_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  image_barrier.subresourceRange.baseMipLevel = 0;
+  image_barrier.subresourceRange.levelCount = 1;
+  image_barrier.subresourceRange.baseArrayLayer = 0;
+  image_barrier.subresourceRange.layerCount = 2;
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0,
-                       nullptr, 1, &barrier);
-  edram_image_state_ = new_state;
+                       nullptr, 1, &image_barrier);
+}
+
+bool EDRAMStore::PrepareStorage(VkCommandBuffer command_buffer, VkFence fence) {
+  if (storage_prepared_) {
+    return true;
+  }
+
+  // Allocate descriptors before doing anything as this may fail.
+  if (!descriptor_pool_->has_open_batch()) {
+    descriptor_pool_->BeginBatch(fence);
+  }
+  VkDescriptorSet descriptor_set =
+      descriptor_pool_->AcquireEntry(descriptor_set_layout_clear_);
+  if (!descriptor_set) {
+    assert_always();
+    descriptor_pool_->CancelBatch();
+    return false;
+  }
+
+  // Transition the storages to compute read/write.
+  VkImageMemoryBarrier image_barrier;
+  image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  image_barrier.pNext = nullptr;
+  image_barrier.srcAccessMask = 0;
+  image_barrier.dstAccessMask =
+      VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+  image_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  image_barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+  image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  image_barrier.image = edram_image_;
+  image_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  image_barrier.subresourceRange.baseMipLevel = 0;
+  image_barrier.subresourceRange.levelCount = 1;
+  image_barrier.subresourceRange.baseArrayLayer = 0;
+  image_barrier.subresourceRange.layerCount = 2;
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &image_barrier);
+
+  // Clear color and depth, marking host depth as up to date (zero).
+  VkWriteDescriptorSet descriptors[1];
+  descriptors[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  descriptors[0].pNext = nullptr;
+  descriptors[0].dstSet = descriptor_set;
+  descriptors[0].dstBinding = 0;
+  descriptors[0].dstArrayElement = 0;
+  descriptors[0].descriptorCount = 1;
+  descriptors[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+  VkDescriptorImageInfo image_info_edram;
+  image_info_edram.sampler = nullptr;
+  image_info_edram.imageView = edram_image_view_;
+  image_info_edram.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+  descriptors[0].pImageInfo = &image_info_edram;
+  descriptors[0].pBufferInfo = nullptr;
+  descriptors[0].pTexelBufferView = nullptr;
+  vkUpdateDescriptorSets(*device_, 1, descriptors, 0, nullptr);
+  vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                    clear_depth_pipeline_);
+  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          pipeline_layout_clear_, 0, 1, &descriptor_set, 0,
+                          nullptr);
+  PushConstantsClear push_constants;
+  push_constants.offset_tiles = 0;
+  push_constants.pitch_tiles = 1280 / 80;
+  push_constants.stencil_depth = 0;
+  push_constants.depth_host = 0;
+  vkCmdPushConstants(command_buffer, pipeline_layout_clear_,
+                     VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants),
+                     &push_constants);
+  // 2 groups per tile because 80x16 threads may be over the limit.
+  vkCmdDispatch(command_buffer, 1280 / 40, 2048 / 16, 1);
+
+  CommitStorageWrite(command_buffer);
+
+  storage_prepared_ = true;
+  return true;
 }
 
 void EDRAMStore::TransitionDepthCopyBuffer(VkCommandBuffer command_buffer,
@@ -765,6 +830,11 @@ void EDRAMStore::CopyColor(VkCommandBuffer command_buffer, VkFence fence,
     return;
   }
 
+  // Prepare the storages if calling for the first time.
+  if (!PrepareStorage(command_buffer, fence)) {
+    return;
+  }
+
   // Allocate space for the descriptors.
   if (!descriptor_pool_->has_open_batch()) {
     descriptor_pool_->BeginBatch(fence);
@@ -776,9 +846,6 @@ void EDRAMStore::CopyColor(VkCommandBuffer command_buffer, VkFence fence,
     descriptor_pool_->CancelBatch();
     return;
   }
-
-  // Switch the EDRAM image to the requested state.
-  TransitionEDRAMImage(command_buffer, load);
 
   // Write the descriptors.
   VkWriteDescriptorSet descriptors[2];
@@ -839,10 +906,7 @@ void EDRAMStore::CopyColor(VkCommandBuffer command_buffer, VkFence fence,
   vkCmdDispatch(command_buffer, group_count_x, edram_extent_tiles.height, 1);
 
   if (!load) {
-    // Commit the write so loads or overlapping writes won't conflict.
-    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0,
-                         nullptr, 0, nullptr);
+    CommitStorageWrite(command_buffer);
   }
 }
 
@@ -868,6 +932,11 @@ void EDRAMStore::CopyDepth(VkCommandBuffer command_buffer, VkFence fence,
     return;
   }
 
+  // Prepare the storages if calling for the first time.
+  if (!PrepareStorage(command_buffer, fence)) {
+    return;
+  }
+
   // Allocate space for the descriptors.
   if (!descriptor_pool_->has_open_batch()) {
     descriptor_pool_->BeginBatch(fence);
@@ -879,9 +948,6 @@ void EDRAMStore::CopyDepth(VkCommandBuffer command_buffer, VkFence fence,
     descriptor_pool_->CancelBatch();
     return;
   }
-
-  // Switch the EDRAM image to the requested state.
-  TransitionEDRAMImage(command_buffer, load);
 
   // Prepare for copying to or from the linear buffer.
   // TODO(Triang3l): Copy entirely if granularity is 0 rather than 1.
@@ -986,10 +1052,7 @@ void EDRAMStore::CopyDepth(VkCommandBuffer command_buffer, VkFence fence,
     vkCmdCopyBufferToImage(command_buffer, depth_copy_buffer_, rt_image,
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 2, regions);
   } else {
-    // Commit the write so loads or overlapping writes won't conflict.
-    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0,
-                         nullptr, 0, nullptr);
+    CommitStorageWrite(command_buffer);
   }
 }
 
@@ -1022,6 +1085,11 @@ void EDRAMStore::ClearColor(VkCommandBuffer command_buffer, VkFence fence,
     return;
   }
 
+  // Prepare the storages if calling for the first time.
+  if (!PrepareStorage(command_buffer, fence)) {
+    return;
+  }
+
   // Allocate space for the descriptors.
   if (!descriptor_pool_->has_open_batch()) {
     descriptor_pool_->BeginBatch(fence);
@@ -1033,9 +1101,6 @@ void EDRAMStore::ClearColor(VkCommandBuffer command_buffer, VkFence fence,
     descriptor_pool_->CancelBatch();
     return;
   }
-
-  // Switch the EDRAM image to storing.
-  TransitionEDRAMImage(command_buffer, false);
 
   // Write the EDRAM image descriptor.
   VkWriteDescriptorSet descriptors[1];
@@ -1071,9 +1136,7 @@ void EDRAMStore::ClearColor(VkCommandBuffer command_buffer, VkFence fence,
                      VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants),
                      &push_constants);
   vkCmdDispatch(command_buffer, extent_tiles.width, extent_tiles.height, 1);
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0,
-                       nullptr, 0, nullptr);
+  CommitStorageWrite(command_buffer);
 }
 
 void EDRAMStore::ClearDepth(VkCommandBuffer command_buffer, VkFence fence,
@@ -1102,6 +1165,11 @@ void EDRAMStore::ClearDepth(VkCommandBuffer command_buffer, VkFence fence,
     return;
   }
 
+  // Prepare the storages if calling for the first time.
+  if (!PrepareStorage(command_buffer, fence)) {
+    return;
+  }
+
   // Allocate space for the descriptors.
   if (!descriptor_pool_->has_open_batch()) {
     descriptor_pool_->BeginBatch(fence);
@@ -1113,9 +1181,6 @@ void EDRAMStore::ClearDepth(VkCommandBuffer command_buffer, VkFence fence,
     descriptor_pool_->CancelBatch();
     return;
   }
-
-  // Switch the EDRAM image to storing.
-  TransitionEDRAMImage(command_buffer, false);
 
   // Write the EDRAM image descriptor.
   VkWriteDescriptorSet descriptors[1];
@@ -1172,9 +1237,7 @@ void EDRAMStore::ClearDepth(VkCommandBuffer command_buffer, VkFence fence,
                      &push_constants);
   // 2 groups per tile because 80x16 threads may be over the limit.
   vkCmdDispatch(command_buffer, extent_tiles.width * 2, extent_tiles.height, 1);
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0,
-                       nullptr, 0, nullptr);
+  CommitStorageWrite(command_buffer);
 }
 
 void EDRAMStore::Scavenge() {

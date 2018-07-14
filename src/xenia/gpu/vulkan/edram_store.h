@@ -102,12 +102,6 @@ class EDRAMStore {
   void Scavenge();
 
  private:
-  enum class EDRAMImageState {
-    kUntransitioned,
-    kStore,
-    kLoad
-  };
-
   enum class DepthCopyBufferState {
     kUntransitioned,
     kRenderTargetToBuffer,
@@ -184,7 +178,7 @@ class EDRAMStore {
     };
   };
 
-  void TransitionEDRAMImage(VkCommandBuffer command_buffer, bool load);
+  bool PrepareStorage(VkCommandBuffer command_buffer, VkFence fence);
   void TransitionDepthCopyBuffer(VkCommandBuffer command_buffer,
                                  DepthCopyBufferState new_state);
 
@@ -201,6 +195,8 @@ class EDRAMStore {
                      VkExtent2D& edram_extent_tiles,
                      uint32_t& edram_pitch_tiles);
 
+  void CommitStorageWrite(VkCommandBuffer command_buffer);
+
   static constexpr uint32_t kTotalTexelCount = 80 * 16 * 2048;
 
   ui::vulkan::VulkanDevice* device_ = nullptr;
@@ -211,8 +207,9 @@ class EDRAMStore {
   VkImage edram_image_ = nullptr;
   // View of the EDRAM image.
   VkImageView edram_image_view_ = nullptr;
-  // The current access mode for the EDRAM image.
-  EDRAMImageState edram_image_state_ = EDRAMImageState::kUntransitioned;
+
+  // Whether the tile image and the dirty depth bits have been transitioned.
+  bool storage_prepared_ = false;
 
   // Memory backing the depth copy buffer.
   VkDeviceMemory depth_copy_memory_ = nullptr;
