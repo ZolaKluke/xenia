@@ -25,12 +25,13 @@ namespace vulkan {
 
 // Manages the host memory for framebuffers, largely disregarding the EDRAM
 // contents (the EDRAM store is used to preserve these).
-// Framebuffers are allocated in 4 MB pages from up to 5 blocks 24 MB each.
-// 24 MB is chosen because framebuffers on the Xenos can't be larger than 10 MB,
+// Framebuffers are allocated in 4 MB pages from up to 5 blocks 32 MB each.
+// 32 MB is chosen because framebuffers on the Xenos can't be larger than 10 MB,
 // but in some cases they are emulated with twice as large framebuffers here,
-// and because of padding they may be bigger than 20 MB. Also Direct3D 12
-// requires 4 MB alignment for MSAA framebuffers, and Vulkan is likely to do the
-// same on Windows.
+// and because of padding they may be bigger than 20 MB, however, 24 MB proved
+// to be too small, it didn't work for a 320px-wide 64bpp RT with 4X AA.
+// Also Direct3D 12 requires 4 MB alignment for MSAA framebuffers, and Vulkan
+// may do the same on certain implementations.
 // 5 blocks is for the most extreme case (not practically possible though) with
 // four 20 MB render targets and a depth/stencil buffer. Such amount of memory
 // will likely never be allocated.
@@ -223,7 +224,7 @@ class RTCache {
 
     // Memory types that can be used for render targets.
     uint32_t rt_memory_type_bits_;
-    // 24 MB memory blocks backing render targets.
+    // 32 MB memory blocks backing render targets.
     VkDeviceMemory rt_memory_[5] = {};
 
     // Render target views indexed with render target keys.

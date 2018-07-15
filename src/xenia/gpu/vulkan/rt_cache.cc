@@ -68,10 +68,8 @@ VkFormat RTCache::DepthRenderTargetFormatToVkFormat(
     DepthRenderTargetFormat format) const {
   switch (format) {
     case DepthRenderTargetFormat::kD24S8:
-      // TODO(Triang3l): Add VK_FORMAT_D24_UNORM_S8_UINT to the EDRAM Store.
-      return VK_FORMAT_D32_SFLOAT_S8_UINT;
     case DepthRenderTargetFormat::kD24FS8:
-      // Vulkan doesn't support 24-bit floats, so just promote it to 32-bit.
+      // The EDRAM store expects both to be 32-bit.
       return VK_FORMAT_D32_SFLOAT_S8_UINT;
     default:
       return VK_FORMAT_UNDEFINED;
@@ -122,7 +120,7 @@ VkResult RTCache::Initialize() {
   vkGetImageMemoryRequirements(*device_, memory_check_image,
                                &memory_requirements);
   vkDestroyImage(*device_, memory_check_image, nullptr);
-  assert_true(memory_requirements.alignment <= (1 << 22));
+  assert_true(memory_requirements.alignment <= (4 << 20));
   rt_memory_type_bits_ = memory_requirements.memoryTypeBits;
 
   current_shadow_valid_ = false;
@@ -218,18 +216,18 @@ RTCache::RenderTarget* RTCache::FindOrCreateRenderTarget(RenderTargetKey key,
   // Get the page count to store later.
   VkMemoryRequirements image_memory_requirements;
   vkGetImageMemoryRequirements(*device_, image, &image_memory_requirements);
-  assert_always(image_memory_requirements.alignment <= (1 << 22));
-  if (image_memory_requirements.size > (6 << 22)) {
-    // Can't fit the image in a whole 24 MB block.
+  assert_always(image_memory_requirements.alignment <= (4 << 20));
+  if (image_memory_requirements.size > (32 << 20)) {
+    // Can't fit the image in a whole 32 MB block.
     assert_always();
     vkDestroyImage(*device_, image, nullptr);
     return false;
   }
   uint32_t page_count =
-      xe::round_up(uint32_t(image_memory_requirements.size), 1u << 22) >> 22;
-  uint32_t block_index = page_first / 6;
-  uint32_t block_page_index = page_first - (block_index * 6);
-  if (block_page_index + page_count > 6) {
+      xe::round_up(uint32_t(image_memory_requirements.size), 4u << 20) >> 22;
+  uint32_t block_index = page_first / 8;
+  uint32_t block_page_index = page_first - (block_index * 8);
+  if (block_page_index + page_count > 8) {
     // Can't put the image at the requested position in the block.
     assert_always();
     vkDestroyImage(*device_, image, nullptr);
@@ -248,8 +246,8 @@ RTCache::RenderTarget* RTCache::FindOrCreateRenderTarget(RenderTargetKey key,
   // Allocate the block if it doesn't exist yet.
   if (rt_memory_[block_index] == nullptr) {
     VkMemoryRequirements block_memory_requirements;
-    block_memory_requirements.size = 6 << 22;
-    block_memory_requirements.alignment = 1 << 22;
+    block_memory_requirements.size = 32 << 20;
+    block_memory_requirements.alignment = 4 << 20;
     block_memory_requirements.memoryTypeBits = rt_memory_type_bits_;
     // On the testing GTX 850M, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT is required.
     rt_memory_[block_index] =
@@ -409,14 +407,14 @@ bool RTCache::AllocateRenderTargets(
     VkMemoryRequirements memory_requirements;
     vkGetImageMemoryRequirements(*device_, size_image, &memory_requirements);
     vkDestroyImage(*device_, size_image, nullptr);
-    assert_always(memory_requirements.alignment <= (1 << 22));
-    if (memory_requirements.size > (6 << 22)) {
-      // Can't fit the image in a whole 24 MB block.
+    assert_always(memory_requirements.alignment <= (4 << 20));
+    if (memory_requirements.size > (32 << 20)) {
+      // Can't fit the image in a whole 32 MB block.
       assert_always();
       return false;
     }
     alloc_info.page_count =
-        xe::round_up(uint32_t(memory_requirements.size), 1u << 22) >> 22;
+        xe::round_up(uint32_t(memory_requirements.size), 4u << 20) >> 22;
     ++used_rt_count;
   }
   if (used_rt_count == 0) {
@@ -435,13 +433,13 @@ bool RTCache::AllocateRenderTargets(
               }
               return a.rt_index < b.rt_index;
             });
-  // Number of pages allocated in each 24 MB block.
+  // Number of pages allocated in each 32 MB block.
   uint32_t pages_allocated[5] = {};
   for (uint32_t i = 0; i < used_rt_count; ++i) {
     RTAllocInfo& alloc_info = alloc_infos[i];
     uint32_t block_index;
     for (block_index = 0; block_index < 5; ++block_index) {
-      if (pages_allocated[block_index] + alloc_info.page_count <= 6) {
+      if (pages_allocated[block_index] + alloc_info.page_count <= 8) {
         break;
       }
     }
@@ -450,7 +448,7 @@ bool RTCache::AllocateRenderTargets(
       assert_always();
       return false;
     }
-    alloc_info.page_first = block_index * 6 + pages_allocated[block_index];
+    alloc_info.page_first = block_index * 8 + pages_allocated[block_index];
     pages_allocated[block_index] += alloc_info.page_count;
   }
 
