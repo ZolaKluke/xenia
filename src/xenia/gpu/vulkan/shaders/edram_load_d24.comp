@@ -18,10 +18,8 @@ layout(push_constant) uniform push_consts_type {
 } push_constants;
 
 layout(set = 0, binding = 0, r32ui) uniform readonly uimage2DArray edram;
-layout(set = 0, binding = 1)
-    buffer readonly depth_dirty {uint depth_dirty_bits[64];};
-layout(set = 0, binding = 2, r32ui) uniform writeonly uimageBuffer buffer_depth;
-layout(set = 0, binding = 3, r8ui)
+layout(set = 0, binding = 1, r32ui) uniform writeonly uimageBuffer buffer_depth;
+layout(set = 0, binding = 2, r8ui)
     uniform writeonly uimageBuffer buffer_stencil;
 
 void main() {
@@ -31,13 +29,13 @@ void main() {
                       uvec3(80, 16, 0) + gl_LocalInvocationID;
   edram_coord.x += (gl_WorkGroupID.x & 1) * 40;
   uint stencil_depth_guest = imageLoad(edram, ivec3(edram_coord)).r;
-  uint depth_host;
-  if ((depth_dirty_bits[tile_index >> 5] & (1u << (tile_index & 31))) != 0) {
-    depth_host =
-        floatBitsToUint(float(stencil_depth_guest >> 8u) * (1.0 / 16777215.0));
-  } else {
-    edram_coord.z = 1;
-    depth_host = imageLoad(edram, ivec3(edram_coord)).r;
+  uint depth_guest = stencil_depth_guest >> 8u;
+  edram_coord.z = 1;
+  uint depth_host = imageLoad(edram, ivec3(edram_coord)).r;
+  if (depth_guest != uint(uintBitsToFloat(depth_host) * 16777215.0)) {
+    // Depth could be overwritten by color, for example - in this case, use the
+    // new, but less precise value because it may be used again as color later.
+    depth_host = floatBitsToUint(float(depth_guest) * (1.0 / 16777215.0));
   }
   int pixel_index =
       int(gl_GlobalInvocationID.y * push_constants.buffer_pitch_px +

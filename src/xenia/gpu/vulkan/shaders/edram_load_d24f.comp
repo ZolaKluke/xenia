@@ -18,14 +18,13 @@ layout(push_constant) uniform push_consts_type {
 } push_constants;
 
 layout(set = 0, binding = 0, r32ui) uniform readonly uimage2DArray edram;
-layout(set = 0, binding = 1)
-    buffer readonly depth_dirty {uint depth_dirty_bits[64];};
-layout(set = 0, binding = 2, r32ui) uniform writeonly uimageBuffer buffer_depth;
-layout(set = 0, binding = 3, r8ui)
+layout(set = 0, binding = 1, r32ui) uniform writeonly uimageBuffer buffer_depth;
+layout(set = 0, binding = 2, r8ui)
     uniform writeonly uimageBuffer buffer_stencil;
 
 // Based on the 6e4 code from:
 // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
+
 uint Float20e4To32(uint bits24) {
   uint mantissa = bits24 & 0xFFFFFu;
   uint exponent = (bits24 >> 20u) & 0xFu;
@@ -44,6 +43,21 @@ uint Float20e4To32(uint bits24) {
   return ((exponent + 120u) << 23u) | (mantissa << 3u);
 }
 
+uint Float32To20e4(uint bits32) {
+  // Only positive (high bit set means negative for both float and int), and
+  // saturate to the maximum representable value (also dropping NaNs).
+  bits32 = uint(clamp(int(bits32), 0, 0x43FFFFFB));
+  if (bits32 < 0x3C800000u) {
+    // The number is too small to be represented as a normalized 20e4.
+    // Convert it to a denormalized value.
+    bits32 = ((bits32 & 0x7FFFFFu) | 0x800000u) >> (121u - (bits32 >> 23u));
+  } else {
+    // Rebias the exponent to represent the value as a normalized 20e4.
+    bits32 += 0xC4000000u;
+  }
+  return ((bits32 + 3u + ((bits32 >> 3u) & 1u)) >> 3u) & 0xFFFFFFu;
+}
+
 void main() {
   uint tile_index = push_constants.edram_offset_tiles + gl_WorkGroupID.y *
                     push_constants.edram_pitch_tiles + (gl_WorkGroupID.x >> 1);
@@ -51,12 +65,13 @@ void main() {
                       uvec3(80, 16, 0) + gl_LocalInvocationID;
   edram_coord.x += (gl_WorkGroupID.x & 1) * 40;
   uint stencil_depth_guest = imageLoad(edram, ivec3(edram_coord)).r;
-  uint depth_host;
-  if ((depth_dirty_bits[tile_index >> 5] & (1u << (tile_index & 31))) != 0) {
-    depth_host = Float20e4To32(stencil_depth_guest >> 8u);
-  } else {
-    edram_coord.z = 1;
-    depth_host = imageLoad(edram, ivec3(edram_coord)).r;
+  uint depth_guest = stencil_depth_guest >> 8u;
+  edram_coord.z = 1;
+  uint depth_host = imageLoad(edram, ivec3(edram_coord)).r;
+  if (depth_guest != Float32To20e4(depth_host)) {
+    // Depth could be overwritten by color, for example - in this case, use the
+    // new, but less precise value because it may be used again as color later.
+    depth_host = Float20e4To32(depth_guest);
   }
   int pixel_index =
       int(gl_GlobalInvocationID.y * push_constants.buffer_pitch_px +

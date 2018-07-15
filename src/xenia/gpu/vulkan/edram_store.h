@@ -178,7 +178,7 @@ class EDRAMStore {
     };
   };
 
-  bool PrepareStorage(VkCommandBuffer command_buffer, VkFence fence);
+  bool PrepareEDRAMImage(VkCommandBuffer command_buffer, VkFence fence);
   void TransitionDepthCopyBuffer(VkCommandBuffer command_buffer,
                                  DepthCopyBufferState new_state);
 
@@ -195,7 +195,7 @@ class EDRAMStore {
                      VkExtent2D& edram_extent_tiles,
                      uint32_t& edram_pitch_tiles);
 
-  void CommitStorageWrite(VkCommandBuffer command_buffer);
+  void CommitEDRAMImageWrite(VkCommandBuffer command_buffer);
 
   static constexpr uint32_t kTotalTexelCount = 80 * 16 * 2048;
 
@@ -207,14 +207,8 @@ class EDRAMStore {
   VkImage edram_image_ = nullptr;
   // View of the EDRAM image.
   VkImageView edram_image_view_ = nullptr;
-
-  // Memory backing the dirty depth bits.
-  VkDeviceMemory depth_dirty_memory_ = nullptr;
-  // Bit array storing which depth pixels have been overwritten by color.
-  VkBuffer depth_dirty_buffer_ = nullptr;
-
-  // Whether the tile image and the dirty depth bits have been transitioned.
-  bool storage_prepared_ = false;
+  // Whether the EDRAM image has been transitioned before the first use.
+  bool edram_image_prepared_ = false;
 
   // Memory backing the depth copy buffer.
   VkDeviceMemory depth_copy_memory_ = nullptr;
@@ -228,12 +222,10 @@ class EDRAMStore {
       DepthCopyBufferState::kUntransitioned;
 
   // Pipeline layouts.
-  VkDescriptorSetLayout descriptor_set_layout_color_store_ = nullptr;
-  VkDescriptorSetLayout descriptor_set_layout_color_load_ = nullptr;
+  VkDescriptorSetLayout descriptor_set_layout_color_ = nullptr;
   VkDescriptorSetLayout descriptor_set_layout_depth_ = nullptr;
   VkDescriptorSetLayout descriptor_set_layout_clear_ = nullptr;
-  VkPipelineLayout pipeline_layout_color_store_ = nullptr;
-  VkPipelineLayout pipeline_layout_color_load_ = nullptr;
+  VkPipelineLayout pipeline_layout_color_ = nullptr;
   VkPipelineLayout pipeline_layout_depth_ = nullptr;
   VkPipelineLayout pipeline_layout_clear_ = nullptr;
 

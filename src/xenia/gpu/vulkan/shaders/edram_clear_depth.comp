@@ -19,7 +19,6 @@ layout(push_constant) uniform push_consts_type {
 } push_constants;
 
 layout(set = 0, binding = 0, r32ui) uniform writeonly uimage2DArray edram;
-layout(set = 0, binding = 1) buffer depth_dirty {uint depth_dirty_bits[64];};
 
 void main() {
   uint tile_index = push_constants.offset_tiles + gl_WorkGroupID.y *
@@ -31,7 +30,4 @@ void main() {
   imageStore(edram, ivec3(coord), uvec4(push_constants.stencil_depth));
   coord.z = 1;
   imageStore(edram, ivec3(coord), uvec4(push_constants.depth_host));
-  if (subgroup == 0 && gl_LocalInvocationID.xy == uvec2(0, 0)) {
-    atomicAnd(depth_dirty_bits[tile_index >> 5], ~(1u << (tile_index & 31)));
-  }
 }
