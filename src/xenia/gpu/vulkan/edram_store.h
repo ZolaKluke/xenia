@@ -208,6 +208,11 @@ class EDRAMStore {
   // View of the EDRAM image.
   VkImageView edram_image_view_ = nullptr;
 
+  // Memory backing the dirty depth bits.
+  VkDeviceMemory depth_dirty_memory_ = nullptr;
+  // Bit array storing which depth pixels have been overwritten by color.
+  VkBuffer depth_dirty_buffer_ = nullptr;
+
   // Whether the tile image and the dirty depth bits have been transitioned.
   bool storage_prepared_ = false;
 
@@ -223,10 +228,12 @@ class EDRAMStore {
       DepthCopyBufferState::kUntransitioned;
 
   // Pipeline layouts.
-  VkDescriptorSetLayout descriptor_set_layout_color_ = nullptr;
+  VkDescriptorSetLayout descriptor_set_layout_color_store_ = nullptr;
+  VkDescriptorSetLayout descriptor_set_layout_color_load_ = nullptr;
   VkDescriptorSetLayout descriptor_set_layout_depth_ = nullptr;
   VkDescriptorSetLayout descriptor_set_layout_clear_ = nullptr;
-  VkPipelineLayout pipeline_layout_color_ = nullptr;
+  VkPipelineLayout pipeline_layout_color_store_ = nullptr;
+  VkPipelineLayout pipeline_layout_color_load_ = nullptr;
   VkPipelineLayout pipeline_layout_depth_ = nullptr;
   VkPipelineLayout pipeline_layout_clear_ = nullptr;
 
@@ -238,9 +245,7 @@ class EDRAMStore {
   // Mode-dependent data (load/store pipelines and per-mode dependencies).
   ModeData mode_data_[Mode::k_ModeCount];
 
-  // Mode-independent pipelines.
-  VkShaderModule host_depth_load_shader_module_ = nullptr;
-  VkPipeline host_depth_load_pipeline_ = nullptr;
+  // Clear pipelines.
   VkShaderModule clear_color_shader_module_ = nullptr;
   VkPipeline clear_color_pipeline_ = nullptr;
   VkShaderModule clear_depth_shader_module_ = nullptr;
