@@ -36,228 +36,225 @@ namespace vulkan {
 // four 20 MB render targets and a depth/stencil buffer. Such amount of memory
 // will likely never be allocated.
 class RTCache {
-  public:
-    // Result of OnDraw, how the command processor needs to respond.
-    enum class DrawStatus {
-      // Either failed to enter a render pass, or drawing will have no effect.
-      kDoNotDraw,
-      // Started a new Vulkan render pass - need to resubmit state.
-      kDrawInNewPass,
-      // Still drawing in the same render pass - current state still valid.
-      kDrawInSamePass
+ public:
+  // Result of OnDraw, how the command processor needs to respond.
+  enum class DrawStatus {
+    // Either failed to enter a render pass, or drawing will have no effect.
+    kDoNotDraw,
+    // Started a new Vulkan render pass - need to resubmit state.
+    kDrawInNewPass,
+    // Still drawing in the same render pass - current state still valid.
+    kDrawInSamePass
+  };
+
+  RTCache(RegisterFile* register_file, ui::vulkan::VulkanDevice* device);
+  ~RTCache();
+
+  VkResult Initialize();
+  void Shutdown();
+
+  // Returns whether a new render pass has started and need to rebind things.
+  DrawStatus OnDraw(VkCommandBuffer command_buffer, VkFence batch_fence);
+  void OnFrameEnd(VkCommandBuffer command_buffer, VkFence batch_fence);
+  VkRenderPass GetCurrentVulkanRenderPass();
+
+  void BreakRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence);
+
+  VkImageView LoadResolveImage(
+      VkCommandBuffer command_buffer, VkFence batch_fence, uint32_t edram_base,
+      uint32_t surface_pitch, MsaaSamples samples, bool is_depth,
+      uint32_t format, VkExtent2D& image_size);
+  void ClearColor(VkCommandBuffer command_buffer, VkFence fence,
+                  ColorRenderTargetFormat format, MsaaSamples samples,
+                  uint32_t offset_tiles, uint32_t pitch_px, uint32_t height_px,
+                  uint32_t color_high, uint32_t color_low);
+  void ClearDepth(VkCommandBuffer command_buffer, VkFence fence,
+                  DepthRenderTargetFormat format, MsaaSamples samples,
+                  uint32_t offset_tiles, uint32_t pitch_px, uint32_t height_px,
+                  uint32_t stencil_depth);
+
+  void ClearCache();
+  void Scavenge();
+
+  static ColorRenderTargetFormat GetBaseRTFormat(
+      ColorRenderTargetFormat format);
+  VkFormat ColorRenderTargetFormatToVkFormat(
+      ColorRenderTargetFormat format) const;
+  VkFormat DepthRenderTargetFormatToVkFormat(
+      DepthRenderTargetFormat format) const;
+
+ private:
+  // Key used to index render targets bound to various 4 MB pages.
+  // Zero key means the render target is not used.
+  union RenderTargetKey {
+    struct {
+      uint32_t width_div_80 : 6;  // 6
+      uint32_t height_div_16 : 8;  // 14
+      uint32_t is_depth : 1;  // 15
+      // ColorRenderTargetFormat or DepthRenderTargetFormat.
+      uint32_t format : 4;  // 19
+      MsaaSamples samples : 2;  // 21
     };
+    uint32_t value;
+    inline RenderTargetKey() : value(0) {}
+    inline RenderTargetKey(const RenderTargetKey& key) : value(key.value) {}
+    inline RenderTargetKey& operator=(const RenderTargetKey& key) {
+      value = key.value;
+      return *this;
+    }
+  };
 
-    RTCache(RegisterFile* register_file, ui::vulkan::VulkanDevice* device);
-    ~RTCache();
+  enum class RenderTargetUsage {
+    // Newly created.
+    kUntransitioned,
+    // Currently used for rendering or EDRAM loading.
+    kFramebuffer,
+    // Currently being stored to the EDRAM.
+    kStoreToEDRAM,
+    // Currently being loaded from the EDRAM.
+    kLoadFromEDRAM,
+    // Currently being used for resolving using the blitter.
+    kResolve
+  };
 
-    VkResult Initialize();
-    void Shutdown();
+  // One render target bound to a specific page.
+  struct RenderTarget {
+    VkImage image;
+    VkImageView image_view;
+    VkImageView image_view_stencil;
+    VkImageView image_view_color_edram_store;
 
-    // Returns whether a new render pass has started and need to rebind things.
-    DrawStatus OnDraw(VkCommandBuffer command_buffer, VkFence batch_fence);
-    void OnFrameEnd(VkCommandBuffer command_buffer, VkFence batch_fence);
-    VkRenderPass GetCurrentVulkanRenderPass();
+    RenderTargetKey key;
 
-    void BreakRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence);
+    // Number of the first 4 MB page aliased by this render target.
+    uint32_t page_first;
+    // Number of 4 MB pages this render target uses.
+    // Up to 6 - pages can't span multiple memory areas.
+    uint32_t page_count;
 
-    VkImageView LoadResolveImage(
-        VkCommandBuffer command_buffer, VkFence batch_fence,
-        uint32_t edram_base, uint32_t surface_pitch, MsaaSamples samples,
-        bool is_depth, uint32_t format, VkExtent2D& image_size);
-    void ClearColor(VkCommandBuffer command_buffer, VkFence fence,
-                    ColorRenderTargetFormat format, MsaaSamples samples,
-                    uint32_t offset_tiles, uint32_t pitch_px,
-                    uint32_t height_px, uint32_t color_high,
-                    uint32_t color_low);
-    void ClearDepth(VkCommandBuffer command_buffer, VkFence fence,
-                    DepthRenderTargetFormat format, MsaaSamples samples,
-                    uint32_t offset_tiles, uint32_t pitch_px,
-                    uint32_t height_px, uint32_t stencil_depth);
+    RenderTargetUsage current_usage;
+  };
 
-    void ClearCache();
-    void Scavenge();
+  struct RenderPass {
+    // Attachment 0 for depth if used, then color.
+    VkRenderPass pass;
+    VkFramebuffer framebuffer;
 
-    static ColorRenderTargetFormat GetBaseRTFormat(
-        ColorRenderTargetFormat format);
-    VkFormat ColorRenderTargetFormatToVkFormat(
-        ColorRenderTargetFormat format) const;
-    VkFormat DepthRenderTargetFormatToVkFormat(
-        DepthRenderTargetFormat format) const;
+    // nullptr if not used.
+    RenderTarget* rts_color[4];
+    RenderTarget* rt_depth;
 
-  private:
-    // Key used to index render targets bound to various 4 MB pages.
-    // Zero key means the render target is not used.
-    union RenderTargetKey {
-      struct {
-        uint32_t width_div_80 : 6;  // 6
-        uint32_t height_div_16 : 8;  // 14
-        uint32_t is_depth : 1;  // 15
-        // ColorRenderTargetFormat or DepthRenderTargetFormat.
-        uint32_t format : 4;  // 19
-        MsaaSamples samples : 2;  // 21
-      };
-      uint32_t value;
-      inline RenderTargetKey() : value(0) {}
-      inline RenderTargetKey(const RenderTargetKey& key) : value(key.value) {}
-      inline RenderTargetKey& operator=(const RenderTargetKey& key) {
-        value = key.value;
-        return *this;
-      }
-    };
+    // Cache optimization for search.
+    RenderTargetKey keys_color[4];
+    RenderTargetKey key_depth;
 
-    enum class RenderTargetUsage {
-      // Newly created.
-      kUntransitioned,
-      // Currently used for rendering or EDRAM loading.
-      kFramebuffer,
-      // Currently being stored to the EDRAM.
-      kStoreToEDRAM,
-      // Currently being loaded from the EDRAM.
-      kLoadFromEDRAM,
-      // Currently being used for resolving using the blitter.
-      kResolve
-    };
+    // Dimensions for render area.
+    uint32_t width;
+    uint32_t height;
+  };
 
-    // One render target bound to a specific page.
-    struct RenderTarget {
-      VkImage image;
-      VkImageView image_view;
-      VkImageView image_view_stencil;
-      VkImageView image_view_color_edram_store;
+  static constexpr VkImageUsageFlags kRTImageUsageFlagsColor =
+      VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
+      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+  static constexpr VkImageUsageFlags kRTImageUsageFlagsDepth =
+      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+      VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
-      RenderTargetKey key;
-
-      // Number of the first 4 MB page aliased by this render target.
-      uint32_t page_first;
-      // Number of 4 MB pages this render target uses.
-      // Up to 6 - pages can't span multiple memory areas.
-      uint32_t page_count;
-
-      RenderTargetUsage current_usage;
-    };
-
-    struct RenderPass {
-      // Attachment 0 for depth if used, then color.
-      VkRenderPass pass;
-      VkFramebuffer framebuffer;
-
-      // nullptr if not used.
-      RenderTarget* rts_color[4];
-      RenderTarget* rt_depth;
-
-      // Cache optimization for search.
-      RenderTargetKey keys_color[4];
-      RenderTargetKey key_depth;
-
-      // Dimensions for render area.
-      uint32_t width;
-      uint32_t height;
-    };
-
-    static constexpr VkImageUsageFlags kRTImageUsageFlagsColor =
-        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
-        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    static constexpr VkImageUsageFlags kRTImageUsageFlagsDepth =
-        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-        VK_IMAGE_USAGE_SAMPLED_BIT |
-        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-
-    static inline void GetSupersampledSize(uint32_t& width, uint32_t& height,
-                                           MsaaSamples samples) {
-      if (samples >= MsaaSamples::k2X) {
-        height *= 2;
-        if (samples >= MsaaSamples::k4X) {
-          width *= 2;
-        }
+  static inline void GetSupersampledSize(uint32_t& width, uint32_t& height,
+                                         MsaaSamples samples) {
+    if (samples >= MsaaSamples::k2X) {
+      height *= 2;
+      if (samples >= MsaaSamples::k4X) {
+        width *= 2;
       }
     }
+  }
 
-    inline VkFormat GetRenderTargetKeyVkFormat(RenderTargetKey key) const {
-      if (key.is_depth) {
-        return DepthRenderTargetFormatToVkFormat(
-            DepthRenderTargetFormat(key.format));
-      }
-      return ColorRenderTargetFormatToVkFormat(
-          ColorRenderTargetFormat(key.format));
+  inline VkFormat GetRenderTargetKeyVkFormat(RenderTargetKey key) const {
+    if (key.is_depth) {
+      return DepthRenderTargetFormatToVkFormat(
+          DepthRenderTargetFormat(key.format));
     }
-    bool IsRenderTargetKeyValid(RenderTargetKey key) const;
-    void FillRenderTargetImageCreateInfo(RenderTargetKey key,
-                                         VkImageCreateInfo& image_info) const;
+    return ColorRenderTargetFormatToVkFormat(
+        ColorRenderTargetFormat(key.format));
+  }
+  bool IsRenderTargetKeyValid(RenderTargetKey key) const;
+  void FillRenderTargetImageCreateInfo(RenderTargetKey key,
+                                       VkImageCreateInfo& image_info) const;
 
-    RenderTarget* FindOrCreateRenderTarget(RenderTargetKey key,
-                                           uint32_t page_first);
+  RenderTarget* FindOrCreateRenderTarget(RenderTargetKey key,
+                                         uint32_t page_first);
 
-    // Finds or creates views for the specified render target configuration.
-    // Returns true if succeeded, false in case of an error.
-    bool AllocateRenderTargets(const RenderTargetKey keys_color[4],
-                               RenderTargetKey key_depth,
-                               RenderTarget* rts_color[4],
-                               RenderTarget** rt_depth);
+  // Finds or creates views for the specified render target configuration.
+  // Returns true if succeeded, false in case of an error.
+  bool AllocateRenderTargets(const RenderTargetKey keys_color[4],
+                             RenderTargetKey key_depth,
+                             RenderTarget* rts_color[4],
+                             RenderTarget** rt_depth);
 
-    static VkPipelineStageFlags GetRenderTargetUsageParameters(
-        bool is_depth, RenderTargetUsage usage, VkAccessFlags& access_mask,
-        VkImageLayout& layout);
-    void SwitchSingleRenderTargetUsage(VkCommandBuffer command_buffer,
-                                       RenderTarget* rt,
-                                       RenderTargetUsage usage);
+  static VkPipelineStageFlags GetRenderTargetUsageParameters(
+      bool is_depth, RenderTargetUsage usage, VkAccessFlags& access_mask,
+      VkImageLayout& layout);
+  void SwitchSingleRenderTargetUsage(VkCommandBuffer command_buffer,
+                                     RenderTarget* rt, RenderTargetUsage usage);
 
-    // Finds or creates a render pass. Returns nullptr in case of an error.
-    RenderPass* GetRenderPass(const RenderTargetKey keys_color[4],
-                              RenderTargetKey key_depth);
-    void SwitchRenderPassTargetUsage(VkCommandBuffer command_buffer,
-                                     RenderPass* pass, RenderTargetUsage usage,
-                                     uint32_t switch_color_mask,
-                                     bool switch_depth);
+  // Finds or creates a render pass. Returns nullptr in case of an error.
+  RenderPass* GetRenderPass(const RenderTargetKey keys_color[4],
+                            RenderTargetKey key_depth);
+  void SwitchRenderPassTargetUsage(VkCommandBuffer command_buffer,
+                                   RenderPass* pass, RenderTargetUsage usage,
+                                   uint32_t switch_color_mask,
+                                   bool switch_depth);
 
-    void BeginRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence,
-                         RenderPass* pass);
-    void EndRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence,
-                       bool from_begin);
-    void UpdateDirtyArea();
-    bool AreCurrentEDRAMParametersValid() const;
+  void BeginRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence,
+                       RenderPass* pass);
+  void EndRenderPass(VkCommandBuffer command_buffer, VkFence batch_fence,
+                     bool from_begin);
+  void UpdateDirtyArea();
+  bool AreCurrentEDRAMParametersValid() const;
 
-    RegisterFile* register_file_ = nullptr;
-    ui::vulkan::VulkanDevice* device_ = nullptr;
+  RegisterFile* register_file_ = nullptr;
+  ui::vulkan::VulkanDevice* device_ = nullptr;
 
-    // Storage for the preserving EDRAM contents across different views.
-    EDRAMStore edram_store_;
+  // Storage for the preserving EDRAM contents across different views.
+  EDRAMStore edram_store_;
 
-    // Memory types that can be used for render targets.
-    uint32_t rt_memory_type_bits_;
-    // 32 MB memory blocks backing render targets.
-    VkDeviceMemory rt_memory_[5] = {};
+  // Memory types that can be used for render targets.
+  uint32_t rt_memory_type_bits_;
+  // 32 MB memory blocks backing render targets.
+  VkDeviceMemory rt_memory_[5] = {};
 
-    // Render target views indexed with render target keys.
-    std::unordered_multimap<uint32_t, RenderTarget*> rts_;
+  // Render target views indexed with render target keys.
+  std::unordered_multimap<uint32_t, RenderTarget*> rts_;
 
-    std::vector<RenderPass*> passes_;
+  std::vector<RenderPass*> passes_;
 
-    // Shadows of the registers that impact the render pass we choose.
-    // If the registers don't change between passes, we can quickly reuse the
-    // previous one.
-    struct ShadowRegisters {
-      reg::RB_MODECONTROL rb_modecontrol;
-      reg::RB_SURFACE_INFO rb_surface_info;
-      reg::RB_COLOR_INFO rb_color_info[4];
-      uint32_t rb_color_mask;
-      reg::RB_DEPTH_INFO rb_depth_info;
+  // Shadows of the registers that impact the render pass we choose.
+  // If the registers don't change between passes, we can quickly reuse the
+  // previous one.
+  struct ShadowRegisters {
+    reg::RB_MODECONTROL rb_modecontrol;
+    reg::RB_SURFACE_INFO rb_surface_info;
+    reg::RB_COLOR_INFO rb_color_info[4];
+    uint32_t rb_color_mask;
+    reg::RB_DEPTH_INFO rb_depth_info;
 
-      ShadowRegisters() { Reset(); }
-      void Reset() { std::memset(this, 0, sizeof(*this)); }
-    } shadow_registers_;
-    bool SetShadowRegister(uint32_t* dest, uint32_t register_name);
+    ShadowRegisters() { Reset(); }
+    void Reset() { std::memset(this, 0, sizeof(*this)); }
+  } shadow_registers_;
+  bool SetShadowRegister(uint32_t* dest, uint32_t register_name);
 
-    // Current state.
-    RenderPass* current_pass_ = nullptr;
-    uint32_t current_edram_pitch_px_;
-    uint32_t current_edram_color_offsets_[4];
-    uint32_t current_edram_depth_offset_;
-    // current_shadow_valid_ is set to false when need to do full OnDraw logic.
-    // This may happen after a copy command that ends the pass, for example.
-    bool current_shadow_valid_ = false;
-    // Area modified by the draw calls during the current pass, for storing.
-    // Left, top, right, bottom.
-    uint32_t current_dirty_area_[4];
+  // Current state.
+  RenderPass* current_pass_ = nullptr;
+  uint32_t current_edram_pitch_px_;
+  uint32_t current_edram_color_offsets_[4];
+  uint32_t current_edram_depth_offset_;
+  // current_shadow_valid_ is set to false when need to do full OnDraw logic.
+  // This may happen after a copy command that ends the pass, for example.
+  bool current_shadow_valid_ = false;
+  // Area modified by the draw calls during the current pass, for storing.
+  // Left, top, right, bottom.
+  uint32_t current_dirty_area_[4];
 };
 
 }  // namespace vulkan
