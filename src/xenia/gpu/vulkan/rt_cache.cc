@@ -1165,7 +1165,8 @@ RTCache::DrawStatus RTCache::OnDraw(VkCommandBuffer command_buffer,
     if (!(color_mask & (0xF << (i * 4)))) {
       continue;
     }
-    if (EDRAMStore::IsColorFormat64bpp(regs.rb_color_info[i].color_format)) {
+    if (EDRAMStore::IsGuestColorFormat64bpp(
+        regs.rb_color_info[i].color_format)) {
       any_64bpp = true;
       break;
     }
@@ -1252,7 +1253,8 @@ VkImageView RTCache::LoadResolveImage(
   uint32_t width_div_80 = xe::round_up(surface_pitch, 80) / 80;
   bool is_64bpp = false;
   if (!is_depth) {
-    is_64bpp = EDRAMStore::IsColorFormat64bpp(ColorRenderTargetFormat(format));
+    is_64bpp =
+        EDRAMStore::IsGuestColorFormat64bpp(ColorRenderTargetFormat(format));
   }
   uint32_t height = EDRAMStore::GetMaxHeight(is_64bpp, samples, 0,
                                              surface_pitch);
@@ -1311,7 +1313,7 @@ void RTCache::ClearColor(VkCommandBuffer command_buffer, VkFence fence,
                          uint32_t color_low) {
   BreakRenderPass(command_buffer, fence);
   edram_store_.ClearColor(command_buffer, fence,
-                          EDRAMStore::IsColorFormat64bpp(format), samples,
+                          EDRAMStore::IsGuestColorFormat64bpp(format), samples,
                           offset_tiles, pitch_px, height_px, color_high,
                           color_low);
 }

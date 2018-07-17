@@ -9,7 +9,6 @@
 
 #include "xenia/gpu/vulkan/edram_store.h"
 #include "xenia/base/assert.h"
-#include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 
 namespace xe {
@@ -780,10 +779,6 @@ void EDRAMStore::CopyColor(VkCommandBuffer command_buffer, VkFence fence,
                            MsaaSamples rt_samples, VkRect2D rt_rect_ss,
                            uint32_t edram_offset_tiles,
                            uint32_t edram_pitch_px) {
-  XELOGGPU("EDRAM StoreColor (%s): offset %u, pitch %u, height %u.\n",
-           load ? "load" : "store", edram_offset_tiles, edram_pitch_px,
-           rt_rect_ss.extent.height);
-
   Mode mode = GetColorMode(rt_format);
   if (mode == Mode::k_ModeUnsupported) {
     return;
@@ -1031,8 +1026,6 @@ void EDRAMStore::ClearColor(VkCommandBuffer command_buffer, VkFence fence,
                             uint32_t offset_tiles, uint32_t pitch_px,
                             uint32_t height_px, uint32_t color_high,
                             uint32_t color_low) {
-  XELOGGPU("EDRAM ClearColor: pitch %u, height %u.\n", pitch_px, height_px);
-
   // Get the clear region size.
   VkRect2D rect_ss;
   rect_ss.offset.x = 0;
