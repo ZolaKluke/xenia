@@ -22,8 +22,10 @@ layout(set = 0, binding = 1, r32ui) uniform writeonly uimageBuffer buffer_depth;
 layout(set = 0, binding = 2, r8ui)
     uniform writeonly uimageBuffer buffer_stencil;
 
-// Based on the 6e4 code from:
+// 20e4 - based on CFloat24 from d3dref9.dll and the 6e4 code from:
 // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
+// 6e4 has a different exponent bias allowing [0,512) values, 20e4 allows [0,2).
+// We also can't clamp the stored value to 1 as load->store->load must be exact.
 
 uint Float20e4To32(uint bits24) {
   uint mantissa = bits24 & 0xFFFFFu;
@@ -31,29 +33,30 @@ uint Float20e4To32(uint bits24) {
   if (exponent == 0u) {
     if (mantissa != 0u) {
       // Normalize the value in the resulting float.
+      // Exponent = 1;
       // do { Exponent--; Mantissa <<= 1; } while ((Mantissa & 0x100000) == 0);
       uint mantissa_lzcnt = uint(20 - findMSB(mantissa));
       exponent = 1u - mantissa_lzcnt;
       mantissa = (mantissa << mantissa_lzcnt) & 0xFFFFFu;
     } else {
-      // Zero - set biased exponent to -120.
-      exponent = 0xFFFFFEE0u;
+      // Zero - set biased exponent to -112.
+      exponent = 0xFFFFFF90u;
     }
   }
-  return ((exponent + 120u) << 23u) | (mantissa << 3u);
+  return ((exponent + 112u) << 23u) | (mantissa << 3u);
 }
 
 uint Float32To20e4(uint bits32) {
   // Only positive (high bit set means negative for both float and int), and
   // saturate to the maximum representable value (also dropping NaNs).
-  bits32 = uint(clamp(int(bits32), 0, 0x43FFFFFB));
-  if (bits32 < 0x3C800000u) {
+  bits32 = uint(clamp(int(bits32), 0, 0x3FFFFFFB));
+  if (bits32 < 0x38800000u) {
     // The number is too small to be represented as a normalized 20e4.
     // Convert it to a denormalized value.
-    bits32 = ((bits32 & 0x7FFFFFu) | 0x800000u) >> (121u - (bits32 >> 23u));
+    bits32 = ((bits32 & 0x7FFFFFu) | 0x800000u) >> (113u - (bits32 >> 23u));
   } else {
     // Rebias the exponent to represent the value as a normalized 20e4.
-    bits32 += 0xC4000000u;
+    bits32 += 0xC8000000u;
   }
   return ((bits32 + 3u + ((bits32 >> 3u) & 1u)) >> 3u) & 0xFFFFFFu;
 }

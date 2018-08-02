@@ -1174,7 +1174,7 @@ void EDRAMStore::ClearDepth(VkCommandBuffer command_buffer, VkFence fence,
   push_constants.pitch_tiles = pitch_tiles;
   push_constants.stencil_depth = stencil_depth;
   if (format == DepthRenderTargetFormat::kD24FS8) {
-    // Based on the 6e4 code from:
+    // 20e4 - based on CFloat24 from d3dref9.dll and the 6e4 (with exp -8) code:
     // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
     uint32_t bits24 = stencil_depth >> 8;
     if (bits24 == 0) {
@@ -1188,7 +1188,7 @@ void EDRAMStore::ClearDepth(VkCommandBuffer command_buffer, VkFence fence,
         exponent = 1u - mantissa_lzcnt;
         mantissa = (mantissa << mantissa_lzcnt) & 0xFFFFFu;
       }
-      push_constants.depth_host = ((exponent + 120u) << 23) | (mantissa << 3);
+      push_constants.depth_host = ((exponent + 112u) << 23) | (mantissa << 3);
     }
   } else {
     assert_true(format == DepthRenderTargetFormat::kD24S8);
