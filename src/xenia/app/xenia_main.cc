@@ -19,6 +19,8 @@
 
 #include "xenia/app/emulator_window.h"
 
+#include "xenia/ui/qt/main_window.h"
+
 #include <QApplication>
 #include <QtPlugin>
 
@@ -42,7 +44,8 @@ int xenia_main(const std::vector<std::wstring>& args) {
   int argc = 1;
   char* argv[] = {"xenia", nullptr};
   QApplication app(argc, argv);
-  EmulatorWindow main_wnd;
+  //EmulatorWindow main_wnd;
+  ui::qt::MainWindow main_wnd;
   main_wnd.setWindowIcon(QIcon(":/icon.ico"));
   main_wnd.setFixedSize(1280, 720);
   
@@ -112,10 +115,10 @@ int xenia_main(const std::vector<std::wstring>& args) {
   */
 
   main_wnd.show();
-  if (args.size() >= 2) {
-    // Launch the path passed in args[1].
-    main_wnd.Launch(args[1]);
-  }
+  //if (args.size() >= 2) {
+  //  // Launch the path passed in args[1].
+  //  main_wnd.Launch(args[1]);
+  //}
 
   int rc = app.exec();
 

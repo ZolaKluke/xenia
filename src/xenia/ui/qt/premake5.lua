@@ -20,6 +20,7 @@ project("xenia-ui-qt")
   links({
     "xenia-base",
     "xenia-core",
+	"icon-headers"
   })
   defines({
   })
