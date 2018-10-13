@@ -20,8 +20,8 @@ namespace xe {
 namespace hid {
 namespace xinput {
 
-XInputInputDriver::XInputInputDriver(xe::ui::Window* window)
-    : InputDriver(window) {
+XInputInputDriver::XInputInputDriver()
+    : InputDriver() {
 #if (_WIN32_WINNT >= _WIN32_WINNT_WIN8 && _WIN32_WINNT < _WIN32_WINNT_WIN10)
   // TODO(gibbed): Is this necessary?
   XInputEnable(TRUE);
