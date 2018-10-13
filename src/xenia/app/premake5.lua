@@ -13,7 +13,6 @@ project("xenia-app")
     "gflags",
     "glew",
     "glslang-spirv",
-    "icon-headers",
     "imgui",
     "libavcodec",
     "libavutil",

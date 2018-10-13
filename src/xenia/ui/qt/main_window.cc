@@ -19,7 +19,7 @@ namespace qt {
 
 MainWindow::MainWindow(QWidget* parent)
     : Themeable<QMainWindow>("MainWindow", parent) {
-  QIcon app_icon(":/res/icon.ico");
+  QIcon app_icon(":/icon.ico");
   setWindowIcon(app_icon);
 
   QMenuBar* menubar = menuBar();

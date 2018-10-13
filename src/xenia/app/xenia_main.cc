@@ -22,6 +22,7 @@
 #include "xenia/ui/qt/main_window.h"
 
 #include <QApplication>
+#include <QFontDatabase>
 #include <QtPlugin>
 
 #if XE_PLATFORM_WIN32 && QT_STATIC
@@ -44,11 +45,14 @@ int xenia_main(const std::vector<std::wstring>& args) {
   int argc = 1;
   char* argv[] = {"xenia", nullptr};
   QApplication app(argc, argv);
-  //EmulatorWindow main_wnd;
+  auto theme_manager = xe::ui::qt::ThemeManager::SharedManager();
+  QFontDatabase::addApplicationFont(":fonts/ionicons.ttf");
+
+  // EmulatorWindow main_wnd;
   ui::qt::MainWindow main_wnd;
   main_wnd.setWindowIcon(QIcon(":/icon.ico"));
   main_wnd.setFixedSize(1280, 720);
-  
+
   /*
   if (FLAGS_mount_scratch) {
     auto scratch_device = std::make_unique<xe::vfs::HostPathDevice>(
@@ -63,7 +67,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
       }
     }
   }
-
+  
   if (FLAGS_mount_cache) {
     auto cache0_device =
         std::make_unique<xe::vfs::HostPathDevice>("\\CACHE0", L"cache0", false);
@@ -115,7 +119,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
   */
 
   main_wnd.show();
-  //if (args.size() >= 2) {
+  // if (args.size() >= 2) {
   //  // Launch the path passed in args[1].
   //  main_wnd.Launch(args[1]);
   //}

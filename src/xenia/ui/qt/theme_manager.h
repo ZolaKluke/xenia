@@ -12,7 +12,9 @@
 #include <QColor>
 #include <QString>
 #include <QVector>
-#include "theme.h"
+
+#include "xenia/ui/qt/theme.h"
+#include "xenia/vfs/virtual_file_system.h"
 
 namespace xe {
 namespace ui {

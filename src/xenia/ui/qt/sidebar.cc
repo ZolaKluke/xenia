@@ -32,7 +32,6 @@ Sidebar::Sidebar(QWidget* parent) : Themeable<QWidget>("Sidebar", parent) {
 
   QToolButton* home_button = new QToolButton();
   home_button->setText(ICON_II_IOS_HOME_OUTLINE);
-  home_button->setText("Home");
   home_button->setAutoRaise(true);
   home_button->setFont(icon_font);
   home_button->setStyleSheet("color: white");
@@ -40,7 +39,6 @@ Sidebar::Sidebar(QWidget* parent) : Themeable<QWidget>("Sidebar", parent) {
 
   QToolButton* library_button = new QToolButton();
   library_button->setText(ICON_II_IOS_GAME_CONTROLLER_B_OUTLINE);
-  library_button->setText("Games");
   library_button->setAutoRaise(true);
   library_button->setFont(icon_font);
   library_button->setStyleSheet("color: white");
@@ -54,10 +52,9 @@ Sidebar::Sidebar(QWidget* parent) : Themeable<QWidget>("Sidebar", parent) {
   layout_->addWidget(settings_button, 0, Qt::AlignCenter);
 
   QToolButton* help_button = new QToolButton();
-  // help_button->setText(ICON_II_IOS_HELP_OUTLINE);
-  help_button->setText("Help");
+  help_button->setText(ICON_II_IOS_HELP_OUTLINE);
   help_button->setAutoRaise(true);
-  // help_button->setFont(icon_font);
+  help_button->setFont(icon_font);
   help_button->setStyleSheet("color: white");
   layout_->addWidget(help_button, 0, Qt::AlignCenter);
 }

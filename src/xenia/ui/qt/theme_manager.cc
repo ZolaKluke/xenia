@@ -7,10 +7,13 @@
  ******************************************************************************
  */
 
-#include "theme_manager.h"
 #include <QCoreApplication>
 #include <QDebug>
 #include <QDirIterator>
+
+#include "theme_manager.h"
+#include "xenia/base/logging.h"
+#include "xenia/vfs/devices/host_path_device.h"
 
 namespace xe {
 namespace ui {
@@ -28,7 +31,7 @@ ThemeManager& ThemeManager::SharedManager() {
 }
 
 const QString& ThemeManager::base_style() const {
-  QFile file(":/res/base.css");
+  QFile file(":/themes/base.css");
   file.open(QFile::ReadOnly | QFile::Text);
 
   static QString* style = nullptr;
@@ -41,9 +44,7 @@ const QString& ThemeManager::base_style() const {
 }
 
 void ThemeManager::LoadThemes() {
-  QString theme_dir =
-      QCoreApplication::applicationDirPath() +
-      "/../../../../themes";  // TODO(Wildenhaus): copy themes to build dir
+  QString theme_dir = ":/themes/";
   QDirIterator iter(theme_dir, QDir::Dirs | QDir::NoDotAndDotDot);
 
   while (iter.hasNext()) {
