@@ -7,5 +7,7 @@
         <file>themes/Xenia/stylesheets/MainWidget.css</file>
         <file>themes/Xenia/stylesheets/MainWindow.css</file>
         <file>themes/Xenia/stylesheets/Sidebar.css</file>
+        <file>box-art.jpg</file>
+        <file>box-art-placeholder.png</file>
     </qresource>
 </RCC>

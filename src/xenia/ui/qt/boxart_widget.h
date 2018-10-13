@@ -7,41 +7,39 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_UI_QT_MAIN_WIDGET_H_
-#define XENIA_UI_QT_MAIN_WIDGET_H_
+#ifndef XENIA_UI_QT_BOXART_WIDGET_H_
+#define XENIA_UI_QT_BOXART_WIDGET_H_
 
-#include <QKeyEvent>
-#include <QMainWindow>
-#include <QPainter>
-#include <QPushButton>
-#include <QToolBar>
+#include <QImage>
+#include <QLabel>
+#include <QVBoxLayout>
+#include <QWidget>
+
 #include "themeable_widget.h"
+#include "xenia/app/game_entry.h"
 
 namespace xe {
 namespace ui {
 namespace qt {
 
-class MainWindow;
+using xe::app::GameEntry;
 
-class MainWidget : public Themeable<QWidget> {
+class BoxArtWidget : public Themeable<QWidget> {
   Q_OBJECT
  public:
-  explicit MainWidget(QWidget* parent = nullptr);
+  BoxArtWidget(GameEntry* game, QWidget* parent = nullptr);
 
- protected:
-  void keyPressEvent(QKeyEvent* e) override;
-  void keyReleaseEvent(QKeyEvent* e) override;
+  void SetArt(QImage art);
 
  private:
-  MainWindow* window_;
-
- signals:
-
- public slots:
+  GameEntry* game_;
+  QImage art_;
+  QLabel* artlabel_;
+  QVBoxLayout* layout_;
 };
 
 }  // namespace qt
 }  // namespace ui
 }  // namespace xe
 
-#endif  // WIDGET_H
+#endif

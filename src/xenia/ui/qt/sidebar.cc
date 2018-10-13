@@ -42,7 +42,7 @@ Sidebar::Sidebar(QWidget* parent) : Themeable<QWidget>("Sidebar", parent) {
   library_button->setAutoRaise(true);
   library_button->setFont(icon_font);
   library_button->setStyleSheet("color: white");
-  layout_->addWidget(library_button, 0, Qt::AlignCenter);
+  layout_->addWidget(library_button, 0, Qt::AlignCenter | Qt::AlignHCenter);
 
   QToolButton* settings_button = new QToolButton();
   settings_button->setText(ICON_II_IOS_SETTINGS);
