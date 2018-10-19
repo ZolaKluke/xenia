@@ -14,13 +14,31 @@ using std::vector;
 
 typedef xe_xex2_header_t XexHeader;
 typedef xe_xex2_opt_header_t XexOptHeader;
-typedef xe_xex2_loader_info_t XexSecurityInfo;
 typedef struct {
   size_t size;
-  char* data;
+  vfs::File* file;
   XexHeader header;
-  XexSecurityInfo security_info;
+
+  uint8_t* Read(size_t offset, size_t size) const {
+    uint8_t* data = new uint8_t[size];
+    size_t bytes_read;
+    file->ReadSync(data, size, offset, &bytes_read);
+    return *&data;
+  }
+
+  template <typename T>
+  T Read(uint32_t offset) {
+    uint8_t* data = Read(offset, sizeof(T));
+    T swap = xe::load_and_swap<T>(data);
+    delete[] data;
+    return swap;
+  }
 } Xex;
+
+typedef struct {
+  size_t size;
+  vfs::File* file;
+} Nxe;
 
 class GameScanner {
  public:
@@ -35,9 +53,15 @@ class GameScanner {
 
   static Xex* ReadXex(vfs::File* xex);
   static X_STATUS XexReadHeader(Xex* xex);
-  static XexOptHeader XexReadOptionalHeader(Xex* xex, char* cursor);
+  static X_STATUS XexReadLoaderInfo(Xex* xex, uint32_t offset);
+  static X_STATUS XexReadSectionInfo(Xex* xex, uint32_t offset);
+  static X_STATUS XexDecryptHeaderKey(Xex* xex);
+  static XexOptHeader XexReadOptionalHeader(Xex* xex, uint8_t* cursor);
   static XexOptHeader XexReadAlternateTitleIds(Xex* xex, uint32_t offset);
-  static XexOptHeader XexReadDeviceId(Xex* xex, char* data);
+  static XexOptHeader XexReadDefaultFsCacheSize(Xex* xex, uint32_t value);
+  static XexOptHeader XexReadDefaultHeapSize(Xex* xex, uint32_t value);
+  static XexOptHeader XexReadDefaultStackSize(Xex* xex, uint32_t value);
+  static XexOptHeader XexReadDeviceId(Xex* xex, uint8_t* data);
   static XexOptHeader XexReadExecutionInfo(Xex* xex, uint32_t offset);
   static XexOptHeader XexReadFileFormatInfo(Xex* xex, uint32_t offset);
   static XexOptHeader XexReadGameRatings(Xex* xex, uint32_t offset);
@@ -48,8 +72,7 @@ class GameScanner {
   static XexOptHeader XexReadOriginalPeName(Xex* xex, uint32_t offset);
   static XexOptHeader XexReadResourceInfo(Xex* xex, uint32_t offset);
   static XexOptHeader XexReadSystemFlags(Xex* xex, uint32_t offset);
-  static X_STATUS XexReadSecurityInfo(Xex* xex, uint32_t offset);
-  static bool VerifyXexMagic(vfs::File* xex);
+  static X_STATUS XexVerifyMagic(Xex* xex);
 };
 
 }  // namespace app

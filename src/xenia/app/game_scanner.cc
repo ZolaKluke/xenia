@@ -1,10 +1,12 @@
 
 
 #include "xenia/app/game_scanner.h"
+#include "third_party/crypto/rijndael-alg-fst.h"
 #include "xenia/base/string_util.h"
 #include "xenia/kernel/util/xex2_info.h"
 #include "xenia/vfs/devices/disc_image_device.h"
 #include "xenia/vfs/devices/host_path_device.h"
+#include "xenia/vfs/devices/stfs_container_device.h"
 
 #include <QDir>
 #include <QDirIterator>
@@ -95,7 +97,7 @@ GameEntry* GameScanner::ScanIso(const QString& filepath) {
 GameEntry* GameScanner::ScanXex(const QString& filepath) {
   QFileInfo info(filepath);
   auto mount_path = "\\Device\xex";
-  auto file_path = info.absoluteFilePath().toStdWString();
+  auto file_path = info.absolutePath().toStdWString();
   auto device =
       std::make_unique<vfs::HostPathDevice>(mount_path, file_path, true);
   if (!device->Initialize()) {
@@ -107,54 +109,47 @@ GameEntry* GameScanner::ScanXex(const QString& filepath) {
     throw 0x6;  // TODO: Path does not contain a default.xex file
   }
 
-  vfs::File* xex = nullptr;
-  X_STATUS result = xex_entry->Open(vfs::FileAccess::kFileReadData, &xex);
+  vfs::File* xex_file = nullptr;
+  X_STATUS result = xex_entry->Open(vfs::FileAccess::kFileReadData, &xex_file);
   if (XFAILED(result)) {
     throw 0x7;  // TODO: Could not open default.xex for reading
   }
 
-  Xex* xe = ReadXex(xex);
+  Xex* xex = ReadXex(xex_file);
   // TODO: Set path
 
-  xex->Destroy();          // Destruct the file handle
+  xex_file->Destroy();     // Destruct the file handle
   device.reset();          // Destruct the device
   return new GameEntry();  // TODO
 }
 
+///////////////////////////////////////////////////////////////////////////////
+
 Xex* GameScanner::ReadXex(vfs::File* xex_file) {
-  if (!VerifyXexMagic(xex_file)) {
+  Xex* xex = new Xex();
+  xex->file = xex_file;
+  xex->size = xex_file->entry()->size();
+
+  if (XFAILED(XexVerifyMagic(xex))) {
     throw 0x8;  // TODO: XEX magic does not match
   }
-
-  size_t temp;
-  Xex* xex = new Xex();
-
-  xex->size = xex_file->entry()->size();
-  xex->data = (char*)calloc(1, xex->size);
-  xex_file->ReadSync(xex->data, xex->size, 0x0, &temp);
-  xex_file->Destroy();
 
   XexReadHeader(xex);
 
   return nullptr;  // TODO
 }
 
-bool GameScanner::VerifyXexMagic(vfs::File* xex) {
-  char* buffer = new char[4];
-  size_t bytes_read;
-  xex->ReadSync(buffer, 0x4, 0x0, &bytes_read);
-
-  uint32_t magic = xe::load<uint32_t>(buffer);
-  delete[] buffer;
-
-  return magic == XEX2_MAGIC;
+X_STATUS GameScanner::XexVerifyMagic(Xex* xex) {
+  uint32_t magic = xex->Read<uint32_t>(0x0);
+  return magic == XEX2_MAGIC ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
 }
 
 X_STATUS GameScanner::XexReadHeader(Xex* xex) {
-  auto data = xex->data;
-  auto header = &xex->header;
+  uint32_t header_size = xex->Read<uint32_t>(0x8);
+  uint8_t* data = xex->Read(0x0, header_size);
 
   // Read Primary Header Data
+  auto header = &xex->header;
   header->xex2 = xe::load_and_swap<uint32_t>(data + 0x00);
   header->module_flags =
       (xe_xex2_module_flags)xe::load_and_swap<uint32_t>(data + 0x04);
@@ -164,18 +159,110 @@ X_STATUS GameScanner::XexReadHeader(Xex* xex) {
   header->header_count = xe::load_and_swap<uint32_t>(data + 0x14);
 
   // Read Optional Headers
-  char* cursor = data + 0x18;
-  for (int i = 0; i < header->header_count; i++) {
+  uint8_t* cursor = data + 0x18;
+  for (int i = 0; i < header->header_count; i++, cursor += 0x8) {
     header->headers[i] = XexReadOptionalHeader(xex, cursor);
-    cursor += 0x8;
   }
 
-  XexReadSecurityInfo(xex, header->certificate_offset);
+  XexReadLoaderInfo(xex, header->certificate_offset);
+  XexReadSectionInfo(xex, header->certificate_offset + 0x180);
+  XexDecryptHeaderKey(xex);
 
+  delete[] data;
   return X_STATUS_SUCCESS;
 }
 
-XexOptHeader GameScanner::XexReadOptionalHeader(Xex* xex, char* cursor) {
+X_STATUS GameScanner::XexReadLoaderInfo(Xex* xex, uint32_t offset) {
+  uint32_t length = 0x180;
+  uint8_t* data = xex->Read(offset, length);
+
+  auto security = &xex->header.loader_info;
+  security->header_size = xe::load_and_swap<uint32_t>(data + 0x000);
+  security->image_size = xe::load_and_swap<uint32_t>(data + 0x004);
+  memcpy(security->rsa_signature, data + 0x008, 0x100);
+  security->unklength = xe::load_and_swap<uint32_t>(data + 0x108);
+  security->image_flags =
+      (xe_xex2_image_flags)xe::load_and_swap<uint32_t>(data + 0x10C);
+  security->load_address = xe::load_and_swap<uint32_t>(data + 0x110);
+  memcpy(security->section_digest, data + 0x114, 0x14);
+  security->import_table_count = xe::load_and_swap<uint32_t>(data + 0x128);
+  memcpy(security->import_table_digest, data + 0x12C, 0x14);
+  memcpy(security->media_id, data + 0x140, 0x10);
+  memcpy(security->file_key, data + 0x150, 0x10);
+  security->export_table = xe::load_and_swap<uint32_t>(data + 0x160);
+  memcpy(security->header_digest, data + 0x164, 0x14);
+  security->game_regions =
+      (xe_xex2_region_flags)xe::load_and_swap<uint32_t>(data + 0x178);
+  security->media_flags =
+      (xe_xex2_media_flags)xe::load_and_swap<uint32_t>(data + 0x17C);
+
+  delete[] data;
+  return X_STATUS_SUCCESS;
+}
+
+X_STATUS GameScanner::XexReadSectionInfo(Xex* xex, uint32_t offset) {
+  uint32_t count = xex->Read<uint32_t>(offset);
+  uint32_t size = sizeof(xe_xex2_section_t);
+  uint32_t length = count * size;
+  uint8_t* data = xex->Read(offset, length);
+
+  auto header = &xex->header;
+  header->section_count = count;
+  header->sections = (xe_xex2_section_t*)calloc(count, size);
+
+  if (!header->sections || !count) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  uint8_t* cursor = data + 0x04;
+  for (uint i = 0; i < count; i++) {
+    auto section = &header->sections[i];
+
+    // Determine page size (4kb/64kb)
+    uint32_t image_flags = header->loader_info.image_flags;
+    uint32_t page_size_4kb_flag = xe_xex2_image_flags::XEX_IMAGE_PAGE_SIZE_4KB;
+    bool is_4kb = image_flags & page_size_4kb_flag;
+    section->page_size = is_4kb ? 0x1000 : 0x10000;
+
+    section->info.value = xe::load_and_swap<uint32_t>(cursor + 0x00);
+    memcpy(section->digest, cursor + 0x04, sizeof(section->digest));
+    cursor += 0x04 + sizeof(section->digest);
+  }
+
+  delete[] data;
+  return X_STATUS_SUCCESS;
+}
+
+X_STATUS GameScanner::XexDecryptHeaderKey(Xex* xex) {
+  auto Decrypt = [](Xex* xex, const uint8_t* key) {
+    auto header = &xex->header;
+    uint32_t rk[4 * (MAXNR + 1)];
+    uint32_t Nr = rijndaelKeySetupDec(rk, key, 128);
+    rijndaelDecrypt(rk, Nr, header->loader_info.file_key, header->session_key);
+
+    // Check key validity by searching for PE Magic
+    uint8_t enc_buffer[0x10] = {0};
+    uint8_t dec_buffer[0x10] = {0};
+    uint8_t* block = xex->Read(header->exe_offset, 0x10);
+
+    memcpy(enc_buffer, block, 0x10);
+
+    Nr = rijndaelKeySetupDec(rk, header->session_key, 128);
+    rijndaelDecrypt(rk, Nr, enc_buffer, dec_buffer);
+
+    const uint16_t PE_MAGIC = 0x4D5A;  // "MZ"
+    uint16_t magic = xe::load_and_swap<uint16_t>(dec_buffer);
+
+    return magic == PE_MAGIC;
+  };
+
+  return Decrypt(xex, xe_xex2_retail_key)
+             ? X_STATUS_SUCCESS
+             : Decrypt(xex, xe_xex2_devkit_key) ? X_STATUS_SUCCESS
+                                                : X_STATUS_UNSUCCESSFUL;
+}
+
+XexOptHeader GameScanner::XexReadOptionalHeader(Xex* xex, uint8_t* cursor) {
   const uint32_t key = xe::load_and_swap<uint32_t>(cursor + 0x00);
   const uint32_t value = xe::load_and_swap<uint32_t>(cursor + 0x04);
 
@@ -183,11 +270,11 @@ XexOptHeader GameScanner::XexReadOptionalHeader(Xex* xex, char* cursor) {
     case XEX_HEADER_ALTERNATE_TITLE_IDS:
       return XexReadAlternateTitleIds(xex, value);
     case XEX_HEADER_DEFAULT_FILESYSTEM_CACHE_SIZE:
-      break;
+      return XexReadDefaultFsCacheSize(xex, value);
     case XEX_HEADER_DEFAULT_HEAP_SIZE:
-      break;
+      return XexReadDefaultHeapSize(xex, value);
     case XEX_HEADER_DEFAULT_STACK_SIZE:
-      break;
+      return XexReadDefaultStackSize(xex, value);
     case XEX_HEADER_DEVICE_ID:
       return XexReadDeviceId(xex, cursor + 0x04);
       // TODO: WHAT IS THIS: not working?
@@ -221,9 +308,9 @@ XexOptHeader GameScanner::XexReadOptionalHeader(Xex* xex, char* cursor) {
 }
 
 XexOptHeader GameScanner::XexReadAlternateTitleIds(Xex* xex, uint32_t offset) {
-  char* cursor = xex->data + offset;
-  uint32_t length = xe::load_and_swap<uint32_t>(cursor);
+  uint32_t length = xex->Read<uint32_t>(offset);
   uint32_t count = (length - 0x04) / 0x04;
+  uint8_t* data = xex->Read(offset, length);
 
   XexOptHeader opt_header;
   opt_header.key = XEX_HEADER_ALTERNATE_TITLE_IDS;
@@ -234,47 +321,88 @@ XexOptHeader GameScanner::XexReadAlternateTitleIds(Xex* xex, uint32_t offset) {
   header->alt_title_id_count = count;
   header->alt_title_ids = (uint32_t*)calloc(length, sizeof(uint32_t));
 
-  cursor += 0x04;
+  uint8_t* cursor = data + 0x04;
   for (uint i = 0; i < length; i++, cursor += 0x04) {
     xex->header.alt_title_ids[i] = xe::load_and_swap<uint32_t>(cursor);
   }
 
+  delete[] data;
   return opt_header;
 }
 
-XexOptHeader GameScanner::XexReadDeviceId(Xex* xex, char* data) {
+XexOptHeader GameScanner::XexReadDefaultFsCacheSize(Xex* xex, uint32_t value) {
+  XexOptHeader opt_header;
+  opt_header.key = XEX_HEADER_DEFAULT_FILESYSTEM_CACHE_SIZE;
+  opt_header.value = value;
+
+  xex->header.default_filesystem_cache_size = xe::byte_swap<uint32_t>(value);
+
+  return opt_header;
+}
+
+XexOptHeader GameScanner::XexReadDefaultHeapSize(Xex* xex, uint32_t value) {
+  XexOptHeader opt_header;
+  opt_header.key = XEX_HEADER_DEFAULT_HEAP_SIZE;
+  opt_header.value = value;
+
+  xex->header.default_heap_size = xe::byte_swap<uint32_t>(value);
+
+  return opt_header;
+}
+
+XexOptHeader GameScanner::XexReadDefaultStackSize(Xex* xex, uint32_t value) {
+  XexOptHeader opt_header;
+  opt_header.key = XEX_HEADER_DEFAULT_STACK_SIZE;
+  opt_header.value = value;
+
+  xex->header.default_stack_size = xe::byte_swap<uint32_t>(value);
+
+  return opt_header;
+}
+
+XexOptHeader GameScanner::XexReadDeviceId(Xex* xex, uint8_t* data) {
   XexOptHeader opt_header;
   opt_header.key = XEX_HEADER_DEVICE_ID;
+
+  // TODO
 
   return opt_header;
 }
 
 XexOptHeader GameScanner::XexReadExecutionInfo(Xex* xex, uint32_t offset) {
+  uint32_t length = sizeof(xe_xex2_execution_info_t);
+  uint8_t* data = xex->Read(offset, length);
+
   XexOptHeader opt_header;
   opt_header.key = XEX_HEADER_EXECUTION_INFO;
   opt_header.offset = offset;
+  opt_header.length = length;
 
-  char* cursor = xex->data + offset;
   auto info = &xex->header.execution_info;
-  info->media_id = xe::load_and_swap<uint32_t>(cursor + 0x00);
-  info->version.value = xe::load_and_swap<uint32_t>(cursor + 0x04);
-  info->base_version.value = xe::load_and_swap<uint32_t>(cursor + 0x08);
-  info->title_id = xe::load_and_swap<uint32_t>(cursor + 0x0c);
-  info->platform = xe::load_and_swap<uint8_t>(cursor + 0x10);
-  info->executable_table = xe::load_and_swap<uint8_t>(cursor + 0x11);
-  info->disc_number = xe::load_and_swap<uint8_t>(cursor + 0x12);
-  info->disc_count = xe::load_and_swap<uint8_t>(cursor + 0x13);
-  info->savegame_id = xe::load_and_swap<uint8_t>(cursor + 0x14);
+  info->media_id = xe::load_and_swap<uint32_t>(data + 0x00);
+  info->version.value = xe::load_and_swap<uint32_t>(data + 0x04);
+  info->base_version.value = xe::load_and_swap<uint32_t>(data + 0x08);
+  info->title_id = xe::load_and_swap<uint32_t>(data + 0x0c);
+  info->platform = xe::load_and_swap<uint8_t>(data + 0x10);
+  info->executable_table = xe::load_and_swap<uint8_t>(data + 0x11);
+  info->disc_number = xe::load_and_swap<uint8_t>(data + 0x12);
+  info->disc_count = xe::load_and_swap<uint8_t>(data + 0x13);
+  info->savegame_id = xe::load_and_swap<uint8_t>(data + 0x14);
 
+  delete[] data;
   return opt_header;
 }
 
 XexOptHeader GameScanner::XexReadFileFormatInfo(Xex* xex, uint32_t offset) {
+  uint32_t length = xex->Read<uint32_t>(offset);  // TODO
+  uint8_t* data = xex->Read(offset, length);
+
   XexOptHeader opt_header;
   opt_header.key = XEX_HEADER_FILE_FORMAT_INFO;
   opt_header.offset = offset;
+  opt_header.length = length;
 
-  char* cursor = xex->data + offset;
+  uint8_t* cursor = data;
   auto info = &xex->header.file_format_info;
   info->encryption_type =
       (xe_xex2_encryption_type)xe::load_and_swap<uint16_t>(cursor + 0x04);
@@ -320,41 +448,46 @@ XexOptHeader GameScanner::XexReadFileFormatInfo(Xex* xex, uint32_t offset) {
     } break;
   }
 
+  delete[] data;
   return opt_header;
 }
 
 XexOptHeader GameScanner::XexReadGameRatings(Xex* xex, uint32_t offset) {
+  uint32_t length = 0xC;
+  uint8_t* data = xex->Read(offset, length);
+
   XexOptHeader opt_header;
   opt_header.key = XEX_HEADER_GAME_RATINGS;
   opt_header.offset = offset;
+  opt_header.length = length;
 
-  char* cursor = xex->data + offset;
   auto ratings = &xex->header.game_ratings;
   ratings->esrb =
-      (xe_xex2_rating_esrb_value)xe::load_and_swap<uint8_t>(cursor + 0x00);
+      (xe_xex2_rating_esrb_value)xe::load_and_swap<uint8_t>(data + 0x00);
   ratings->pegi =
-      (xe_xex2_rating_pegi_value)xe::load_and_swap<uint8_t>(cursor + 0x01);
+      (xe_xex2_rating_pegi_value)xe::load_and_swap<uint8_t>(data + 0x01);
   ratings->pegifi =
-      (xe_xex2_rating_pegi_fi_value)xe::load_and_swap<uint8_t>(cursor + 0x02);
+      (xe_xex2_rating_pegi_fi_value)xe::load_and_swap<uint8_t>(data + 0x02);
   ratings->pegipt =
-      (xe_xex2_rating_pegi_pt_value)xe::load_and_swap<uint8_t>(cursor + 0x03);
+      (xe_xex2_rating_pegi_pt_value)xe::load_and_swap<uint8_t>(data + 0x03);
   ratings->bbfc =
-      (xe_xex2_rating_bbfc_value)xe::load_and_swap<uint8_t>(cursor + 0x04);
+      (xe_xex2_rating_bbfc_value)xe::load_and_swap<uint8_t>(data + 0x04);
   ratings->cero =
-      (xe_xex2_rating_cero_value)xe::load_and_swap<uint8_t>(cursor + 0x05);
+      (xe_xex2_rating_cero_value)xe::load_and_swap<uint8_t>(data + 0x05);
   ratings->usk =
-      (xe_xex2_rating_usk_value)xe::load_and_swap<uint8_t>(cursor + 0x06);
+      (xe_xex2_rating_usk_value)xe::load_and_swap<uint8_t>(data + 0x06);
   ratings->oflcau =
-      (xe_xex2_rating_oflc_au_value)xe::load_and_swap<uint8_t>(cursor + 0x07);
+      (xe_xex2_rating_oflc_au_value)xe::load_and_swap<uint8_t>(data + 0x07);
   ratings->oflcnz =
-      (xe_xex2_rating_oflc_nz_value)xe::load_and_swap<uint8_t>(cursor + 0x08);
+      (xe_xex2_rating_oflc_nz_value)xe::load_and_swap<uint8_t>(data + 0x08);
   ratings->kmrb =
-      (xe_xex2_rating_kmrb_value)xe::load_and_swap<uint8_t>(cursor + 0x09);
+      (xe_xex2_rating_kmrb_value)xe::load_and_swap<uint8_t>(data + 0x09);
   ratings->brazil =
-      (xe_xex2_rating_brazil_value)xe::load_and_swap<uint8_t>(cursor + 0x0A);
+      (xe_xex2_rating_brazil_value)xe::load_and_swap<uint8_t>(data + 0x0A);
   ratings->fpb =
-      (xe_xex2_rating_fpb_value)xe::load_and_swap<uint8_t>(cursor + 0x0B);
+      (xe_xex2_rating_fpb_value)xe::load_and_swap<uint8_t>(data + 0x0B);
 
+  delete[] data;
   return opt_header;
 }
 
@@ -369,23 +502,27 @@ XexOptHeader GameScanner::XexReadImageBaseAddress(Xex* xex, uint32_t value) {
 }
 
 XexOptHeader GameScanner::XexReadLanKey(Xex* xex, uint32_t offset) {
+  uint32_t length = 0x10;
+  uint8_t* data = xex->Read(offset, length);
+
   XexOptHeader opt_header;
   opt_header.key = XEX_HEADER_LAN_KEY;
   opt_header.offset = offset;
+  opt_header.length = length;
 
-  char* cursor = xex->data + offset;
   for (uint i = 0; i < 16; i++) {
-    xex->header.lan_key[i] = *(cursor + i);
+    xex->header.lan_key[i] = *(data + i);
   }
 
+  delete[] data;
   return opt_header;
 }
 
 XexOptHeader GameScanner::XexReadMultiDiscMediaIds(Xex* xex, uint32_t offset) {
-  char* cursor = xex->data + offset;
-  uint32_t length = xe::load_and_swap<uint32_t>(cursor);
+  uint32_t length = xex->Read<uint32_t>(offset);
   uint32_t count = (length - 0x04) / 0x10;
-  size_t size = sizeof(xe_xex2_multi_disc_media_id_t);
+  uint32_t entry_size = sizeof(xe_xex2_multi_disc_media_id_t);
+  uint8_t* data = xex->Read(offset, length);
 
   XexOptHeader opt_header;
   opt_header.key = XEX_HEADER_MULTIDISC_MEDIA_IDS;
@@ -395,15 +532,16 @@ XexOptHeader GameScanner::XexReadMultiDiscMediaIds(Xex* xex, uint32_t offset) {
   auto header = &xex->header;
   header->multi_disc_media_id_count = count;
   header->multi_disc_media_ids =
-      (xe_xex2_multi_disc_media_id_t*)calloc(count, size);
+      (xe_xex2_multi_disc_media_id_t*)calloc(count, entry_size);
 
-  cursor += 0x04;
+  uint8_t* cursor = data + 0x04;
   for (uint i = 0; i < count; i++, cursor += 0x10) {
     auto id = &xex->header.multi_disc_media_ids[i];
     memcpy(id->hash, cursor, 0x0C);
     id->media_id = xe::load_and_swap<uint32_t>(cursor + 0x0C);
   }
 
+  delete[] data;
   return opt_header;
 }
 
@@ -412,31 +550,33 @@ XexOptHeader GameScanner::XexReadOriginalBaseAddress(Xex* xex, uint32_t value) {
   opt_header.key = XEX_HEADER_ORIGINAL_PE_NAME;
   opt_header.value = value;
 
-  xex->header.original_base_address;
+  xex->header.original_base_address = xe::byte_swap<uint32_t>(value);
 
   return opt_header;
 }
 
 XexOptHeader GameScanner::XexReadOriginalPeName(Xex* xex, uint32_t offset) {
-  char* cursor = xex->data + offset;
-  uint32_t length = xe::load_and_swap<uint32_t>(cursor);
+  uint32_t length = xex->Read<uint32_t>(offset);
+  uint8_t* data = xex->Read(offset, length);
 
   XexOptHeader opt_header;
   opt_header.key = XEX_HEADER_ORIGINAL_PE_NAME;
   opt_header.offset = offset;
+  opt_header.length = length;
 
-  cursor += 0x04;
+  uint8_t* cursor = data + 0x04;
   xex->header.original_pe_name = (uint8_t*)calloc(length, 0x01);
   memcpy(xex->header.original_pe_name, cursor, length - 0x04);
 
+  delete[] data;
   return opt_header;
 }
 
 XexOptHeader GameScanner::XexReadResourceInfo(Xex* xex, uint32_t offset) {
-  char* cursor = xex->data + offset;
-  uint32_t length = xe::load_and_swap<uint32_t>(cursor + 0x00);
+  uint32_t length = xex->Read<uint32_t>(offset);
   uint32_t count = (length - 0x04) / 0x10;
   uint32_t size = sizeof(xe_xex2_resource_info_t);
+  uint8_t* data = xex->Read(offset, length);
 
   XexOptHeader opt_header;
   opt_header.key = XEX_HEADER_RESOURCE_INFO;
@@ -447,53 +587,31 @@ XexOptHeader GameScanner::XexReadResourceInfo(Xex* xex, uint32_t offset) {
   header->resource_info_count = count;
   header->resource_infos = (xe_xex2_resource_info_t*)calloc(count, size);
 
-  cursor += 0x04;
-  for (uint i = 0; i < length; i++) {
+  uint8_t* cursor = data + 0x04;
+  for (uint i = 0; i < count; i++, cursor += 0x10) {
     auto info = &xex->header.resource_infos[i];
     memcpy(info->name, cursor, 0x08);
     info->address = xe::load_and_swap<uint32_t>(cursor + 0x08);
     info->size = xe::load_and_swap<uint32_t>(cursor + 0x0C);
-    cursor += 0x10;
   }
 
+  delete[] data;
   return opt_header;
 }
 
 XexOptHeader GameScanner::XexReadSystemFlags(Xex* xex, uint32_t offset) {
+  uint32_t length = sizeof(xe_xex2_system_flags);
+  uint8_t* data = xex->Read(offset, length);
+
   XexOptHeader opt_header;
   opt_header.key = XEX_HEADER_SYSTEM_FLAGS;
   opt_header.offset = offset;
+  opt_header.length = length;
 
-  char* cursor = xex->data + offset;
-  xex->header.system_flags = (xe_xex2_system_flags)*cursor;
+  xex->header.system_flags = (xe_xex2_system_flags)*data;
 
+  delete[] data;
   return opt_header;
-}
-
-X_STATUS GameScanner::XexReadSecurityInfo(Xex* xex, uint32_t offset) {
-  char* cursor = xex->data + offset;
-
-  auto security = &xex->security_info;
-  security->header_size = xe::load_and_swap<uint32_t>(cursor + 0x000);
-  security->image_size = xe::load_and_swap<uint32_t>(cursor + 0x004);
-  memcpy(security->rsa_signature, cursor + 0x008, 0x100);
-  security->unklength = xe::load_and_swap<uint32_t>(cursor + 0x108);
-  security->image_flags =
-      (xe_xex2_image_flags)xe::load_and_swap<uint32_t>(cursor + 0x10C);
-  security->load_address = xe::load_and_swap<uint32_t>(cursor + 0x110);
-  memcpy(security->section_digest, cursor + 0x114, 0x14);
-  security->import_table_count = xe::load_and_swap<uint32_t>(cursor + 0x128);
-  memcpy(security->import_table_digest, cursor + 0x12C, 0x14);
-  memcpy(security->media_id, cursor + 0x140, 0x10);
-  memcpy(security->file_key, cursor + 0x150, 0x10);
-  security->export_table = xe::load_and_swap<uint32_t>(cursor + 0x160);
-  memcpy(security->header_digest, cursor + 0x164, 0x14);
-  security->game_regions =
-      (xe_xex2_region_flags)xe::load_and_swap<uint32_t>(cursor + 0x178);
-  security->media_flags =
-      (xe_xex2_media_flags)xe::load_and_swap<uint32_t>(cursor + 0x17C);
-
-  return X_STATUS_SUCCESS;
 }
 
 }  // namespace app
