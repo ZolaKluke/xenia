@@ -44,7 +44,7 @@ const QString& ThemeManager::base_style() const {
 }
 
 void ThemeManager::LoadThemes() {
-  QString theme_dir = ":/themes/";
+  QString theme_dir = ":/resources/themes/";
   QDirIterator iter(theme_dir, QDir::Dirs | QDir::NoDotAndDotDot);
 
   while (iter.hasNext()) {
