@@ -7,6 +7,8 @@ namespace xe {
 namespace ui {
 namespace qt {
 
+XTabSelector::XTabSelector() {}
+
 XTabSelector::XTabSelector(std::vector<XTab*> tabs) {
   tabs_ = tabs;
   Build();
@@ -92,8 +94,6 @@ void XTabSelector::SetTab(XTab* tab) {
 }
 
 void XTabSelector::mousePressEvent(QMouseEvent* event) {
-  auto x = event->x();
-
   // Try to find a tab located inside the click
   XTab* clicked_tab = nullptr;
   for (auto tab : tab_map_) {
@@ -117,10 +117,9 @@ void XTabSelector::paintEvent(QPaintEvent*) {
   }
 
   QPainter painter(this);
-  painter.setRenderHint(QPainter::Antialiasing);
+  painter.setRenderHint(QPainter::TextAntialiasing);
 
   // Draw Text
-  font_.setPixelSize(font_size_);
   painter.setFont(font_);
   painter.setPen(QPen(font_color_));
   for (auto tab : tab_map_) {
@@ -130,6 +129,7 @@ void XTabSelector::paintEvent(QPaintEvent*) {
   }
 
   // Draw Bar
+  painter.setRenderHint(QPainter::Antialiasing);
   painter.setPen(QPen(bar_color_));
   painter.setBrush(QBrush(bar_color_));
   painter.drawRoundedRect(bar_rect_, 3, 3);

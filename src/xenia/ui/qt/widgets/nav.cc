@@ -7,9 +7,7 @@ namespace xe {
 namespace ui {
 namespace qt {
 
-XNav::XNav() { 
-  Build(); 
-};
+XNav::XNav() { Build(); };
 
 void XNav::Build() {
   // Set Styling (TODO: Themeable)
@@ -48,11 +46,8 @@ void XNav::BuildTabs() {
   tab_selector_ = new XTabSelector(tabs);
   layout_->addWidget(tab_selector_);
 
-  connect(tab_selector_, SIGNAL(TabChanged), SLOT(TabChangedSlot));
-}
-
-void XNav::TabChangedSlot(XTab* tab) {
-  emit TabChanged(tab);
+  connect(tab_selector_, SIGNAL(TabChanged(XTab*)), this,
+          SIGNAL(TabChanged(XTab*)));
 }
 
 }  // namespace qt

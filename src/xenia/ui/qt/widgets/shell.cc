@@ -16,20 +16,27 @@ void XShell::Build() {
   layout_->setContentsMargins(0, 0, 0, 0);
   this->setLayout(layout_);
 
-  // Build Nav
+  BuildNav();
+  BuildTabStack();
+}
+
+void XShell::BuildNav() {
   nav_ = new XNav();
-  connect(nav_, SIGNAL(TabChanged), SLOT(TabChanged));
+  connect(nav_, SIGNAL(TabChanged(XTab*)), this, SLOT(TabChanged(XTab*)));
   layout_->addWidget(nav_, 1, Qt::AlignTop);
-
-  // Add Contents View
-  contents_ = new QWidget();
-  layout_->addWidget(contents_);
 }
 
-void XShell::TabChanged(XTab* tab) {
-  contents_ = tab;
-  update(); // TODO: Not Working
+void XShell::BuildTabStack() {
+  tab_stack_ = new QStackedLayout();
+  
+  for(XTab* tab : nav_->tabs()) {
+    tab_stack_->addWidget(tab);
+  }
+
+  layout_->addLayout(tab_stack_);
 }
+
+void XShell::TabChanged(XTab* tab) { tab_stack_->setCurrentWidget(tab); }
 
 }  // namespace qt
 }  // namespace ui

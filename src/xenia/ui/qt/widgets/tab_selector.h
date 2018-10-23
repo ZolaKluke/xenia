@@ -20,28 +20,53 @@ class XTabSelector : public QWidget {
   explicit XTabSelector();
   explicit XTabSelector(std::vector<XTab*> tabs);
 
-  void addTab(XTab* tab) { tabs_.push_back(tab); }
-  void removeTab(XTab* tab) { std::remove(tabs_.begin(), tabs_.end(), tab); }
+  void addTab(XTab* tab) {
+    tabs_.push_back(tab);
+    Rebuild();
+  }
+  void removeTab(XTab* tab) {
+    std::remove(tabs_.begin(), tabs_.end(), tab);
+    Rebuild();
+  }
+  XTab* getActiveTab() const { return active_tab_; }
   QColor getBarColor() const { return bar_color_; }
   void setBarColor(const QColor& color) { bar_color_ = color; }
   int getBarHeight() const { return bar_height_; }
-  void setBarHeight(int height) { bar_height_ = height; }
+  void setBarHeight(int height) {
+    bar_height_ = height;
+    Rebuild();
+  }
   int getBarMoveDuration() const { return bar_move_duration_; }
   void setBarMoveDuration(int ms) { bar_move_duration_ = ms; }
   double getBarRatio() const { return bar_ratio_; }
-  void setBarRatio(double ratio) { bar_ratio_ = ratio; }
+  void setBarRatio(double ratio) {
+    bar_ratio_ = ratio;
+    Rebuild();
+  }
   QRectF getBarRect() const { return bar_rect_; }
   void setBarRect(QRectF rect) { bar_rect_ = rect; }
   int getBarTextGap() const { return bar_text_gap_; }
-  void setBarTextGap(int gap) { bar_text_gap_ = gap; }
+  void setBarTextGap(int gap) {
+    bar_text_gap_ = gap;
+    Rebuild();
+  }
   QFont getFont() const { return font_; }
-  void setFont(const QFont& font) { font_ = font; }
+  void setFont(const QFont& font) {
+    font_ = font;
+    Rebuild();
+  }
   QColor getFontColor() const { return font_color_; }
   void setFontColor(const QColor& color) { font_color_ = color; }
   int getFontSize() const { return font_size_; }
-  void setFontSize(int size) { font_size_ = size; }
+  void setFontSize(int size) {
+    font_size_ = size;
+    Rebuild();
+  }
   int getTabSpacing() const { return tab_spacing_; }
-  void setTabSpacing(int spacing) { tab_spacing_ = spacing; }
+  void setTabSpacing(int spacing) {
+    tab_spacing_ = spacing;
+    Rebuild();
+  }
   std::vector<XTab*> getTabs() const { return tabs_; }
   void Rebuild() { needs_build_ = true; }
 

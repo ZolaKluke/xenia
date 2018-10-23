@@ -4,11 +4,11 @@
 #include "xenia/ui/qt/themeable_widget.h"
 #include "xenia/ui/qt/widgets/nav.h"
 #include "xenia/ui/qt/widgets/tab.h"
-#include "xenia/ui/qt/widgets/tab_selector.h"
 
 #include <QKeyEvent>
 #include <QMainWindow>
 #include <QVBoxLayout>
+#include <QStackedLayout>
 #include <map>
 #include <vector>
 
@@ -29,9 +29,12 @@ class XShell : public Themeable<QWidget> {
   QMainWindow* window_;
   QVBoxLayout* layout_;
   XNav* nav_;
-  QWidget* contents_;
+  QStackedLayout* tab_stack_;
+  std::vector<XTab*> tabs_;
 
   void Build();
+  void BuildNav();
+  void BuildTabStack();
 };
 
 }  // namespace qt
