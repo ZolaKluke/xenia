@@ -16,11 +16,12 @@ namespace qt {
 class XTab : public Themeable<QWidget> {
   Q_OBJECT
  public:
-  explicit XTab(const QString& tab_name) : Themeable<QWidget>("XTab"), tab_name_(tab_name) {
-    //PLACEHOLDER
+  explicit XTab(const QString& tab_name)
+      : Themeable<QWidget>("XTab"), tab_name_(tab_name) {
+    // PLACEHOLDER TODO: Remove this
     layout_ = new QVBoxLayout();
     QLabel* placeholder = new QLabel(tab_name_);
-	placeholder->setObjectName("placeholder");
+    placeholder->setObjectName("placeholder");
     layout_->addWidget(placeholder);
     setLayout(layout_);
   }
