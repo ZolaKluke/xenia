@@ -69,7 +69,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
   // EmulatorWindow main_wnd;
   ui::qt::MainWindow main_wnd;
   main_wnd.setWindowIcon(QIcon(":/resources/graphics/icon.ico"));
-  main_wnd.setFixedSize(1280, 720);
+  main_wnd.resize(1280, 720);
 
   /*
   if (FLAGS_mount_scratch) {
