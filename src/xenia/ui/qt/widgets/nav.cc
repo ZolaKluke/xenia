@@ -7,13 +7,9 @@ namespace xe {
 namespace ui {
 namespace qt {
 
-XNav::XNav() { Build(); };
+XNav::XNav() : Themeable<QWidget>("XNav") { Build(); };
 
 void XNav::Build() {
-  // Set Styling (TODO: Themeable)
-  this->setStyleSheet("background-color: #282828;");
-  this->setFixedHeight(60);  // TODO: Scalable
-
   // Build Main Layout
   layout_ = new QHBoxLayout();
   this->setLayout(layout_);
@@ -29,7 +25,7 @@ void XNav::BuildXeniaIcon() {
   xenia_icon_ = new QLabel();
   xenia_icon_->setFixedSize(40, 40);
   xenia_icon_->setScaledContents(true);
-  xenia_icon_->setPixmap(QPixmap(":/resources/graphics/icon64x64.png"));
+  xenia_icon_->setPixmap(QPixmap(":/resources/graphics/icon.ico"));
 
   QHBoxLayout* icon_layout = new QHBoxLayout();
   icon_layout->setContentsMargins(0, 0, 70, 0);

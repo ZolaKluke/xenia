@@ -5,7 +5,7 @@ namespace xe {
 namespace ui {
 namespace qt {
 
-XShell::XShell(QMainWindow* window) {
+XShell::XShell(QMainWindow* window) : Themeable<QWidget>("XShell") {
   window_ = window;
   Build();
 }

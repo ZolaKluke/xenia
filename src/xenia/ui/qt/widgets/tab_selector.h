@@ -12,7 +12,7 @@ namespace xe {
 namespace ui {
 namespace qt {
 
-class XTabSelector : public QWidget {
+class XTabSelector : public Themeable<QWidget> {
   Q_OBJECT;
   Q_PROPERTY(QRectF bar_rect READ getBarRect WRITE setBarRect);
 

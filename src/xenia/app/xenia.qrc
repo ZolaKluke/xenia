@@ -9,5 +9,7 @@
         <file>resources/themes/Xenia/stylesheets/NavBar.css</file>
         <file>resources/fonts/SegMDL2.ttf</file>
         <file>resources/fonts/segoeui.ttf</file>
+        <file>resources/themes/Xenia/stylesheets/XNav.css</file>
+        <file>resources/themes/Xenia/stylesheets/XTab.css</file>
     </qresource>
 </RCC>
