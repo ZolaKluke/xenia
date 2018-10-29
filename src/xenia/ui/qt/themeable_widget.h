@@ -32,10 +32,7 @@ class Themeable : public T {
 
     QString style = theme.StylesheetForComponent(theme_name);
     QString base_style = manager.base_style();
-	auto *tn = theme_name.data();
     if (style != QString::null) {
-		auto *test1 = style.data();
-		auto *test2 = base_style.data();
       setStyleSheet(base_style + style);
     }
   };
