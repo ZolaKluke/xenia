@@ -23,7 +23,7 @@ void XShell::Build() {
 void XShell::BuildNav() {
   nav_ = new XNav();
   connect(nav_, SIGNAL(TabChanged(XTab*)), this, SLOT(TabChanged(XTab*)));
-  layout_->addWidget(nav_, 1, Qt::AlignTop);
+  layout_->addWidget(nav_, 0, Qt::AlignTop);
 }
 
 void XShell::BuildTabStack() {
@@ -33,7 +33,7 @@ void XShell::BuildTabStack() {
     tab_stack_->addWidget(tab);
   }
 
-  layout_->addLayout(tab_stack_);
+  layout_->addLayout(tab_stack_,1);
 }
 
 void XShell::TabChanged(XTab* tab) { tab_stack_->setCurrentWidget(tab); }
