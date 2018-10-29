@@ -7,9 +7,10 @@ namespace xe {
 namespace ui {
 namespace qt {
 
-XTabSelector::XTabSelector() {}
+XTabSelector::XTabSelector() : Themeable<QWidget>("XTabSelector") {}
 
-XTabSelector::XTabSelector(std::vector<XTab*> tabs) {
+XTabSelector::XTabSelector(std::vector<XTab*> tabs) 
+	: Themeable<QWidget>("XTabSelector") {
   tabs_ = tabs;
   Build();
 }

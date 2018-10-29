@@ -7,13 +7,9 @@ namespace xe {
 namespace ui {
 namespace qt {
 
-XNav::XNav() { Build(); };
+XNav::XNav() : Themeable<QWidget>("XNav") { Build(); };
 
 void XNav::Build() {
-  // Set Styling (TODO: Themeable)
-  this->setStyleSheet("background-color: #282828;");
-  this->setFixedHeight(60);  // TODO: Scalable
-
   // Build Main Layout
   layout_ = new QHBoxLayout();
   this->setLayout(layout_);
