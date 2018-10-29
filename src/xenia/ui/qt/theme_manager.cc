@@ -31,7 +31,7 @@ ThemeManager& ThemeManager::SharedManager() {
 }
 
 const QString& ThemeManager::base_style() const {
-  QFile file(":/themes/base.css");
+  QFile file(":/resources/themes/base.css");
   file.open(QFile::ReadOnly | QFile::Text);
 
   static QString* style = nullptr;
@@ -49,7 +49,8 @@ void ThemeManager::LoadThemes() {
 
   while (iter.hasNext()) {
     Theme t(iter.next());
-    t.LoadTheme();
+    ThemeStatus status = t.LoadTheme();
+	assert(status == ThemeStatus::THEME_LOAD_OK); // TODO: better error handling
     themes_.push_back(t);
   }
 }
