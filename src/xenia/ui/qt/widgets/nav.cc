@@ -29,7 +29,7 @@ void XNav::BuildXeniaIcon() {
   xenia_icon_ = new QLabel();
   xenia_icon_->setFixedSize(40, 40);
   xenia_icon_->setScaledContents(true);
-  xenia_icon_->setPixmap(QPixmap(":/resources/graphics/icon64x64.png"));
+  xenia_icon_->setPixmap(QPixmap(":/resources/graphics/icon.ico"));
 
   QHBoxLayout* icon_layout = new QHBoxLayout();
   icon_layout->setContentsMargins(0, 0, 70, 0);
