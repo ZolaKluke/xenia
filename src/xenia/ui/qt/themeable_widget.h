@@ -15,7 +15,8 @@ namespace qt {
 template <typename T>
 class Themeable : public T {
  public:
-  Themeable(QString name, QWidget* parent = nullptr) : T(parent) {
+  template<typename... Args>
+  Themeable(QString name, Args&&... args) : T(args...){
     static_assert(std::is_base_of<QWidget, T>::value,
                   "T is not derived from QWidget");
 
