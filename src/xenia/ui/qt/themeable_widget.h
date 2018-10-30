@@ -37,11 +37,12 @@ class Themeable : public T {
     }
   };
 
-  void paintEvent(QPaintEvent*) override {
+  void paintEvent(QPaintEvent* event) override {
     QStyleOption opt;
     opt.init(this);
     QPainter p(this);
     style()->drawPrimitive(QStyle::PE_Widget, &opt, &p, this);
+    T::paintEvent(event);
   }
 };
 }  // namespace qt
