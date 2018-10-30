@@ -7,8 +7,12 @@
       "value": "#FFFFFF"
     },
     {
+      "name": "secondary",
+      "value": "#5CE494"
+    },
+    {
       "name": "background",
-      "value": "#1f1f1f"
+      "value": "#1F1F1F"
     },
     {
       "name": "accent",
