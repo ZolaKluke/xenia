@@ -1,6 +1,7 @@
 #include "xenia/ui/qt/widgets/tab_selector.h"
 
 #include <QPainter>
+#include <QPixmap>
 #include <QPropertyAnimation>
 
 namespace xe {
@@ -9,8 +10,8 @@ namespace qt {
 
 XTabSelector::XTabSelector() : Themeable<QWidget>("XTabSelector") {}
 
-XTabSelector::XTabSelector(std::vector<XTab*> tabs) 
-	: Themeable<QWidget>("XTabSelector") {
+XTabSelector::XTabSelector(std::vector<XTab*> tabs)
+    : Themeable<QWidget>("XTabSelector") {
   tabs_ = tabs;
   Build();
 }
@@ -118,15 +119,24 @@ void XTabSelector::paintEvent(QPaintEvent*) {
   }
 
   QPainter painter(this);
-  painter.setRenderHint(QPainter::TextAntialiasing);
+  painter.begin(this);
+  painter.setRenderHints(QPainter::TextAntialiasing |
+                         QPainter::HighQualityAntialiasing);
 
   // Draw Text
   painter.setFont(font_);
-  painter.setPen(QPen(font_color_));
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(QBrush(font_color_));
   for (auto tab : tab_map_) {
     QString tab_name = tab.first->tab_name();
     QRectF rect = tab.second;
-    painter.drawText(rect, tab_name);
+
+    QFontMetrics measure(font_);
+    QPointF text_baseline(rect.left(), rect.height() - measure.descent());
+
+    QPainterPath text_path;
+    text_path.addText(text_baseline, font_, tab_name);
+    painter.drawPath(text_path);
   }
 
   // Draw Bar
@@ -134,6 +144,8 @@ void XTabSelector::paintEvent(QPaintEvent*) {
   painter.setPen(QPen(bar_color_));
   painter.setBrush(QBrush(bar_color_));
   painter.drawRoundedRect(bar_rect_, 3, 3);
+
+  painter.end();
 }
 
 }  // namespace qt
