@@ -14,7 +14,9 @@ namespace qt {
 
 class XTabSelector : public Themeable<QWidget> {
   Q_OBJECT;
+
   Q_PROPERTY(QRectF bar_rect READ getBarRect WRITE setBarRect);
+  Q_PROPERTY(QColor bar_color READ getBarColor WRITE setBarColor);
 
  public:
   explicit XTabSelector();
@@ -87,7 +89,7 @@ class XTabSelector : public Themeable<QWidget> {
 
   bool needs_build_ = true;
   XTab* active_tab_ = nullptr;
-  QColor bar_color_ = QColor::fromRgb(92, 228, 148);
+  QColor bar_color_;
   int bar_height_ = 2;
   int bar_move_duration_ = 150;
   QRectF bar_rect_;

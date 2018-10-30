@@ -10,5 +10,6 @@
         <file>resources/fonts/segoeui.ttf</file>
         <file>resources/themes/Xenia/stylesheets/XNav.css</file>
         <file>resources/themes/Xenia/stylesheets/XTab.css</file>
+        <file>resources/themes/Xenia/stylesheets/XTabSelector.css</file>
     </qresource>
 </RCC>
