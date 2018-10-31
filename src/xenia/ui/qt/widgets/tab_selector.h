@@ -95,7 +95,7 @@ class XTabSelector : public Themeable<QWidget> {
   QRectF bar_rect_;
   double bar_ratio_ = 0.6;
   int bar_text_gap_ = 5;
-  QFont font_ = QFont(":resources/fonts/segoeui.ttf");
+  QFont font_ = QFont("Segoe UI Semibold");
   QColor font_color_ = Qt::white;
   int font_size_ = 24;
   int tab_spacing_ = 20;

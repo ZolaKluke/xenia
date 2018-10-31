@@ -1,0 +1,19 @@
+QHeaderView#XTableHeader {
+    background-color: #373737;
+}
+
+QHeaderView#XTableHeader::section {
+    border: 0px;
+    border-left: 1px solid #7F7F7F;
+    background-color: #373737;
+    color: $primary;
+    font-size: 12px;
+    font-weight: 500;
+    margin: 3px 0;
+    padding: 0 5px;
+    text-shadow: 0.20em 0.20em 0.20em #000;
+}
+
+QHeaderView#XTableHeader::section::first {
+    border: 0px;
+}
