@@ -119,7 +119,6 @@ void XTabSelector::paintEvent(QPaintEvent*) {
   }
 
   QPainter painter(this);
-  painter.begin(this);
   painter.setRenderHints(QPainter::TextAntialiasing |
                          QPainter::HighQualityAntialiasing);
 
@@ -144,8 +143,6 @@ void XTabSelector::paintEvent(QPaintEvent*) {
   painter.setPen(QPen(bar_color_));
   painter.setBrush(QBrush(bar_color_));
   painter.drawRoundedRect(bar_rect_, 3, 3);
-
-  painter.end();
 }
 
 }  // namespace qt
