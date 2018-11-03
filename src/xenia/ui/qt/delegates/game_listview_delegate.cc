@@ -51,7 +51,7 @@ void XGameListViewDelegate::paintIcon(QPixmap& icon, QPainter* painter,
   // Calculate the Icon position
   QRectF icon_rect = scaled_icon.rect();
   auto shift_x = (width - icon_size) / 2;
-  auto shift_y = (height - icon_size) / 2 + height * index.row();
+  auto shift_y = (height - icon_size) / 2 + options.rect.y();
   icon_rect.translate(shift_x, shift_y);
 
   painter->setRenderHint(QPainter::Antialiasing);
