@@ -30,12 +30,16 @@ class XGameLibrary {
   bool save();
 
   const std::shared_ptr<XGameEntry>& game(const uint32_t& title_id) const;
-  const std::vector<std::shared_ptr<XGameEntry>>& games() const;
+  const std::vector<std::shared_ptr<XGameEntry>>& games() const {
+    return games_;
+  }
+  const int size() const { return (int)games_.size(); }
 
  private:
   XGameLibrary(){};
 
-  std::map<uint32_t, std::shared_ptr<XGameEntry>> games_;
+  std::vector<std::shared_ptr<XGameEntry>> games_;
+  std::map<uint32_t, std::shared_ptr<XGameEntry>> games_titleid_map_;
   std::vector<std::string> game_paths_;
 };
 

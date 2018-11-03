@@ -30,10 +30,10 @@ struct NxeInfo {
   std::string game_title;
   uint8_t* icon;
   size_t icon_size;
-  uint8_t* nxe_background_image;    // TODO
-  size_t nxe_background_image_size; // TODO
-  uint8_t* nxe_slot_image;          // TODO
-  size_t nxe_slot_image_size;       // TODO
+  uint8_t* nxe_background_image;     // TODO
+  size_t nxe_background_image_size;  // TODO
+  uint8_t* nxe_slot_image;           // TODO
+  size_t nxe_slot_image_size;        // TODO
 };
 
 struct XexInfo {

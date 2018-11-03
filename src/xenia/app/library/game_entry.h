@@ -2,7 +2,6 @@
 #define XENIA_APP_GAME_ENTRY_H_
 
 #include "xenia/app/library/game_scanner.h"
-#include "xenia/app/library/types.h"
 #include "xenia/kernel/util/xex2_info.h"
 
 #include <map>
@@ -13,11 +12,13 @@ namespace app {
 
 class XGameEntry final {
  public:
-  XGameEntry();
+  XGameEntry() = default;
+  XGameEntry(const GameInfo& info);
   ~XGameEntry();
 
   bool is_valid();
   bool is_missing_data();
+  void apply_info(const GameInfo& info);
 
   const XGameFormat& format() const { return format_; }
   const std::string& file_path() const { return file_path_; }
@@ -25,6 +26,7 @@ class XGameEntry final {
 
   const std::string& title() const { return title_; }
   const uint8_t* icon() const { return icon_; }
+  const size_t& icon_size() const { return icon_size_; }
   const uint32_t title_id() const { return title_id_; }
   const uint32_t media_id() const { return media_id_; }
   const std::vector<uint32_t>& alt_title_ids() const { return alt_title_ids_; }
@@ -34,6 +36,10 @@ class XGameEntry final {
   const XGameVersion& base_version() const { return base_version_; }
   const XGameRatings& ratings() const { return ratings_; }
   const XGameRegions& regions() const { return regions_; }
+  const std::string& genre() const { return genre_; }
+  const std::string& build_date() const { return build_date_; }
+  const std::string& release_date() const { return release_date_; }
+  const uint8_t& player_count() const { return player_count_; }
 
  private:
   // File Info
@@ -43,9 +49,10 @@ class XGameEntry final {
 
   // Game Metadata
   std::string title_;
-  uint8_t icon_[0x4000];
-  uint32_t title_id_;
-  uint32_t media_id_;
+  uint8_t* icon_ = nullptr;
+  size_t icon_size_ = 0;
+  uint32_t title_id_ = 0;
+  uint32_t media_id_ = 0;
   std::vector<uint32_t> alt_title_ids_;
   std::vector<uint32_t> alt_media_ids_;
   std::map<uint8_t, uint32_t> disc_map_;  // <Disc #, MediaID>
@@ -53,7 +60,10 @@ class XGameEntry final {
   XGameVersion base_version_;
   XGameRatings ratings_;
   XGameRegions regions_;
-
+  std::string build_date_;
+  std::string genre_;
+  std::string release_date_;
+  uint8_t player_count_ = 0;
 };
 
 }  // namespace app
