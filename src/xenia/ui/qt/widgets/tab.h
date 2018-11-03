@@ -18,12 +18,6 @@ class XTab : public Themeable<QWidget> {
  public:
   explicit XTab(const QString& tab_name)
       : Themeable<QWidget>("XTab"), tab_name_(tab_name) {
-    // PLACEHOLDER TODO: Remove this
-    layout_ = new QVBoxLayout();
-    QLabel* placeholder = new QLabel(tab_name_);
-    placeholder->setObjectName("placeholder");
-    layout_->addWidget(placeholder);
-    setLayout(layout_);
   }
 
   const QString& tab_name() const { return tab_name_; }
