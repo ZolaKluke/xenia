@@ -9,6 +9,7 @@
 
 #include <gflags/gflags.h>
 
+//#include "xenia/app/library/game_library.h"
 //#include "xenia/base/debugging.h"
 //#include "xenia/base/logging.h"
 #include "xenia/base/main.h"
@@ -18,6 +19,7 @@
 
 #include "xenia/app/emulator_window.h"
 
+//#include "xenia/app/library/game_scanner.h"
 #include "xenia/ui/qt/main_window.h"
 
 #include "xenia/vfs/devices/stfs_container_entry.h"
@@ -59,13 +61,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
   fonts.addApplicationFont(":/resources/fonts/SegMDL2.ttf");
   fonts.addApplicationFont(":/resources/fonts/segoeui.ttf");
   fonts.addApplicationFont(":/resources/fonts/segoeuisb.ttf");
-
-  // auto dev = new vfs::HostPathDevice("\\host", L"C:\\", true);
-  // dev->Initialize();
-  // auto nxe = dev->ResolvePath("nxeart");
-  // vfs::File* nf = nullptr;
-  // nxe->Open(vfs::FileAccess::kFileReadData, &nf);
-  // XGameScanner::ReadNxe(nf);
+  QApplication::setFont(QFont("Segoe UI Semibold"));
 
   // EmulatorWindow main_wnd;
   ui::qt::MainWindow main_wnd;
