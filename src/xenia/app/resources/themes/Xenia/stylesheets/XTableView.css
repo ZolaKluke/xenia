@@ -5,10 +5,11 @@ QTableView#XTableView {
 
 QTableView#XTableView::item {
     background-color: #232323;
+    font-size: 12px;
 }
 
 QTableView#XTableView::item::selected {
-    background-color: $secondary;
+    background-color: #4aa971;
 }
 
 QTableView#XTableView::header {

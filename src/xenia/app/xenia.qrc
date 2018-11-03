@@ -1,10 +1,10 @@
 <RCC>
     <qresource prefix="/">
         <file>resources/graphics/icon.ico</file>
-		<file>resources/graphics/GameIconMask.png</file>
-		<file>resources/fonts/SegMDL2.ttf</file>
+        <file>resources/graphics/GameIconMask.png</file>
+        <file>resources/fonts/SegMDL2.ttf</file>
         <file>resources/fonts/segoeui.ttf</file>
-		<file>resources/fonts/segoeuisb.ttf</file>
+        <file>resources/fonts/segoeuisb.ttf</file>
         <file>resources/themes/base.css</file>
         <file>resources/themes/Xenia/theme.json</file>
         <file>resources/themes/Xenia/stylesheets/MainWindow.css</file>
@@ -13,5 +13,6 @@
         <file>resources/themes/Xenia/stylesheets/XTabSelector.css</file>
         <file>resources/themes/Xenia/stylesheets/XTableView.css</file>
         <file>resources/themes/Xenia/stylesheets/XTableHeader.css</file>
+        <file>resources/themes/Xenia/stylesheets/XSlider.css</file>
     </qresource>
 </RCC>

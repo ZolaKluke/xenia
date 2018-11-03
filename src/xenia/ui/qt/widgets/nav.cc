@@ -1,5 +1,6 @@
 #include "xenia/ui/qt/widgets/nav.h"
 #include "xenia/ui/qt/widgets/tab.h"
+#include "xenia/ui/qt/tabs/library_tab.h"
 
 #include <QLabel>
 
@@ -34,9 +35,10 @@ void XNav::BuildXeniaIcon() {
 }
 
 void XNav::BuildTabs() {
+  // TODO(Wildenhaus): Define tabs in shell?
   std::vector<XTab*> tabs{
       new XTab("Home"),
-      new XTab("Library"),
+      new LibraryTab(),
       new XTab("Settings"),
   };
   tab_selector_ = new XTabSelector(tabs);
