@@ -14,6 +14,7 @@ void XShell::Build() {
   // Build Main Layout
   layout_ = new QVBoxLayout();
   layout_->setContentsMargins(0, 0, 0, 0);
+  layout_->setSpacing(0);
   this->setLayout(layout_);
 
   BuildNav();
