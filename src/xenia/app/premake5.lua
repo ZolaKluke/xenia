@@ -122,7 +122,7 @@ project("xenia-app")
   includedirs({
     project_root.."/third_party/gflags/src",
   })
-  local_platform_files()
+  recursive_platform_files()
   files({
     "xenia_main.cc",
     "../base/main_"..platform_suffix..".cc",
