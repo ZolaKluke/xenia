@@ -14,7 +14,7 @@ XToolBar::XToolBar(QWidget* parent) : Themeable<QToolBar>("XToolBar", parent) {
 XToolBarItem* XToolBar::addAction(XAction* action) {
   addSpacing(spacing_);
   XToolBarItem* item = new XToolBarItem(action, this);
-  addWidget(item);
+  QToolBar::addWidget(item);
   return item;
 }
 
@@ -31,8 +31,14 @@ QWidget* XToolBar::addSpacing(int size) {
   QWidget* spacer = new QWidget(this);
 
   spacers_.push_back(spacer);
-  addWidget(spacer);
+  QToolBar::addWidget(spacer);
   return spacer;
+}
+
+QWidget* XToolBar::addWidget(QWidget* widget) {
+  addSpacing();
+  QToolBar::addWidget(widget);
+  return widget;
 }
 
 void XToolBar::setSpacing(const int& spacing) {
