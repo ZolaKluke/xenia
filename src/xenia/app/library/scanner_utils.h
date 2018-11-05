@@ -1,6 +1,7 @@
 #ifndef XENIA_APP_SCANNER_UTILS_H_
 #define XENIA_APP_SCANNER_UTILS_H_
 
+#include "xenia/base/filesystem.h"
 #include "xenia/base/string_util.h"
 #include "xenia/vfs/device.h"
 #include "xenia/vfs/devices/disc_image_device.h"
@@ -22,17 +23,17 @@ enum XGameFormat {
   kXex,
 };
 
-inline const wstring GetFileExtension(const std::wstring& path) {
+inline const wstring GetFileExtension(const wstring& path) {
   auto index = path.find_last_of('.');
 
   if (index < 0) {
-    return wstring(L"");
+    return L"";
   }
 
-  return wstring(path.substr(index + 1));
+  return path.substr(index + 1);
 }
 
-inline const wstring GetParentDirectory(const std::wstring& path) {
+inline const wstring GetParentDirectory(const wstring& path) {
   auto index = path.find_last_of('/');
   return path.substr(0, index);
 }
@@ -49,7 +50,7 @@ inline uint8_t* Read(File* file, size_t offset = 0, size_t length = 0) {
   return data;
 }
 
-inline const XGameFormat ResolveFormat(const std::wstring& path) {
+inline const XGameFormat ResolveFormat(const wstring& path) {
   const std::wstring& extension = GetFileExtension(path);
 
   // TODO: Case Insensitivity

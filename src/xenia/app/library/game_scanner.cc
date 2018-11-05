@@ -1,10 +1,59 @@
 #include "xenia/app/library/game_scanner.h"
 #include "xenia/app/library/scanner_utils.h"
 
+#include <deque>
+
 namespace xe {
 namespace app {
+using filesystem::FileInfo;
 
-const GameInfo XGameScanner::ScanGame(const std::wstring& path) {
+const bool GameScanner::IsGame(const std::wstring& path) {
+  return true;  // TODO
+}
+
+const vector<GameInfo> GameScanner::ScanPath(const wstring& path) {
+  vector<GameInfo> info;
+
+  // Check if the given path exists
+  if (!filesystem::PathExists(path)) {
+    return info;
+  }
+
+  // Scan if the given path is a file
+  if (!filesystem::IsFolder(path)) {
+    GameInfo game_info = ScanGame(path);
+    info.push_back(game_info);
+    return info;
+  }
+
+  // Path is a directory, scan recursively
+  // TODO: Warn about recursively scanning paths with large hierarchies
+  std::deque<wstring> queue;
+  queue.push_front(path);
+
+  while (!queue.empty()) {
+    wstring current_path = queue.front();
+    FileInfo current_file;
+    filesystem::GetInfo(current_path, &current_file);
+    queue.pop_front();
+
+    if (current_file.type == FileInfo::Type::kDirectory) {
+      vector<FileInfo> directory_files = filesystem::ListFiles(current_path);
+      for (FileInfo file : directory_files) {
+        wstring next =
+            (current_path + xe::kWPathSeparator).append(file.name);
+        queue.push_front(next);
+      }
+    } else if (IsGame(current_path)) {
+      GameInfo game_info = ScanGame(current_path);
+      info.push_back(game_info);
+    }
+  }
+
+  return info;
+}
+
+const GameInfo GameScanner::ScanGame(const std::wstring& path) {
   GameInfo info;
   info.path = path;
   info.format = ResolveFormat(path);
@@ -41,8 +90,6 @@ const GameInfo XGameScanner::ScanGame(const std::wstring& path) {
   delete device;
   return info;
 }
-
-// XEX Scanning ///////////////////////////////////////////////////////////////
 
 }  // namespace app
 }  // namespace xe

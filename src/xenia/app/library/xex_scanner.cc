@@ -367,7 +367,9 @@ void ReadXexLoaderInfo(File* file, XexHeader& header) {
 
   if (!Decrypt(header, xe_xex2_retail_key)) {
     if (!Decrypt(header, xe_xex2_devkit_key)) {
-      throw 0x0;  // TODO: Decryption didn't work
+      // TODO: Decryption didn't work
+      //       This will fail if the game has normal compression.
+      return;
     }
   }
 }
