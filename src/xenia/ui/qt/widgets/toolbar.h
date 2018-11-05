@@ -22,6 +22,7 @@ class XToolBar : public Themeable<QToolBar> {
   XToolBarItem* addAction(XAction* action);
   QWidget* addSpacing(int size = 0);
   void addSeparator();
+  QWidget* addWidget(QWidget* widget);
 
   const int getSpacing() const { return spacing_; }
   void setSpacing(const int& spacing);
