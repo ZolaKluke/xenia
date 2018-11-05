@@ -6,6 +6,7 @@
 #include "xenia/ui/qt/widgets/table_view.h"
 #include "xenia/ui/qt/themeable_widget.h"
 
+#include <QSortFilterProxyModel>
 #include <QTableView>
 
 namespace xe {
@@ -22,6 +23,7 @@ class XGameListView : public XTableView {
   void Build();
 
   XGameLibraryModel* model_;
+  QSortFilterProxyModel* proxy_model_;
   
 };
 

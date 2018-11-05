@@ -9,6 +9,7 @@ namespace qt {
 XTableHeader::XTableHeader(Qt::Orientation orientation, QWidget* parent)
     : Themeable<QHeaderView>("XTableHeader", orientation, parent) {
   setSectionResizeMode(QHeaderView::ResizeMode::Interactive);
+  setSectionsClickable(true);
   setSectionsMovable(true);
   setVerticalScrollMode(ScrollMode::ScrollPerPixel);
 }

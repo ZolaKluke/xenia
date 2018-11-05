@@ -15,6 +15,7 @@ XTableView::XTableView(QWidget* parent)
   font.setPixelSize(12);
   setFont(font);
   setFrameStyle(QFrame::NoFrame);
+  setSortingEnabled(true);
 
   verticalHeader()->setVisible(false);
   verticalHeader()->setSectionResizeMode(QHeaderView::ResizeMode::Fixed);

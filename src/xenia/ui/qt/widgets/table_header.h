@@ -21,8 +21,8 @@ class XTableHeader : public Themeable<QHeaderView> {
                     int section) const override;*/
   QSize sizeHint() const override;
 
-private:
-  QMargins margins_ = QMargins(5,0,0,0);
+ private:
+  QMargins margins_ = QMargins(5, 0, 0, 0);
   double separator_ratio_ = 0.8;
 };
 

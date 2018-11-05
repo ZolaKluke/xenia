@@ -14,6 +14,7 @@ using app::XGameLibrary;
 
 XGameListView::XGameListView(QWidget* parent) : XTableView(parent) {
   model_ = new XGameLibraryModel();
+  proxy_model_ = new QSortFilterProxyModel();
 
   Build();
   return;
@@ -28,7 +29,8 @@ void XGameListView::Build() {
   // Delegates
   this->setItemDelegate(new XGameListViewDelegate);
 
-  setModel(model_);
+  proxy_model_->setSourceModel(model_);
+  setModel(proxy_model_);
 }
 
 }  // namespace qt
