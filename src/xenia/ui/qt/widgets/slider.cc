@@ -19,7 +19,7 @@ void XSlider::paintEvent(QPaintEvent*) {
                                             QStyle::SC_SliderHandle);
 
   QPainter painter(this);
-  painter.setRenderHint(QPainter::HighQualityAntialiasing);
+  painter.setRenderHint(QPainter::Antialiasing);
 
   // Paint Slider Grove
   painter.setPen(Qt::NoPen);
