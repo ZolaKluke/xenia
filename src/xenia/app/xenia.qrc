@@ -14,5 +14,7 @@
         <file>resources/themes/Xenia/stylesheets/XTableView.css</file>
         <file>resources/themes/Xenia/stylesheets/XTableHeader.css</file>
         <file>resources/themes/Xenia/stylesheets/XSlider.css</file>
+        <file>resources/themes/Xenia/stylesheets/XToolBar.css</file>
+        <file>resources/themes/Xenia/stylesheets/XToolBarItem.css</file>
     </qresource>
 </RCC>

@@ -7,25 +7,6 @@ namespace ui {
 namespace qt {
 
 XToolBar::XToolBar(QWidget* parent) : Themeable<QToolBar>("XToolBar", parent) {
-  const char* css =
-      "QToolBar#XToolBar {"
-      "background-color:#232323;"
-      "color: #ffffff;"
-      "min-height: 44px;"
-      "qproperty-iconSize: 18px;"
-      "qproperty-spacing: 32;"
-      "}"
-      "QToolBar::separator::horizontal {"
-      "background: #626262;"
-      "width: 1px;"
-      "margin: 8px 0;"
-      "}"
-      "QToolButton {"
-      "color: #ffffff;"
-      "font-size: 12px;"
-      "}";
-
-  setStyleSheet(css);
   setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 };
 
