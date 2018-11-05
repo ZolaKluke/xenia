@@ -17,12 +17,9 @@ class XToolBarItem : public Themeable<QToolButton> {
  public:
   explicit XToolBarItem(XAction* action, QWidget* parent = nullptr);
 
-  void setIcon(const QString& icon_char);
-
  protected:
   void enterEvent(QEvent*) override;
   void mousePressEvent(QMouseEvent*) override;
-  void paintEvent(QPaintEvent*) override;
 
  private:
   int spacing_ = 5;

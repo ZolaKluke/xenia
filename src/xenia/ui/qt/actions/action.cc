@@ -9,7 +9,7 @@ namespace qt {
 XAction::XAction() {}
 
 XAction::XAction(const QChar& icon, const QString& text) {
-  setGlyphIcon(QFont("Segoe MDL2 Assets"), icon);
+  setGlyphIcon(QFont("Segoe MDL2 Assets", 32), icon);
   setIconText(text);
 }
 
@@ -26,14 +26,13 @@ void XAction::rebuildGlyphIcons() {
     QFontMetrics measure(glyph_font_);
     QRectF icon_rect = measure.boundingRect(glyph_char_);
     double max = qMax(icon_rect.width(), icon_rect.height());
-
     // Create the Pixmap
     QPixmap pixmap(max, max);
     pixmap.fill(Qt::transparent);
 
     // Paint the Glyph
     QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::HighQualityAntialiasing);
+    painter.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing);
     painter.setFont(glyph_font_);
     painter.setPen(QPen(Qt::white));
 
