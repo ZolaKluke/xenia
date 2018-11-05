@@ -8,32 +8,28 @@ XSlider::XSlider(Qt::Orientation orientation, QWidget* parent)
     : Themeable<QSlider>("XSlider", orientation, parent){};
 
 void XSlider::paintEvent(QPaintEvent*) {
+  QStyleOptionSlider option;
+  initStyleOption(&option);
+
+  // Grab measured rect from style
+  QStyle* style(style());
+  QRect grove_rect = style->subControlRect(QStyle::CC_Slider, &option,
+                                           QStyle::SC_SliderGroove);
+  QRect handle_rect = style->subControlRect(QStyle::CC_Slider, &option,
+                                            QStyle::SC_SliderHandle);
+
   QPainter painter(this);
   painter.setRenderHint(QPainter::HighQualityAntialiasing);
 
-  // Paint Slider Bar
+  // Paint Slider Grove
   painter.setPen(Qt::NoPen);
   painter.setBrush(palette().foreground());
-  QRectF bar_rect;
+  grove_rect = QRect(grove_rect.left(), (grove_rect.height() / 2.0) - bar_size_,
+                     grove_rect.right(), bar_size_);
+  painter.drawRoundRect(grove_rect, bar_radius_, bar_radius_);
 
-  if (orientation() == Qt::Horizontal) {
-    bar_rect = QRectF(0, (height() / 2.0) - bar_size_, width(), bar_size_);
-    painter.drawRoundRect(bar_rect, bar_radius_, bar_radius_);
-  } else {
-    bar_rect = QRectF((width() / 2.0) - bar_size_, 0, bar_size_, height());
-    painter.drawRoundRect(bar_rect, bar_radius_, bar_radius_);
-  }
-
-  // Paint Slider Knob
-  double offset = (double)(value() - minimum()) / (maximum() - minimum());
-  if(orientation() == Qt::Horizontal) {
-    QPointF knob_position(
-      bar_rect.left() + bar_rect.width() * offset,
-      bar_rect.center().y()
-      );
-
-    painter.drawEllipse(knob_position, slider_radius_, slider_radius_);
-  }
+  // Paint Slider Handle
+  painter.drawEllipse(handle_rect.center(), slider_radius_, slider_radius_);
 }
 
 }  // namespace qt
