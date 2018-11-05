@@ -9,7 +9,7 @@ XSlider::XSlider(Qt::Orientation orientation, QWidget* parent)
 
 void XSlider::paintEvent(QPaintEvent*) {
   QPainter painter(this);
-  painter.setRenderHint(QPainter::HighQualityAntialiasing);
+  painter.setRenderHint(QPainter::Antialiasing);
 
   // Paint Slider Bar
   painter.setPen(Qt::NoPen);

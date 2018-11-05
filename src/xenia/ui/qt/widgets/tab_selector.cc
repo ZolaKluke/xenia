@@ -120,7 +120,7 @@ void XTabSelector::paintEvent(QPaintEvent*) {
 
   QPainter painter(this);
   painter.setRenderHints(QPainter::TextAntialiasing |
-                         QPainter::HighQualityAntialiasing);
+                         QPainter::Antialiasing);
 
   // Draw Text
   painter.setFont(font_);
