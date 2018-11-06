@@ -14,13 +14,13 @@ using std::vector;
 struct GameInfo {
   XGameFormat format;
   wstring path;
+  wstring filename;
   const NxeInfo* nxe_info = nullptr;
   const XexInfo* xex_info = nullptr;
 };
 
 class GameScanner {
  public:
-  static const bool IsGame(const wstring& path);
   static const vector<GameInfo> ScanPath(const wstring& path);
   static const GameInfo ScanGame(const wstring& path);
 

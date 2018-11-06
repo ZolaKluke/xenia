@@ -7,10 +7,6 @@ namespace xe {
 namespace app {
 using filesystem::FileInfo;
 
-const bool GameScanner::IsGame(const std::wstring& path) {
-  return true;  // TODO
-}
-
 const vector<GameInfo> GameScanner::ScanPath(const wstring& path) {
   vector<GameInfo> info;
 
@@ -40,11 +36,10 @@ const vector<GameInfo> GameScanner::ScanPath(const wstring& path) {
     if (current_file.type == FileInfo::Type::kDirectory) {
       vector<FileInfo> directory_files = filesystem::ListFiles(current_path);
       for (FileInfo file : directory_files) {
-        wstring next =
-            (current_path + xe::kWPathSeparator).append(file.name);
-        queue.push_front(next);
+        wstring next_path = AppendToPath(current_path, file.name);
+        queue.push_front(next_path);
       }
-    } else if (IsGame(current_path)) {
+    } else if (ResolveFormat(current_path)) {
       GameInfo game_info = ScanGame(current_path);
       info.push_back(game_info);
     }
@@ -55,12 +50,13 @@ const vector<GameInfo> GameScanner::ScanPath(const wstring& path) {
 
 const GameInfo GameScanner::ScanGame(const std::wstring& path) {
   GameInfo info;
+  info.filename = GetFileName(path);
   info.path = path;
   info.format = ResolveFormat(path);
 
   auto device = CreateDevice(path);
   if (device == nullptr || !device->Initialize()) {
-    throw 0x0;  // TODO
+    return info;  // TODO
   }
 
   // Read XEX

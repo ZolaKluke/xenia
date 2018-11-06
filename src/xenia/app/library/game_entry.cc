@@ -9,7 +9,7 @@ XGameEntry::~XGameEntry(){};
 
 bool XGameEntry::is_valid() {
   // Minimum requirements
-  return file_path_.length() && file_name_.length() && title_id_ && media_id_;
+  return file_path_.length() && title_id_ && media_id_;
 }
 
 bool XGameEntry::is_missing_data() {
@@ -26,7 +26,10 @@ void XGameEntry::apply_info(const GameInfo& info) {
 
   format_ = info.format;
   file_path_ = std::string(info.path.begin(), info.path.end());
-  // TODO: filename
+  file_name_ = std::string(info.filename.begin(), info.filename.end());
+
+  if(!xex) return; //TODO
+
   title_id_ = xex->header.execution_info.title_id;
   media_id_ = xex->header.execution_info.media_id;
   version_ = xex->header.execution_info.version;

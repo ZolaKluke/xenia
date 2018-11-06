@@ -9,6 +9,9 @@
 #include "xenia/vfs/devices/stfs_container_device.h"
 #include "xenia/vfs/file.h"
 
+#include <algorithm>
+#include <fstream>
+#include <iostream>
 #include <string>
 
 namespace xe {
@@ -18,23 +21,65 @@ using vfs::Device;
 using vfs::File;
 
 enum XGameFormat {
+  kUnknown,
   kIso,
   kStfs,
   kXex,
 };
 
-inline const wstring GetFileExtension(const wstring& path) {
-  auto index = path.find_last_of('.');
+inline wstring AppendToPath(const wstring& left, const wstring& right) {
+  wchar_t separator = xe::kWPathSeparator;
+  wstring path(left);
 
-  if (index < 0) {
+  // Add path separator if not present
+  if (path[path.length() - 1] != separator) {
+    path = path + separator;
+  }
+
+  return path.append(right);
+}
+
+inline const bool CompareCaseInsensitive(const wstring& left,
+                                         const wstring& right) {
+  // Copy strings for transform
+  wstring a(left);
+  wstring b(right);
+
+  std::transform(a.begin(), a.end(), a.begin(), toupper);
+  std::transform(b.begin(), b.end(), b.begin(), toupper);
+
+  return a == b;
+}
+
+inline const wstring GetFileExtension(const wstring& path) {
+  wstring path_(path);
+
+  // Chop off all but filename
+  size_t index = path_.find_last_of(xe::kWPathSeparator);
+  if (index != wstring::npos) {
+    path_ = path.substr(index);
+  }
+
+  // Find the index of the file extension
+  index = path_.find_last_of('.');
+  if (index == wstring::npos) {
     return L"";
+  }
+
+  return path_.substr(index + 1);
+}
+
+inline const wstring GetFileName(const wstring& path) {
+  size_t index = path.find_last_of(xe::kWPathSeparator);
+  if (index == wstring::npos) {
+    return path;
   }
 
   return path.substr(index + 1);
 }
 
 inline const wstring GetParentDirectory(const wstring& path) {
-  auto index = path.find_last_of('/');
+  auto index = path.find_last_of(xe::kWPathSeparator);
   return path.substr(0, index);
 }
 
@@ -50,15 +95,36 @@ inline uint8_t* Read(File* file, size_t offset = 0, size_t length = 0) {
   return data;
 }
 
+inline std::string ReadFileMagic(const wstring& path, size_t length = 4) {
+  char* buffer = new char[length];
+
+  std::ifstream file(path, std::ios::binary);
+  if (file.is_open()) {
+    file.seekg(0, std::ios::beg);
+    file.read(buffer, length);
+    file.close();
+  }
+
+  std::string magic(buffer);
+
+  delete[] buffer;
+  return magic;
+}
+
 inline const XGameFormat ResolveFormat(const wstring& path) {
   const std::wstring& extension = GetFileExtension(path);
 
-  // TODO: Case Insensitivity
-  if (extension.compare(L"iso") == 0) return XGameFormat::kIso;
-  if (extension.compare(L"xex") == 0) return XGameFormat::kXex;
-  // TODO: Stfs Container
+  if (CompareCaseInsensitive(extension, L"iso")) return XGameFormat::kIso;
+  if (CompareCaseInsensitive(extension, L"xex")) return XGameFormat::kXex;
 
-  return XGameFormat::kIso;  // TODO
+  // STFS Container
+  if (extension.length() == 0) {
+    std::string magic = ReadFileMagic(path);
+
+    if (magic.compare("LIVE") == 0) return XGameFormat::kStfs;
+  }
+
+  return XGameFormat::kUnknown;
 }
 
 inline Device* CreateDevice(const wstring& path) {
@@ -68,6 +134,12 @@ inline Device* CreateDevice(const wstring& path) {
   switch (format) {
     case XGameFormat::kIso:
       return new vfs::DiscImageDevice(mount_path, path);
+    case XGameFormat::kXex:
+      return new vfs::HostPathDevice(mount_path, GetParentDirectory(path),
+                                     true);
+    case XGameFormat::kStfs:
+      // TODO: Load GOD Container when supported
+      return nullptr;  // new vfs::StfsContainerDevice(mount_path, path);
     default:
       return nullptr;
   }

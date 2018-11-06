@@ -16,9 +16,9 @@ bool XGameLibrary::add(const std::string file_path) {
 }
 
 bool XGameLibrary::add(XGameEntry* game_entry) {
-  // if (!game_entry->is_valid()) {
-  //  return false;  // Game is not valid
-  //}
+   if (!game_entry->is_valid()) {
+    return false;  // Game is not valid
+  }
 
   // if (games_.count(game_entry->title_id())) {
   //  return false;  // Game is already present
