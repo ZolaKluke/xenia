@@ -9,8 +9,16 @@
 
 #include "xenia/kernel/xam/apps/xgi_app.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "third_party/imgui/imgui.h"
+#include "third_party/stb/stb_image.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/threading.h"
+#include "xenia/emulator.h"
+#include "xenia/ui/imgui_dialog.h"
+#include "xenia/ui/window.h"
+
+#include <ctime>
 
 namespace xe {
 namespace kernel {
@@ -20,6 +28,65 @@ namespace apps {
 struct X_XUSER_ACHIEVEMENT {
   xe::be<uint32_t> user_idx;
   xe::be<uint32_t> achievement_id;
+};
+
+class AchievementUnlockDialog : public xe::ui::ImGuiDialog {
+ public:
+  AchievementUnlockDialog(xe::ui::Window* window, xdbf::Achievement achievement,
+                          xdbf::Entry* image)
+      : ImGuiDialog(window), achievement_(achievement), image_(image) {
+    alpha_ = 0;
+    display_time_ = std::time(0);
+
+    image_raw_ =
+        stbi_load_from_memory(image_->data.data(), image_->info.size,
+                              &image_width_, &image_height_, nullptr, 4);
+  }
+
+  void OnDraw(ImGuiIO& io) override {
+    if (!has_opened_) {
+      ImGui::OpenPopup("Achievement Unlocked");
+      has_opened_ = true;
+    }
+
+    // Adjust alpha
+    auto epoch = std::time(0) - display_time_;
+    if (epoch < fade_length_)
+      alpha_ += io.DeltaTime / fade_length_;
+    else if (epoch > display_length_ - fade_length_)
+      alpha_ -= io.DeltaTime / fade_length_;
+    else
+      alpha_ = 1.0f;
+    ImGui::PushStyleVar(ImGuiStyleVar_::ImGuiStyleVar_Alpha, alpha_);
+
+    ImGui::SetNextWindowPos(ImVec2(20.0f, 20.0f));
+    if (ImGui::BeginPopup("Achievement Unlocked")) {
+      /*ImGui::Image((void*)image_raw_,
+                   ImVec2((float)image_width_, (float)image_height_));*/
+      ImGui::Text("%s", "Achievement Unlocked");
+      ImGui::Text("%dG - %s", achievement_.gamerscore,
+                  xe::to_string(achievement_.label));
+      ImGui::EndPopup();
+
+      if (epoch > display_length_) Close();
+    }
+  }
+
+ private:
+  bool has_opened_ = false;
+
+  // Achievement Data
+  xdbf::Achievement achievement_;
+  xdbf::Entry* image_;
+  int image_width_;
+  int image_height_;
+  stbi_uc* image_raw_;
+
+  // Fade Animation Variables
+  time_t display_time_;
+  float alpha_ = 0.0f;
+  float display_length_ = 5.0f;
+  float fade_length_ = 0.2f;
 };
 
 XgiApp::XgiApp(KernelState* kernel_state) : App(kernel_state, 0xFB) {}
@@ -79,6 +146,12 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
             ach.Unlock(false);
             game_gpd->UpdateAchievement(ach);
             modified = true;
+
+            auto image = game_gpd->GetEntry((uint16_t)xdbf::GpdSection::kImage,
+                                            ach.image_id);
+            auto window = kernel_state_->emulator()->display_window();
+            window->loop()->PostSynchronous(
+                [&]() { (new AchievementUnlockDialog(window, ach, image)); });
           }
         }
       }
