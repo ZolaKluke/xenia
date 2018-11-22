@@ -46,6 +46,8 @@ project("xenia-app")
   qtprefix "Qt5"
   configuration {"Checked"}
   qtsuffix "d"
+  configuration {"Debug"}
+  qtsuffix "d"
   configuration {}
   if qt.defaultpath ~= nil then
     qtpath(qt.defaultpath)
