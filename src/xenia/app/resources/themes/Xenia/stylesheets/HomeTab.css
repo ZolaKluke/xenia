@@ -5,8 +5,8 @@ QWidget#sidebar {
 }
 
 QWidget#title {
-    min-height: 200;
-    max-height: 200;
+    min-height: 180;
+    max-height: 180;
 }
 
 QLabel#titleLabel {
@@ -21,4 +21,9 @@ QLabel#subtitleLabel {
     font-weight: normal;
 }
 
-
+QWidget#separator {
+    max-height: 2;
+    min-width: 250;
+    max-width: 250;
+    background: $dark1;
+}
