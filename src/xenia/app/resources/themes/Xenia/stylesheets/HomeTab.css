@@ -1,0 +1,24 @@
+QWidget#sidebar {
+    background: $tertiary;
+    min-width: 300;
+    max-width: 300;
+}
+
+QWidget#title {
+    min-height: 200;
+    max-height: 200;
+}
+
+QLabel#titleLabel {
+    color: $primary;
+    font-size: 48px; 
+    font-weight: normal;
+}
+
+QLabel#subtitleLabel {
+    color: $light2;
+    font-size: 24px; 
+    font-weight: normal;
+}
+
+

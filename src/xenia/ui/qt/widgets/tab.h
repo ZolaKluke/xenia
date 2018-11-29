@@ -20,6 +20,9 @@ class XTab : public Themeable<QWidget> {
       : Themeable<QWidget>("XTab"), tab_name_(tab_name) {
   }
 
+  explicit XTab(const QString& tab_name, const QString& object_name)
+      : Themeable<QWidget>(object_name), tab_name_(tab_name) {}
+
   const QString& tab_name() const { return tab_name_; }
 
  private:

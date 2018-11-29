@@ -4,7 +4,7 @@ namespace xe {
 namespace ui {
 namespace qt {
 
-HomeTab::HomeTab() : XTab("Home") { Build(); }
+HomeTab::HomeTab() : XTab("Home", "HomeTab") { Build(); }
 
 void HomeTab::Build() {
   layout_ = new QVBoxLayout();
@@ -41,11 +41,10 @@ void HomeTab::BuildSidebar() {
   sidebar_title->setLayout(title_layout);
 
   QLabel* xenia_title = new QLabel("Xenia");
-  xenia_title->setStyleSheet(
-      "QLabel{ color: #ffffff; font-size: 48px; font-weight: normal;}");
+  xenia_title->setObjectName("titleLabel");
+
   QLabel* xenia_subtitle = new QLabel("Xbox 360 Emulator");
-  xenia_subtitle->setStyleSheet(
-      "QLabel{ color: #cccccc; font-size: 25px; font-weight: normal;}");
+  xenia_subtitle->setObjectName("subtitleLabel");
 
   title_layout->addWidget(xenia_title, 0, Qt::AlignCenter | Qt::AlignBottom);
   title_layout->addWidget(xenia_subtitle, 0, Qt::AlignCenter | Qt::AlignTop);
