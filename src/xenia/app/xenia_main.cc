@@ -61,7 +61,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
   fonts.addApplicationFont(":/resources/fonts/SegMDL2.ttf");
   fonts.addApplicationFont(":/resources/fonts/segoeui.ttf");
   fonts.addApplicationFont(":/resources/fonts/segoeuisb.ttf");
-  QApplication::setFont(QFont("Segoe UI Semibold"));
+  QApplication::setFont(QFont("Segoe UI"));
 
   // EmulatorWindow main_wnd;
   ui::qt::MainWindow main_wnd;
