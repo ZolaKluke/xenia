@@ -19,8 +19,6 @@ void HomeTab::BuildSidebar() {
   // Create sidebar
   QWidget* sidebar = new QWidget;
   sidebar->setObjectName("sidebar");
-  sidebar->setStyleSheet("background: #232323");
-  sidebar->setFixedWidth(300);
 
   QVBoxLayout* sidebar_layout = new QVBoxLayout;
   sidebar_layout->setMargin(0);
@@ -31,7 +29,6 @@ void HomeTab::BuildSidebar() {
   // Create sidebar title
   QWidget* sidebar_title = new QWidget;
   sidebar_title->setObjectName("title");
-  sidebar_title->setFixedHeight(200);
 
   QVBoxLayout* title_layout = new QVBoxLayout;
   title_layout->setMargin(0);
