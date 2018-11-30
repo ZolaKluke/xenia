@@ -45,11 +45,11 @@ clone_folder: c:\dev\xenia
 
 # build cache
 cache:
-  - C:\Qt\5.10.1\msvc2017_64-static -> .appveyor.yml
+  - C:\Qt\5.11.2\msvc2017_64 -> .appveyor.yml
 
 # environment variables
 environment:
-  QT_DIR: C:\Qt\5.10.1\msvc2017_64-static
+  QT_DIR: C:\Qt\5.11.2\msvc2017_64
   QT_STATIC: 1
 
 # build cache to preserve files/folders between builds
@@ -58,11 +58,6 @@ environment:
 # scripts that run after cloning repository
 install:
   - cmd: set PATH=C:\Program Files (x86)\MSBuild\14.0\Bin;%PATH%
-  - ps: |
-      if (!(Test-Path $env:QT_DIR -PathType Container)) {
-        Invoke-WebRequest $env:QT_S3 -OutFile C:\Qt\5.10.1\msvc2017_64-static.7z
-        7z x C:\Qt\5.10.1\msvc2017_64-static.7z -oc:\Qt\5.10.1
-      }
   - cmd: xb.bat setup
 
 
