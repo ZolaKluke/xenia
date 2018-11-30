@@ -29,8 +29,8 @@ class XGameLibrary {
   bool load();
   bool save();
 
-  const std::shared_ptr<XGameEntry>& game(const uint32_t& title_id) const;
-  const std::vector<std::shared_ptr<XGameEntry>>& games() const {
+  const std::shared_ptr<XGameEntry> game(const uint32_t& title_id) const;
+  const std::vector<std::shared_ptr<XGameEntry>> games() const {
     return games_;
   }
   const int size() const { return (int)games_.size(); }

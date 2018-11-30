@@ -84,7 +84,7 @@ bool XGameLibrary::save() {
   return false;
 }
 
-const std::shared_ptr<XGameEntry>& XGameLibrary::game(
+const std::shared_ptr<XGameEntry> XGameLibrary::game(
     const uint32_t& title_id) const {
   auto game = games_titleid_map_.find(title_id);
   if (game == games_titleid_map_.end()) {
