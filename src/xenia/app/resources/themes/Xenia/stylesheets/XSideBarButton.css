@@ -5,8 +5,8 @@ QPushButton {
 }
      
 QPushButton:hover {
-      background-color: $dark2;
+      background-color: $dark1;
 }
 QPushButton:pressed {
-      background-color: $dark3;
+      background-color: $dark2;
 }
