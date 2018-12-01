@@ -1,0 +1,69 @@
+#include "xenia/ui/qt/widgets/sidebar_button.h"
+
+namespace xe {
+namespace ui {
+namespace qt {
+
+XSideBarButton::XSideBarButton(const QString& text, QWidget* parent)
+    : Themeable<QPushButton>("XSideBarButton", parent), text_(text) {
+  setCursor(Qt::PointingHandCursor);
+}
+
+XSideBarButton::XSideBarButton(QChar glyph, const QString& text,
+                               QWidget* parent)
+    : Themeable<QPushButton>("XSideBarButton", parent),
+      glyph_(glyph),
+      text_(text) {
+  setStyleSheet(
+      "QPushButton {color: white; border: none; background-color: rgba(255, "
+      "255, 255, 0);}"
+      "QPushButton:hover {background-color: #373737;}"
+      "QPushButton:pressed {background-color: #303030;}");
+
+  setCursor(Qt::PointingHandCursor);
+}
+
+void XSideBarButton::paintEvent(QPaintEvent* event) {
+  // Call original paintEvent to apply stylesheet
+  QPushButton::paintEvent(event);
+
+  QPainter painter(this);
+  painter.setRenderHints(QPainter::TextAntialiasing | QPainter::Antialiasing);
+
+  // Draw Glyph
+  QFont glyph_font = QFont("Segoe MDL2 Assets", 28);
+  const QColor& color = this->property("color").value<QColor>();
+
+  // Measure the Glyph
+  QFontMetrics measure(glyph_font);
+  QRectF icon_rect = measure.boundingRect(glyph_);
+  double max = qMax(icon_rect.width(), icon_rect.height());
+
+  // Create the Pixmap
+  QPixmap pixmap(max, max);
+  pixmap.fill(Qt::transparent);
+
+  // Paint the Glyph
+  painter.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing);
+  painter.setFont(glyph_font);
+  painter.setPen(QPen(Qt::white));
+
+  QRect glyph_rect = this->rect();
+  glyph_rect.translate(20, 0);
+
+  painter.drawText(glyph_rect, Qt::AlignVCenter, glyph_);
+
+  // Draw Text
+  QRect text_rect = glyph_rect;
+  text_rect.translate(40, 0);
+
+  QFont text_font = QFont();
+  text_font.setPointSizeF(24);
+
+  painter.setFont(text_font);
+  painter.drawText(text_rect, Qt::AlignVCenter, text_);
+}
+
+}  // namespace qt
+}  // namespace ui
+}  // namespace xe
