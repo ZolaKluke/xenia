@@ -1,10 +1,15 @@
 #include "xenia/ui/qt/tabs/home_tab.h"
+#include "xenia/ui/qt/actions/action.h"
 
 namespace xe {
 namespace ui {
 namespace qt {
 
-HomeTab::HomeTab() : XTab("Home", "HomeTab") { Build(); }
+HomeTab::HomeTab() : XTab("Home", "HomeTab") {
+  buttons_ = {new XSideBarButton(0xE838, "Open File"),
+              new XSideBarButton(0xE8F4, "Import Folder")};
+  Build();
+}
 
 void HomeTab::Build() {
   layout_ = new QVBoxLayout();
@@ -55,6 +60,28 @@ void HomeTab::BuildSidebar() {
 
   // Add title components to sidebar
   sidebar_layout->addWidget(sidebar_title, 0, Qt::AlignHCenter | Qt::AlignTop);
+
+  // Create Toolbar (TODO: is it worth moving to new function?)
+  toolbar_ = new QToolBar;
+  toolbar_->setOrientation(Qt::Vertical);
+  toolbar_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+
+  toolbar_->setStyleSheet(
+      "QToolButton { "
+      "color: white;"
+      "padding-right: 80px;"
+      "font-size: 24px;"
+      "}");
+
+  for (const auto& btn : buttons_) {
+    btn->setFixedHeight(60);
+    btn->setFixedWidth(300);
+
+    toolbar_->addWidget(btn);
+  }
+  toolbar_->addSeparator();
+
+  sidebar_layout->addWidget(toolbar_, 0, Qt::AlignHCenter | Qt::AlignTop);
 
   // Add sidebar to tab widget
   layout_->addWidget(sidebar, 0, Qt::AlignLeft);

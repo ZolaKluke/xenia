@@ -1,6 +1,8 @@
 #ifndef XENIA_UI_QT_TABS_HOME_H_
 #define XENIA_UI_QT_TABS_HOME_H_
 
+#include <QToolBar>
+#include "xenia/ui/qt/widgets/sidebar_button.h"
 #include "xenia/ui/qt/widgets/tab.h"
 
 namespace xe {
@@ -17,6 +19,9 @@ class HomeTab : public XTab {
   void BuildSidebar();
 
   QVBoxLayout* layout_ = nullptr;
+  QToolBar* toolbar_ = nullptr;
+
+  QVector<XSideBarButton*> buttons_;
 };
 
 }  // namespace qt
