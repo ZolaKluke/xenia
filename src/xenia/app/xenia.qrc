@@ -17,5 +17,6 @@
         <file>resources/themes/Xenia/stylesheets/XToolBar.css</file>
         <file>resources/themes/Xenia/stylesheets/XToolBarItem.css</file>
         <file>resources/themes/Xenia/stylesheets/HomeTab.css</file>
+        <file>resources/themes/Xenia/stylesheets/XSideBarButton.css</file>
     </qresource>
 </RCC>

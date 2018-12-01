@@ -9,6 +9,7 @@ namespace ui {
 namespace qt {
 
 class XSideBarButton : public Themeable<QPushButton> {
+  Q_OBJECT
  public:
   explicit XSideBarButton(const QString& text, QWidget* parent = nullptr);
   explicit XSideBarButton(QChar glyph, const QString& text,

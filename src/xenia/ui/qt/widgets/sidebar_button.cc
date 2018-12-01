@@ -14,12 +14,6 @@ XSideBarButton::XSideBarButton(QChar glyph, const QString& text,
     : Themeable<QPushButton>("XSideBarButton", parent),
       glyph_(glyph),
       text_(text) {
-  setStyleSheet(
-      "QPushButton {color: white; border: none; background-color: rgba(255, "
-      "255, 255, 0);}"
-      "QPushButton:hover {background-color: #373737;}"
-      "QPushButton:pressed {background-color: #303030;}");
-
   setCursor(Qt::PointingHandCursor);
 }
 

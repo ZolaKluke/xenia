@@ -1,11 +1,13 @@
 #include "xenia/ui/qt/tabs/home_tab.h"
 #include "xenia/ui/qt/actions/action.h"
+#include "xenia/ui/qt/widgets/separator.h"
 
 namespace xe {
 namespace ui {
 namespace qt {
 
 HomeTab::HomeTab() : XTab("Home", "HomeTab") {
+  // TODO: buttons_ needs to be changed to allow adding XSeparator objects to it
   buttons_ = {new XSideBarButton(0xE838, "Open File"),
               new XSideBarButton(0xE8F4, "Import Folder")};
   Build();
@@ -53,9 +55,7 @@ void HomeTab::BuildSidebar() {
   title_layout->addWidget(xenia_subtitle, 0, Qt::AlignHCenter | Qt::AlignTop);
 
   // Title separator
-  QWidget* separator = new QWidget;
-  separator->setObjectName("separator");
-
+  XSeparator* separator = new XSeparator;
   title_layout->addWidget(separator);
 
   // Add title components to sidebar
@@ -66,13 +66,6 @@ void HomeTab::BuildSidebar() {
   toolbar_->setOrientation(Qt::Vertical);
   toolbar_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 
-  toolbar_->setStyleSheet(
-      "QToolButton { "
-      "color: white;"
-      "padding-right: 80px;"
-      "font-size: 24px;"
-      "}");
-
   for (const auto& btn : buttons_) {
     btn->setFixedHeight(60);
     btn->setFixedWidth(300);
@@ -82,7 +75,7 @@ void HomeTab::BuildSidebar() {
   toolbar_->addSeparator();
 
   sidebar_layout->addWidget(toolbar_, 0, Qt::AlignHCenter | Qt::AlignTop);
-
+  sidebar_layout->addStretch(1);
   // Add sidebar to tab widget
   layout_->addWidget(sidebar, 0, Qt::AlignLeft);
 }
