@@ -21,9 +21,16 @@ QLabel#subtitleLabel {
     font-weight: normal;
 }
 
-QWidget#separator {
-    max-height: 2;
+QWidget#XSeparator {
+    qproperty-thickness: 2;
     min-width: 250;
     max-width: 250;
     background: $dark1;
+}
+
+QToolBar::separator {
+    background: $dark1; 
+    min-width: 300;
+    max-width: 300;
+    height: 2; 
 }

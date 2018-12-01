@@ -13,7 +13,7 @@ class XSeparator : public Themeable<QWidget> {
   Q_PROPERTY(qreal thickness READ getThickness WRITE setThickness);
 
  public:
-  explicit XSeparator(double thickness, QWidget* parent = nullptr)
+  explicit XSeparator(double thickness = 1, QWidget* parent = nullptr)
       : Themeable<QWidget>("XSeparator", parent), thickness_(thickness) {
     Update();
   }
