@@ -43,6 +43,7 @@ void XNav::BuildTabs() {
       new XTab("Settings"),
   };
   tab_selector_ = new XTabSelector(tabs);
+  tab_selector_->setCursor(Qt::PointingHandCursor);
   layout_->addWidget(tab_selector_);
 
   connect(tab_selector_, SIGNAL(TabChanged(XTab*)), this,
