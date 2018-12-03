@@ -23,19 +23,25 @@ void HomeTab::Build() {
 }
 
 void HomeTab::BuildSidebar() {
+  // sidebar container widget
+  QWidget* sidebar_widget = new QWidget;
+  sidebar_widget->setObjectName("sidebarContainer");
+
   // Create sidebar
-  QWidget* sidebar = new QWidget;
-  sidebar->setObjectName("sidebar");
+  sidebar_ = new XSideBar;
+  sidebar_->setOrientation(Qt::Vertical);
+  sidebar_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+  sidebar_->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
 
   QVBoxLayout* sidebar_layout = new QVBoxLayout;
   sidebar_layout->setMargin(0);
   sidebar_layout->setSpacing(0);
 
-  sidebar->setLayout(sidebar_layout);
+  sidebar_widget->setLayout(sidebar_layout);
 
   // Create sidebar title
   QWidget* sidebar_title = new QWidget;
-  sidebar_title->setObjectName("title");
+  sidebar_title->setObjectName("sidebarTitle");
 
   QVBoxLayout* title_layout = new QVBoxLayout;
   title_layout->setMargin(0);
@@ -46,38 +52,30 @@ void HomeTab::BuildSidebar() {
 
   // Title labels
   QLabel* xenia_title = new QLabel("Xenia");
-  xenia_title->setObjectName("titleLabel");
+  xenia_title->setObjectName("sidebarTitleLabel");
 
   QLabel* xenia_subtitle = new QLabel("Xbox 360 Emulator");
-  xenia_subtitle->setObjectName("subtitleLabel");
+  xenia_subtitle->setObjectName("sidebarSubtitleLabel");
 
   title_layout->addWidget(xenia_title, 0, Qt::AlignHCenter | Qt::AlignBottom);
   title_layout->addWidget(xenia_subtitle, 0, Qt::AlignHCenter | Qt::AlignTop);
 
   // Title separator
-  XSeparator* separator = new XSeparator;
-  title_layout->addWidget(separator);
+  auto separator = new XSeparator;
+  title_layout->addWidget(separator, 0, Qt::AlignHCenter);
 
-  // Add title components to sidebar
-  sidebar_layout->addWidget(sidebar_title, 0, Qt::AlignHCenter | Qt::AlignTop);
+  // Setup Sidebar toolbar
+  sidebar_->addWidget(sidebar_title);
 
-  // Create Toolbar (TODO: is it worth moving to new function?)
-  toolbar_ = new QToolBar;
-  toolbar_->setOrientation(Qt::Vertical);
-  toolbar_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+  sidebar_->addAction(0xE838, "Open File");
+  sidebar_->addAction(0xE8F4, "Import Folder");
+  sidebar_->addSeparator();
 
-  for (const auto& btn : buttons_) {
-    btn->setFixedHeight(60);
-    btn->setFixedWidth(300);
-
-    toolbar_->addWidget(btn);
-  }
-  toolbar_->addSeparator();
-
-  sidebar_layout->addWidget(toolbar_, 0, Qt::AlignHCenter | Qt::AlignTop);
+  sidebar_layout->addWidget(sidebar_, 0, Qt::AlignHCenter | Qt::AlignTop);
   sidebar_layout->addStretch(1);
+
   // Add sidebar to tab widget
-  layout_->addWidget(sidebar, 0, Qt::AlignLeft);
+  layout_->addWidget(sidebar_widget, 0, Qt::AlignLeft);
 }
 
 }  // namespace qt
