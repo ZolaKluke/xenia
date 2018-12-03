@@ -1,5 +1,6 @@
-#include <QGraphicsEffect>
 #include "xenia/ui/qt/tabs/home_tab.h"
+#include <QGraphicsEffect>
+#include "build/version.h"
 #include "xenia/ui/qt/actions/action.h"
 #include "xenia/ui/qt/widgets/separator.h"
 #include "xenia/ui/qt/widgets/slider.h"
@@ -85,6 +86,16 @@ void HomeTab::BuildSidebar() {
 
   sidebar_layout->addWidget(sidebar_toolbar_, 0, Qt::AlignHCenter | Qt::AlignTop);
   sidebar_layout->addStretch(1);
+
+  // Show build info in bottom corner of sidebar
+  QLabel* build_label = new QLabel;
+  build_label->setObjectName("buildLabel");
+  build_label->setText(QStringLiteral("Xenia: %1 / %2 / %3")
+                           .arg(XE_BUILD_BRANCH)
+                           .arg(XE_BUILD_COMMIT_SHORT)
+                           .arg(XE_BUILD_DATE));
+  build_label->setFont(QFont("Segoe UI", 10));
+  sidebar_layout->addWidget(build_label, 0, Qt::AlignRight | Qt::AlignBottom);
 
   // Add sidebar to tab widget
   layout_->addWidget(sidebar_, 0, Qt::AlignLeft);

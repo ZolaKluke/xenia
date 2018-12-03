@@ -27,3 +27,8 @@ QWidget#XSeparator {
     max-width: 250;
     background: $dark1;
 }
+
+QLabel#buildLabel {
+    color: $light2;
+    padding: 4px;
+}
