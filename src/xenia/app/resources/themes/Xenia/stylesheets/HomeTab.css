@@ -27,10 +27,3 @@ QWidget#XSeparator {
     max-width: 250;
     background: $dark1;
 }
-
-QToolBar::separator {
-    background: $dark1; 
-    min-width: 300;
-    max-width: 300;
-    height: 2; 
-}

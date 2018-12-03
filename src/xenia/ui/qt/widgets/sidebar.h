@@ -16,9 +16,6 @@ class XSideBar : public Themeable<QToolBar> {
   XSideBarButton* addAction(const QString& text);
   XSideBarButton* addAction(QChar glyph, const QString& text);
 
- protected:
-  // void paintEvent(QPaintEvent*) override;
-
  private:
   void Update();
 
