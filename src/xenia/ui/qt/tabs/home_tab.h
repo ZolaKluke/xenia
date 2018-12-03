@@ -3,6 +3,7 @@
 
 #include <QToolBar>
 #include "xenia/ui/qt/widgets/sidebar.h"
+#include "xenia/ui/qt/widgets/toolbar.h"
 #include "xenia/ui/qt/widgets/sidebar_button.h"
 #include "xenia/ui/qt/widgets/tab.h"
 
@@ -18,10 +19,12 @@ class HomeTab : public XTab {
  private:
   void Build();
   void BuildSidebar();
+  void BuildRecentView();
 
-  QVBoxLayout* layout_ = nullptr;
-  XSideBar* sidebar_ = nullptr;
-
+  QHBoxLayout* layout_ = nullptr;
+  QWidget* sidebar_ = nullptr;
+  XSideBar* sidebar_toolbar_ = nullptr;
+  XToolBar* recent_toolbar_ = nullptr;
   QVector<XSideBarButton*> buttons_;
 };
 

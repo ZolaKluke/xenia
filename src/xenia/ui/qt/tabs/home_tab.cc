@@ -1,6 +1,8 @@
+#include <QGraphicsEffect>
 #include "xenia/ui/qt/tabs/home_tab.h"
 #include "xenia/ui/qt/actions/action.h"
 #include "xenia/ui/qt/widgets/separator.h"
+#include "xenia/ui/qt/widgets/slider.h"
 
 namespace xe {
 namespace ui {
@@ -14,30 +16,39 @@ HomeTab::HomeTab() : XTab("Home", "HomeTab") {
 }
 
 void HomeTab::Build() {
-  layout_ = new QVBoxLayout();
+  layout_ = new QHBoxLayout();
   layout_->setMargin(0);
   layout_->setSpacing(0);
   setLayout(layout_);
 
   BuildSidebar();
+  BuildRecentView();
 }
 
 void HomeTab::BuildSidebar() {
   // sidebar container widget
-  QWidget* sidebar_widget = new QWidget;
-  sidebar_widget->setObjectName("sidebarContainer");
-
-  // Create sidebar
-  sidebar_ = new XSideBar;
-  sidebar_->setOrientation(Qt::Vertical);
-  sidebar_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-  sidebar_->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
-
+  sidebar_ = new QWidget(this);
+  sidebar_->setObjectName("sidebarContainer");
+  
   QVBoxLayout* sidebar_layout = new QVBoxLayout;
   sidebar_layout->setMargin(0);
   sidebar_layout->setSpacing(0);
 
-  sidebar_widget->setLayout(sidebar_layout);
+  sidebar_->setLayout(sidebar_layout);
+
+  QGraphicsDropShadowEffect *effect = new QGraphicsDropShadowEffect;
+  effect->setBlurRadius(16);
+  effect->setXOffset(4);
+  effect->setYOffset(0);
+  effect->setColor(QColor(0,0,0,64));
+
+  sidebar_->setGraphicsEffect(effect);
+
+  // Create sidebar
+  sidebar_toolbar_ = new XSideBar;
+  sidebar_toolbar_->setOrientation(Qt::Vertical);
+  sidebar_toolbar_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+  sidebar_toolbar_->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
 
   // Create sidebar title
   QWidget* sidebar_title = new QWidget;
@@ -65,17 +76,51 @@ void HomeTab::BuildSidebar() {
   title_layout->addWidget(separator, 0, Qt::AlignHCenter);
 
   // Setup Sidebar toolbar
-  sidebar_->addWidget(sidebar_title);
+  sidebar_toolbar_->addWidget(sidebar_title);
 
-  sidebar_->addAction(0xE838, "Open File");
-  sidebar_->addAction(0xE8F4, "Import Folder");
-  sidebar_->addSeparator();
+  sidebar_toolbar_->addAction(0xE838, "Open File");
+  sidebar_toolbar_->addAction(0xE8F4, "Import Folder");
 
-  sidebar_layout->addWidget(sidebar_, 0, Qt::AlignHCenter | Qt::AlignTop);
+  sidebar_toolbar_->addSeparator();
+
+  sidebar_layout->addWidget(sidebar_toolbar_, 0, Qt::AlignHCenter | Qt::AlignTop);
   sidebar_layout->addStretch(1);
 
   // Add sidebar to tab widget
-  layout_->addWidget(sidebar_widget, 0, Qt::AlignLeft);
+  layout_->addWidget(sidebar_, 0, Qt::AlignLeft);
+}
+
+void HomeTab::BuildRecentView() {
+    auto toolbar = recent_toolbar_;
+    toolbar = new XToolBar(this);
+    toolbar->setFixedHeight(46);
+
+    QLabel *title = new QLabel("Recent Games");
+    title->setFont(QFont("Segoe UI", 24));
+    title->setStyleSheet("color: white;");
+
+    toolbar->addWidget(title);
+
+    toolbar->addSeparator();
+
+    toolbar->addAction(new XAction(QChar(0xEDB5), "Play"));
+    toolbar->addAction(new XAction(QChar(0xEBE8), "Debug"));
+    toolbar->addAction(new XAction(QChar(0xE946), "Info"));
+
+    toolbar->addSeparator();
+
+    toolbar->addAction(new XAction(QChar(0xE8FD), "List"));
+    toolbar->addAction(new XAction(QChar(0xF0E2), "Grid"));
+
+    auto *slider = new XSlider(Qt::Horizontal, this);
+    slider->setRange(48, 96);
+    slider->setFixedWidth(100);
+    toolbar->addWidget(slider);
+
+    // Lower the widget to prevent overlap with sidebar's shadow
+    toolbar->lower();
+
+    layout_->addWidget(toolbar, 0, Qt::AlignTop);
 }
 
 }  // namespace qt
