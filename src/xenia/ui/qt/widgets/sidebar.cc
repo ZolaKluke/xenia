@@ -24,6 +24,13 @@ XSideBarButton* XSideBar::addAction(QChar glyph, const QString& text) {
   return button;
 }
 
+QWidget* XSideBar::addSpacing(int size) {
+  QWidget* spacer = new QWidget(this);
+  spacer->setFixedHeight(size);
+  QToolBar::addWidget(spacer);
+  return spacer;
+}
+
 }  // namespace qt
 }  // namespace ui
 }  // namespace xe

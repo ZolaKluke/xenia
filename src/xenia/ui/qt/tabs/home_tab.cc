@@ -79,6 +79,8 @@ void HomeTab::BuildSidebar() {
   // Setup Sidebar toolbar
   sidebar_toolbar_->addWidget(sidebar_title);
 
+  sidebar_toolbar_->addSpacing(20);
+
   sidebar_toolbar_->addAction(0xE838, "Open File");
   sidebar_toolbar_->addAction(0xE8F4, "Import Folder");
 
@@ -90,12 +92,12 @@ void HomeTab::BuildSidebar() {
   // Show build info in bottom corner of sidebar
   QLabel* build_label = new QLabel;
   build_label->setObjectName("buildLabel");
-  build_label->setText(QStringLiteral("Xenia: %1 / %2 / %3")
+  build_label->setText(QStringLiteral("%1 / %2 / %3")
                            .arg(XE_BUILD_BRANCH)
                            .arg(XE_BUILD_COMMIT_SHORT)
                            .arg(XE_BUILD_DATE));
   build_label->setFont(QFont("Segoe UI", 10));
-  sidebar_layout->addWidget(build_label, 0, Qt::AlignRight | Qt::AlignBottom);
+  sidebar_layout->addWidget(build_label, 0, Qt::AlignHCenter | Qt::AlignBottom);
 
   // Add sidebar to tab widget
   layout_->addWidget(sidebar_, 0, Qt::AlignLeft);

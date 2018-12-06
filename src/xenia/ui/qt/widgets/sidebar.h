@@ -16,9 +16,9 @@ class XSideBar : public Themeable<QToolBar> {
   XSideBarButton* addAction(const QString& text);
   XSideBarButton* addAction(QChar glyph, const QString& text);
 
- private:
-  void Update();
+  QWidget* addSpacing(int size);
 
+ private:
   QVector<XSideBarButton*> buttons_;
 };
 
