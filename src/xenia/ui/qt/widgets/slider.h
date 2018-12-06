@@ -19,9 +19,9 @@ class XSlider : public Themeable<QSlider> {
    void paintEvent(QPaintEvent*) override;
 
  private:
-   int bar_size_ = 3;
-   int bar_radius_ = 3;
-   int slider_radius_ = 5;
+  double bar_size_ = 3;
+  double bar_radius_ = 3;
+  double slider_radius_ = 5;
 };
 
 }  // namespace qt
