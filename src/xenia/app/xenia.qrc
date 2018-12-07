@@ -19,5 +19,6 @@
         <file>resources/themes/Xenia/stylesheets/HomeTab.css</file>
         <file>resources/themes/Xenia/stylesheets/XSideBarButton.css</file>
         <file>resources/themes/Xenia/stylesheets/XSideBar.css</file>
+        <file>resources/themes/Xenia/stylesheets/XStatusBar.css</file>
     </qresource>
 </RCC>
