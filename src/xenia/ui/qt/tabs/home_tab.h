@@ -25,7 +25,6 @@ class HomeTab : public XTab {
   QWidget* sidebar_ = nullptr;
   XSideBar* sidebar_toolbar_ = nullptr;
   XToolBar* recent_toolbar_ = nullptr;
-  QVector<XSideBarButton*> buttons_;
 };
 
 }  // namespace qt

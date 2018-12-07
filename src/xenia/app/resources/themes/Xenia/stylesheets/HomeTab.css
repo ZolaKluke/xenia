@@ -28,3 +28,8 @@ QWidget#XSeparator {
     background: $dark1;
 }
 
+QToolBar#XToolBar {
+    min-height: 46;
+    max-height: 46;
+}
+

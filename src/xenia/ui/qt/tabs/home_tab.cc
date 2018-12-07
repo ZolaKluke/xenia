@@ -9,9 +9,6 @@ namespace ui {
 namespace qt {
 
 HomeTab::HomeTab() : XTab("Home", "HomeTab") {
-  // TODO: buttons_ needs to be changed to allow adding XSeparator objects to it
-  buttons_ = {new XSideBarButton(0xE838, "Open File"),
-              new XSideBarButton(0xE8F4, "Import Folder")};
   Build();
 }
 
@@ -36,6 +33,7 @@ void HomeTab::BuildSidebar() {
 
   sidebar_->setLayout(sidebar_layout);
 
+  // Add drop shadow to sidebar widget
   QGraphicsDropShadowEffect *effect = new QGraphicsDropShadowEffect;
   effect->setBlurRadius(16);
   effect->setXOffset(4);
@@ -93,9 +91,9 @@ void HomeTab::BuildSidebar() {
 }
 
 void HomeTab::BuildRecentView() {
+    // Setup toolbar
     auto toolbar = recent_toolbar_;
     toolbar = new XToolBar(this);
-    toolbar->setFixedHeight(46);
 
     QLabel *title = new QLabel("Recent Games");
     title->setFont(QFont("Segoe UI", 24));
@@ -105,6 +103,8 @@ void HomeTab::BuildRecentView() {
 
     toolbar->addSeparator();
 
+    // TODO: handle button clicks
+
     toolbar->addAction(new XAction(QChar(0xEDB5), "Play"));
     toolbar->addAction(new XAction(QChar(0xEBE8), "Debug"));
     toolbar->addAction(new XAction(QChar(0xE946), "Info"));
@@ -113,6 +113,8 @@ void HomeTab::BuildRecentView() {
 
     toolbar->addAction(new XAction(QChar(0xE8FD), "List"));
     toolbar->addAction(new XAction(QChar(0xF0E2), "Grid"));
+
+    // TODO: hide slider unless "Grid" mode is selected
 
     auto *slider = new XSlider(Qt::Horizontal, this);
     slider->setRange(48, 96);
