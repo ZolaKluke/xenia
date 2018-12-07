@@ -8,6 +8,10 @@ XSlider::XSlider(Qt::Orientation orientation, QWidget* parent)
     : Themeable<QSlider>("XSlider", orientation, parent){};
 
 void XSlider::paintEvent(QPaintEvent*) {
+  QColor bar_color = palette().foreground().color();
+  QColor handle_color = bar_color;
+  bar_color.setAlpha(196);
+
   QStyleOptionSlider option;
   initStyleOption(&option);
 
@@ -23,12 +27,12 @@ void XSlider::paintEvent(QPaintEvent*) {
 
   // Paint Slider Grove
   painter.setPen(Qt::NoPen);
-  painter.setBrush(palette().foreground());
+  painter.setBrush(QBrush(bar_color));
   grove_rect =
       QRectF(grove_rect.left(), grove_rect.center().y() - (bar_size_ / 2.0),
              grove_rect.right(), bar_size_);
   painter.drawRoundRect(grove_rect, bar_radius_, bar_radius_);
-
+  painter.setBrush(QBrush(handle_color));
   // Paint Slider Handle
   painter.drawEllipse((QPointF)handle_rect.center(), slider_radius_,
                       slider_radius_);
