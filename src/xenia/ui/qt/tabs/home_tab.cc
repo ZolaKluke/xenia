@@ -132,6 +132,9 @@ void HomeTab::BuildRecentView() {
 
     recent_layout->addWidget(toolbar);
 
+    // Create recent games list view
+    // TODO: this should only be shown when "List" mode selected in toolbar
+
     list_view_ = new XGameListView(this);
     recent_layout->addWidget(list_view_);
 
