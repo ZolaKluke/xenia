@@ -19,7 +19,7 @@ struct GameInfo {
   const XexInfo* xex_info = nullptr;
 };
 
-class GameScanner {
+class XGameScanner {
  public:
   static const vector<GameInfo> ScanPath(const wstring& path);
   static const GameInfo ScanGame(const wstring& path);

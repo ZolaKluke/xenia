@@ -7,7 +7,7 @@ namespace xe {
 namespace app {
 using filesystem::FileInfo;
 
-const vector<GameInfo> GameScanner::ScanPath(const wstring& path) {
+const vector<GameInfo> XGameScanner::ScanPath(const wstring& path) {
   vector<GameInfo> info;
 
   // Check if the given path exists
@@ -48,7 +48,7 @@ const vector<GameInfo> GameScanner::ScanPath(const wstring& path) {
   return info;
 }
 
-const GameInfo GameScanner::ScanGame(const std::wstring& path) {
+const GameInfo XGameScanner::ScanGame(const std::wstring& path) {
   GameInfo info;
   info.filename = GetFileName(path);
   info.path = path;
