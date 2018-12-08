@@ -6,6 +6,7 @@
 #include "xenia/ui/qt/widgets/toolbar.h"
 #include "xenia/ui/qt/widgets/sidebar_button.h"
 #include "xenia/ui/qt/widgets/tab.h"
+#include "xenia/ui/qt/widgets/game_listview.h"
 
 namespace xe {
 namespace ui {
@@ -25,6 +26,7 @@ class HomeTab : public XTab {
   QWidget* sidebar_ = nullptr;
   XSideBar* sidebar_toolbar_ = nullptr;
   XToolBar* recent_toolbar_ = nullptr;
+  XGameListView* list_view_ = nullptr;
 };
 
 }  // namespace qt

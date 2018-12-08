@@ -91,6 +91,15 @@ void HomeTab::BuildSidebar() {
 }
 
 void HomeTab::BuildRecentView() {
+    // Create container widget
+    QWidget *recent_container = new QWidget(this);
+
+    QVBoxLayout *recent_layout = new QVBoxLayout(this);
+    recent_layout->setContentsMargins(0, 0, 0, 0);
+    recent_layout->setSpacing(0);
+
+    recent_container->setLayout(recent_layout);
+
     // Setup toolbar
     auto toolbar = recent_toolbar_;
     toolbar = new XToolBar(this);
@@ -121,10 +130,15 @@ void HomeTab::BuildRecentView() {
     slider->setFixedWidth(100);
     toolbar->addWidget(slider);
 
-    // Lower the widget to prevent overlap with sidebar's shadow
-    toolbar->lower();
+    recent_layout->addWidget(toolbar);
 
-    layout_->addWidget(toolbar, 0, Qt::AlignTop);
+    list_view_ = new XGameListView(this);
+    recent_layout->addWidget(list_view_);
+
+    layout_->addWidget(recent_container);
+
+    // Lower the widget to prevent overlap with sidebar's shadow
+    recent_container->lower();
 }
 
 }  // namespace qt
