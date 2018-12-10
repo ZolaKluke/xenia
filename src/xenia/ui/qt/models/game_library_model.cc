@@ -17,41 +17,41 @@ QVariant XGameLibraryModel::data(const QModelIndex& index, int role) const {
     return QVariant();
   }
 
-  const auto& entry = library_->games()[index.row()];
+  const XGameEntry& entry = library_->games()[index.row()];
 
   switch (index.column()) {
     case kIconColumn:
       if(role == Qt::DisplayRole) {
         QPixmap pixmap;
-        pixmap.loadFromData(entry->icon(), (int)entry->icon_size());
+        pixmap.loadFromData(entry.icon(), (int)entry.icon_size());
         return pixmap;
       }
       break;
     case kTitleColumn:
       if (role == Qt::DisplayRole) {
-        return QString::fromUtf8(entry->title().c_str());
+        return QString::fromUtf8(entry.title().c_str());
       }
       break;
     case kTitleIdColumn:
       if (role == Qt::DisplayRole) {
-        auto title_id = xe::string_util::to_hex_string(entry->title_id());
+        auto title_id = xe::string_util::to_hex_string(entry.title_id());
         return QString::fromUtf8(title_id.c_str());
       }
       break;
     case kMediaIdColumn:
       if (role == Qt::DisplayRole) {
-        auto media_id = xe::string_util::to_hex_string(entry->media_id());
+        auto media_id = xe::string_util::to_hex_string(entry.media_id());
         return QString::fromUtf8(media_id.c_str());
       }
       break;
     case kPathColumn:
       if (role == Qt::DisplayRole) {
-        return QString::fromUtf8(entry->file_path().c_str());
+        return QString::fromUtf8(entry.file_path().c_str());
       }
       break;
     case kVersionColumn:
       if (role == Qt::DisplayRole) {
-        auto version = entry->version();
+        auto version = entry.version();
         QString version_str;
         version_str.sprintf("v%d.%d.%d", version.major, version.minor,
                             version.build);
@@ -59,17 +59,17 @@ QVariant XGameLibraryModel::data(const QModelIndex& index, int role) const {
       }
     case kGenreColumn:
       if (role == Qt::DisplayRole) {
-        return QString::fromUtf8(entry->genre().c_str());
+        return QString::fromUtf8(entry.genre().c_str());
       }
       break;
     case kReleaseDateColumn:
       if (role == Qt::DisplayRole) {
-        return QString::fromUtf8(entry->release_date().c_str());
+        return QString::fromUtf8(entry.release_date().c_str());
       }
       break;
     case kBuildDateColumn:
       if (role == Qt::DisplayRole) {
-        return QString::fromUtf8(entry->build_date().c_str());
+        return QString::fromUtf8(entry.build_date().c_str());
       }
       break;
     case kLastPlayedColumn:
@@ -84,7 +84,7 @@ QVariant XGameLibraryModel::data(const QModelIndex& index, int role) const {
       return QVariant();  // TODO
     case kGameRegionColumn:
       if (role == Qt::DisplayRole) {
-        auto region = RegionStringMap.find(entry->regions());
+        auto region = RegionStringMap.find(entry.regions());
         if(region != RegionStringMap.end()) {
           return region->second;
         }
@@ -94,7 +94,7 @@ QVariant XGameLibraryModel::data(const QModelIndex& index, int role) const {
       return QVariant();  // TODO
     case kPlayerCountColumn:
       if (role == Qt::DisplayRole) {
-        return QString::number(entry->player_count());
+        return QString::number(entry.player_count());
       }
       break;
   }

@@ -16,7 +16,7 @@ bool XGameLibrary::add(const std::string file_path) {
 }
 
 bool XGameLibrary::add(XGameEntry* game_entry) {
-   if (!game_entry->is_valid()) {
+  if (!game_entry->is_valid()) {
     return false;  // Game is not valid
   }
 
@@ -24,14 +24,10 @@ bool XGameLibrary::add(XGameEntry* game_entry) {
   //  return false;  // Game is already present
   //}
 
-  auto ptr = std::unique_ptr<XGameEntry>(game_entry);
-  games_.push_back(std::move(ptr));
-
-  {
-    const auto& game = games_.back();
-    auto pair = std::make_pair(game->title_id(), game.get());
-    games_titleid_map_.insert(pair);
-  }
+  games_.emplace_back(*game_entry);
+  auto& game = games_.back();
+  auto pair = std::make_pair(game.title_id(), &game);
+  games_titleid_map_.insert(pair);
 
   return true;
 }
