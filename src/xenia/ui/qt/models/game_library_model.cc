@@ -22,9 +22,9 @@ QVariant XGameLibraryModel::data(const QModelIndex& index, int role) const {
   switch (index.column()) {
     case kIconColumn:
       if(role == Qt::DisplayRole) {
-        QPixmap pixmap;
-        pixmap.loadFromData(entry.icon(), (int)entry.icon_size());
-        return pixmap;
+        QImage image;
+        image.loadFromData(entry.icon(), (int)entry.icon_size());
+        return image;
       }
       break;
     case kTitleColumn:
