@@ -5,9 +5,9 @@
 namespace xe {
 namespace app {
 
-std::shared_ptr<XGameLibrary> XGameLibrary::Instance() {
-  static std::shared_ptr<XGameLibrary> instance_{new XGameLibrary};
-  return instance_;
+XGameLibrary* XGameLibrary::Instance() {
+  static XGameLibrary* instance = new XGameLibrary;
+  return instance;
 }
 
 bool XGameLibrary::add(const std::string file_path) {
@@ -24,11 +24,14 @@ bool XGameLibrary::add(XGameEntry* game_entry) {
   //  return false;  // Game is already present
   //}
 
-  auto ptr = std::shared_ptr<XGameEntry>(game_entry);
-  games_.push_back(ptr);
+  auto ptr = std::unique_ptr<XGameEntry>(game_entry);
+  games_.push_back(std::move(ptr));
 
-  auto pair = std::make_pair(ptr->title_id(), ptr);
-  games_titleid_map_.insert(pair);
+  {
+    const auto& game = games_.back();
+    auto pair = std::make_pair(game->title_id(), game.get());
+    games_titleid_map_.insert(pair);
+  }
 
   return true;
 }
@@ -84,8 +87,7 @@ bool XGameLibrary::save() {
   return false;
 }
 
-const std::shared_ptr<XGameEntry> XGameLibrary::game(
-    const uint32_t& title_id) const {
+const XGameEntry* XGameLibrary::game(const uint32_t& title_id) const {
   auto game = games_titleid_map_.find(title_id);
   if (game == games_titleid_map_.end()) {
     return nullptr;

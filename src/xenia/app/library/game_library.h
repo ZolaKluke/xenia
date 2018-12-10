@@ -15,7 +15,7 @@ class XGameLibrary {
  public:
   XGameLibrary(XGameLibrary const&) = delete;
   XGameLibrary& operator=(XGameLibrary const&) = delete;
-  static std::shared_ptr<XGameLibrary> Instance();
+  static XGameLibrary* Instance();
 
   bool add(const std::string file_path);
   bool add(XGameEntry* game_entry);
@@ -29,8 +29,8 @@ class XGameLibrary {
   bool load();
   bool save();
 
-  const std::shared_ptr<XGameEntry> game(const uint32_t& title_id) const;
-  const std::vector<std::shared_ptr<XGameEntry>> games() const {
+  const XGameEntry* game(const uint32_t& title_id) const;
+  const std::vector<std::unique_ptr<XGameEntry>>& games() const {
     return games_;
   }
   const int size() const { return (int)games_.size(); }
@@ -38,8 +38,8 @@ class XGameLibrary {
  private:
   XGameLibrary(){};
 
-  std::vector<std::shared_ptr<XGameEntry>> games_;
-  std::map<uint32_t, std::shared_ptr<XGameEntry>> games_titleid_map_;
+  std::vector<std::unique_ptr<XGameEntry>> games_;
+  std::map<uint32_t, XGameEntry*> games_titleid_map_;
   std::vector<std::string> game_paths_;
 };
 

@@ -59,8 +59,7 @@ class XGameLibraryModel final : public QAbstractTableModel {
   };
 
   private:
-    std::shared_ptr<XGameLibrary> library_;
-
+   XGameLibrary* library_;
 };
 
 }  // namespace qt

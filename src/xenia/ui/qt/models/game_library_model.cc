@@ -17,7 +17,7 @@ QVariant XGameLibraryModel::data(const QModelIndex& index, int role) const {
     return QVariant();
   }
 
-  std::shared_ptr<XGameEntry> entry = library_->games()[index.row()];
+  const auto& entry = library_->games()[index.row()];
 
   switch (index.column()) {
     case kIconColumn:
@@ -29,24 +29,24 @@ QVariant XGameLibraryModel::data(const QModelIndex& index, int role) const {
       break;
     case kTitleColumn:
       if (role == Qt::DisplayRole) {
-        return QString::fromStdString(entry->title());
+        return QString::fromUtf8(entry->title().c_str());
       }
       break;
     case kTitleIdColumn:
       if (role == Qt::DisplayRole) {
         auto title_id = xe::string_util::to_hex_string(entry->title_id());
-        return QString::fromStdString(title_id);
+        return QString::fromUtf8(title_id.c_str());
       }
       break;
     case kMediaIdColumn:
       if (role == Qt::DisplayRole) {
         auto media_id = xe::string_util::to_hex_string(entry->media_id());
-        return QString::fromStdString(media_id);
+        return QString::fromUtf8(media_id.c_str());
       }
       break;
     case kPathColumn:
       if (role == Qt::DisplayRole) {
-        return QString::fromStdString(entry->file_path());
+        return QString::fromUtf8(entry->file_path().c_str());
       }
       break;
     case kVersionColumn:
@@ -59,17 +59,17 @@ QVariant XGameLibraryModel::data(const QModelIndex& index, int role) const {
       }
     case kGenreColumn:
       if (role == Qt::DisplayRole) {
-        return QString::fromStdString(entry->genre());
+        return QString::fromUtf8(entry->genre().c_str());
       }
       break;
     case kReleaseDateColumn:
       if (role == Qt::DisplayRole) {
-        return QString::fromStdString(entry->release_date());
+        return QString::fromUtf8(entry->release_date().c_str());
       }
       break;
     case kBuildDateColumn:
       if (role == Qt::DisplayRole) {
-        return QString::fromStdString(entry->build_date());
+        return QString::fromUtf8(entry->build_date().c_str());
       }
       break;
     case kLastPlayedColumn:
