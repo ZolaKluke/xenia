@@ -105,8 +105,7 @@ void HomeTab::BuildRecentView() {
     toolbar = new XToolBar(this);
 
     QLabel *title = new QLabel("Recent Games");
-    title->setFont(QFont("Segoe UI", 24));
-    title->setStyleSheet("color: white;");
+    title->setObjectName("recentGames");
 
     toolbar->addWidget(title);
 
@@ -134,6 +133,7 @@ void HomeTab::BuildRecentView() {
 
     // Create recent games list view
     // TODO: this should only be shown when "List" mode selected in toolbar
+    // and should also only load games from a "recent" cache
 
     list_view_ = new XGameListView(this);
     recent_layout->addWidget(list_view_);
