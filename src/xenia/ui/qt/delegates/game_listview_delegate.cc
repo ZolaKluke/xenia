@@ -44,25 +44,20 @@ void XGameListViewDelegate::paintIcon(QPixmap& icon, QPainter* painter,
   double height = options.rect.height();
   double icon_size = options.rect.height() * 0.8;
 
-  double dpr = painter->device()->devicePixelRatioF();
-
-  // Scale the Pixmap and mask
-  QPixmap scaled_icon = icon.scaled(icon_size, icon_size, Qt::KeepAspectRatio,
-                                    Qt::SmoothTransformation);
-  scaled_icon.setDevicePixelRatio(dpr);
-
-  QPixmap scaled_mask = icon_mask_.scaled(
-      icon_size, icon_size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-  scaled_icon.setMask(scaled_mask);
+  icon.setMask(icon_mask_);
 
   // Calculate the Icon position
-  QRectF icon_rect = scaled_icon.rect();
+  QRectF rect = icon.rect();
+  QRectF icon_rect = QRectF(rect.x(), rect.y(), icon_size, icon_size);
   double shift_x = (width - icon_size) / 2;
   double shift_y = (height - icon_size) / 2 + options.rect.y();
   icon_rect.translate(shift_x, shift_y);
 
+  // adding QPainter::Antialiasing here smoothes masked edges 
+  // but makes the image look slightly blurry
   painter->setRenderHints(QPainter::SmoothPixmapTransform);
-  painter->drawPixmap(icon_rect, scaled_icon, scaled_icon.rect());
+
+  painter->drawPixmap(icon_rect, icon, icon.rect());
 }
 
 QSize XGameListViewDelegate::sizeHint(const QStyleOptionViewItem& option,
