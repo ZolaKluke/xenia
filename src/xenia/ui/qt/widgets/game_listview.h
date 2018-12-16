@@ -4,7 +4,6 @@
 #include "xenia/ui/qt/models/game_library_model.h"
 #include "xenia/ui/qt/themeable_widget.h"
 #include "xenia/ui/qt/widgets/table_view.h"
-#include "xenia/ui/qt/themeable_widget.h"
 
 #include <QSortFilterProxyModel>
 #include <QTableView>
@@ -14,17 +13,20 @@ namespace ui {
 namespace qt {
 
 class XGameListView : public XTableView {
-  Q_OBJECT;
+  Q_OBJECT
 
  public:
   explicit XGameListView(QWidget* parent = nullptr);
+
+ public slots:
+  void customHeaderMenuRequested(QPoint pos);
 
  private:
   void Build();
 
   XGameLibraryModel* model_;
   QSortFilterProxyModel* proxy_model_;
-  
+  QMenu* menu_;
 };
 
 }  // namespace qt
