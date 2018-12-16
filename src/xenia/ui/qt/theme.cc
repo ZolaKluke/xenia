@@ -38,7 +38,7 @@ QString Theme::StylesheetForComponent(const QString& component) {
   return *styles_.insert(component, preprocessed_style);
 }
 
-QColor Theme::ColorForKey(const QString& key, QColor default) {
+QColor Theme::ColorForKey(const QString& key, QColor default) const {
   QColor color = config_.ColorForKey(key);
 
   if (color.isValid()) {

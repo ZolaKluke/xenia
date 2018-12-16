@@ -123,8 +123,7 @@ bool ThemeConfiguration::SaveToFile(const QString& filename) {
   return true;
 }
 
-QColor ThemeConfiguration::ColorForKey(
-    const QString& key) {
+QColor ThemeConfiguration::ColorForKey(const QString& key) const {
   for (const auto& color : colors_) {
     if (color.first == key) {
       return color.second;

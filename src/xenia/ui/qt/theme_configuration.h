@@ -46,7 +46,7 @@ class ThemeConfiguration {
   void set_description(const QString& desc) { description_ = desc; }
 
   const std::vector<ThemeColor>& colors() const { return colors_; }
-  QColor ColorForKey(const QString& key);
+  QColor ColorForKey(const QString& key) const;
 
   void add_color(const QString& name, const QColor& color);
   void add_color(const QString& name, const QString& hex);

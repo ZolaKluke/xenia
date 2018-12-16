@@ -21,7 +21,7 @@ namespace qt {
 
 ThemeManager::ThemeManager() {}
 
-ThemeManager& ThemeManager::SharedManager() {
+ThemeManager& ThemeManager::Instance() {
   static ThemeManager* manager = nullptr;
   if (!manager) {
     manager = new ThemeManager();

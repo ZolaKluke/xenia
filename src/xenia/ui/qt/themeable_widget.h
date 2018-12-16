@@ -15,8 +15,8 @@ namespace qt {
 template <typename T>
 class Themeable : public T {
  public:
-  template<typename... Args>
-  Themeable(QString name, Args&&... args) : T(args...){
+  template <typename... Args>
+  Themeable(QString name, Args&&... args) : T(args...) {
     static_assert(std::is_base_of<QWidget, T>::value,
                   "T is not derived from QWidget");
 
@@ -28,8 +28,8 @@ class Themeable : public T {
       setObjectName(theme_name);
     }
 
-    ThemeManager& manager = ThemeManager::SharedManager();
-    Theme theme = manager.current_theme();
+    ThemeManager& manager = ThemeManager::Instance();
+    Theme& theme = manager.current_theme();
 
     QString style = theme.StylesheetForComponent(theme_name);
     QString base_style = manager.base_style();

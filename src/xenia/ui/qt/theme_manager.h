@@ -22,8 +22,8 @@ namespace qt {
 
 class ThemeManager {
  public:
-  static ThemeManager& SharedManager();
-  const Theme& current_theme() const { return themes_.front(); }
+  static ThemeManager& Instance();
+  Theme& current_theme() { return themes_.front(); }
   const QVector<Theme>& themes() const { return themes_; }
   const QString& base_style() const;
 
