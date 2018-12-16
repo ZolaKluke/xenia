@@ -1,6 +1,7 @@
 #include "xenia/ui/qt/actions/action.h"
 
 #include <QPainter>
+#include "xenia/ui/qt/theme_manager.h"
 
 namespace xe {
 namespace ui {
@@ -43,9 +44,14 @@ void XAction::rebuildGlyphIcons() {
     return pixmap;
   };
 
-  // TODO: load colors from CSS
-  QPixmap OFF = renderPixmap(Qt::white);
-  QPixmap ON = renderPixmap(Qt::white);
+  auto theme_manager = ThemeManager::Instance();
+  const Theme& current_theme = theme_manager.current_theme();
+
+  QColor off_color = current_theme.ColorForKey("light2");
+  QColor on_color = current_theme.ColorForKey("secondary");
+
+  QPixmap OFF = renderPixmap(off_color);
+  QPixmap ON = renderPixmap(on_color);
 
   QIcon icon;
   icon.addPixmap(OFF, QIcon::Normal, QIcon::Off);
