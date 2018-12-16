@@ -38,6 +38,16 @@ QString Theme::StylesheetForComponent(const QString& component) {
   return *styles_.insert(component, preprocessed_style);
 }
 
+QColor Theme::ColorForKey(const QString& key, QColor default) {
+  QColor color = config_.ColorForKey(key);
+
+  if (color.isValid()) {
+    return color;
+  } else {
+    return default;
+  }
+}
+
 QString Theme::PreprocessStylesheet(QString filename) {
   filename += ".css";
   QString qss_dir = directory_ + "/stylesheets/";

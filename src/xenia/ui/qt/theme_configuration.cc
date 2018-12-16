@@ -123,14 +123,14 @@ bool ThemeConfiguration::SaveToFile(const QString& filename) {
   return true;
 }
 
-const std::unique_ptr<ThemeColor> ThemeConfiguration::ColorForKey(
+QColor ThemeConfiguration::ColorForKey(
     const QString& key) {
   for (const auto& color : colors_) {
     if (color.first == key) {
-      return std::unique_ptr<ThemeColor>(new ThemeColor(color));
+      return color.second;
     }
   }
-  return nullptr;
+  return QColor();
 }
 
 void ThemeConfiguration::add_color(const QString& name, const QColor& color) {
