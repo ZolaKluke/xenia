@@ -7,12 +7,12 @@
       "value": "#FFFFFF"
     },
     {
-      "name": "secondaryDark",
-      "value": "#29B161"
-    },
-    {
       "name": "secondary",
       "value": "#5CE494"
+    },
+    {
+      "name": "secondaryDark",
+      "value": "#24DB70"
     },
     {
       "name": "tertiary",
