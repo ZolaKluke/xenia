@@ -30,7 +30,7 @@ void XAction::rebuildGlyphIcons() {
 
     // Create the Pixmap
     // boundingRect can be inaccurate so add a 4px padding to be safe
-    QPixmap pixmap(max + 2, max + 2);
+    QPixmap pixmap(max + 4, max + 4);
     pixmap.fill(Qt::transparent);
 
     // Paint the Glyph
