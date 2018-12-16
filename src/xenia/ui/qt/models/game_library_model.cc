@@ -19,37 +19,38 @@ QVariant XGameLibraryModel::data(const QModelIndex& index, int role) const {
 
   const XGameEntry& entry = library_->games()[index.row()];
 
-  switch (index.column()) {
-    case kIconColumn:
-      if(role == Qt::DisplayRole) {
+  GameColumn column = (GameColumn)index.column();
+  switch (column) {
+    case GameColumn::kIconColumn:
+      if (role == Qt::DisplayRole) {
         QImage image;
         image.loadFromData(entry.icon(), (int)entry.icon_size());
         return image;
       }
       break;
-    case kTitleColumn:
+    case GameColumn::kTitleColumn:
       if (role == Qt::DisplayRole) {
         return QString::fromUtf8(entry.title().c_str());
       }
       break;
-    case kTitleIdColumn:
+    case GameColumn::kTitleIdColumn:
       if (role == Qt::DisplayRole) {
         auto title_id = xe::string_util::to_hex_string(entry.title_id());
         return QString::fromUtf8(title_id.c_str());
       }
       break;
-    case kMediaIdColumn:
+    case GameColumn::kMediaIdColumn:
       if (role == Qt::DisplayRole) {
         auto media_id = xe::string_util::to_hex_string(entry.media_id());
         return QString::fromUtf8(media_id.c_str());
       }
       break;
-    case kPathColumn:
+    case GameColumn::kPathColumn:
       if (role == Qt::DisplayRole) {
         return QString::fromUtf8(entry.file_path().c_str());
       }
       break;
-    case kVersionColumn:
+    case GameColumn::kVersionColumn:
       if (role == Qt::DisplayRole) {
         auto version = entry.version();
         QString version_str;
@@ -57,42 +58,42 @@ QVariant XGameLibraryModel::data(const QModelIndex& index, int role) const {
                             version.build);
         return version_str;
       }
-    case kGenreColumn:
+    case GameColumn::kGenreColumn:
       if (role == Qt::DisplayRole) {
         return QString::fromUtf8(entry.genre().c_str());
       }
       break;
-    case kReleaseDateColumn:
+    case GameColumn::kReleaseDateColumn:
       if (role == Qt::DisplayRole) {
         return QString::fromUtf8(entry.release_date().c_str());
       }
       break;
-    case kBuildDateColumn:
+    case GameColumn::kBuildDateColumn:
       if (role == Qt::DisplayRole) {
         return QString::fromUtf8(entry.build_date().c_str());
       }
       break;
-    case kLastPlayedColumn:
+    case GameColumn::kLastPlayedColumn:
       return QVariant();  // TODO
-    case kTimePlayedColumn:
+    case GameColumn::kTimePlayedColumn:
       return QVariant();  // TODO
-    case kAchievementsUnlockedColumn:
+    case GameColumn::kAchievementsUnlockedColumn:
       return QVariant();  // TODO
-    case kGamerscoreUnlockedColumn:
+    case GameColumn::kGamerscoreUnlockedColumn:
       return QVariant();  // TODO
-    case kGameRatingColumn:
+    case GameColumn::kGameRatingColumn:
       return QVariant();  // TODO
-    case kGameRegionColumn:
+    case GameColumn::kGameRegionColumn:
       if (role == Qt::DisplayRole) {
         auto region = RegionStringMap.find(entry.regions());
-        if(region != RegionStringMap.end()) {
+        if (region != RegionStringMap.end()) {
           return region->second;
         }
       }
       break;
-    case kCompatabilityColumn:
+    case GameColumn::kCompatabilityColumn:
       return QVariant();  // TODO
-    case kPlayerCountColumn:
+    case GameColumn::kPlayerCountColumn:
       if (role == Qt::DisplayRole) {
         return QString::number(entry.player_count());
       }
@@ -103,45 +104,46 @@ QVariant XGameLibraryModel::data(const QModelIndex& index, int role) const {
 }
 
 QVariant XGameLibraryModel::headerData(int section, Qt::Orientation orientation,
-                                    int role) const {
+                                       int role) const {
   if (orientation == Qt::Vertical || role != Qt::DisplayRole) {
     return QVariant();
   }
 
-  switch (section) {
-    case kIconColumn:
+  GameColumn column = (GameColumn)section;
+  switch (column) {
+    case GameColumn::kIconColumn:
       return tr("");
-    case kTitleColumn:
+    case GameColumn::kTitleColumn:
       return tr("Title");
-    case kTitleIdColumn:
+    case GameColumn::kTitleIdColumn:
       return tr("Title ID");
-    case kMediaIdColumn:
+    case GameColumn::kMediaIdColumn:
       return tr("Media ID");
-    case kPathColumn:
+    case GameColumn::kPathColumn:
       return tr("Path");
-    case kVersionColumn:
+    case GameColumn::kVersionColumn:
       return tr("Version");
-    case kGenreColumn:
+    case GameColumn::kGenreColumn:
       return tr("Genre");
-    case kReleaseDateColumn:
+    case GameColumn::kReleaseDateColumn:
       return tr("Release Date");
-    case kBuildDateColumn:
+    case GameColumn::kBuildDateColumn:
       return tr("Build Date");
-    case kLastPlayedColumn:
+    case GameColumn::kLastPlayedColumn:
       return tr("Last Played");
-    case kTimePlayedColumn:
+    case GameColumn::kTimePlayedColumn:
       return tr("Time Played");
-    case kAchievementsUnlockedColumn:
+    case GameColumn::kAchievementsUnlockedColumn:
       return tr("Achievements");
-    case kGamerscoreUnlockedColumn:
+    case GameColumn::kGamerscoreUnlockedColumn:
       return tr("Gamerscore");
-    case kGameRatingColumn:
+    case GameColumn::kGameRatingColumn:
       return tr("Rating");
-    case kGameRegionColumn:
+    case GameColumn::kGameRegionColumn:
       return tr("Region");
-    case kCompatabilityColumn:
+    case GameColumn::kCompatabilityColumn:
       return tr("Compatibility");
-    case kPlayerCountColumn:
+    case GameColumn::kPlayerCountColumn:
       return tr("# Players");
     default:
       return QVariant();  // Should not be seeing this
@@ -156,7 +158,7 @@ int XGameLibraryModel::rowCount(const QModelIndex& parent) const {
 }
 
 int XGameLibraryModel::columnCount(const QModelIndex& parent) const {
-  return kColumnCount;
+  return (int)GameColumn::kColumnCount;
 }
 
 }  // namespace qt

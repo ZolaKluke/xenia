@@ -23,7 +23,7 @@ void XGameListViewDelegate::paint(QPainter* painter,
   options.state &= (~QStyle::State_HasFocus);
 
   switch (index.column()) {
-    case XGameLibraryModel::kIconColumn: {
+    case GameColumn::kIconColumn: {
       QStyledItemDelegate::paint(painter, options, index);
       QImage icon = index.data().value<QImage>();
       QPixmap pixmap = QPixmap::fromImage(icon);
@@ -53,7 +53,7 @@ void XGameListViewDelegate::paintIcon(QPixmap& icon, QPainter* painter,
   double shift_y = (height - icon_size) / 2 + options.rect.y();
   icon_rect.translate(shift_x, shift_y);
 
-  // adding QPainter::Antialiasing here smoothes masked edges 
+  // adding QPainter::Antialiasing here smoothes masked edges
   // but makes the image look slightly blurry
   painter->setRenderHints(QPainter::SmoothPixmapTransform);
 
