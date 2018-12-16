@@ -22,7 +22,8 @@ void XGameListViewDelegate::paint(QPainter* painter,
   auto options = QStyleOptionViewItem(option);
   options.state &= (~QStyle::State_HasFocus);
 
-  switch (index.column()) {
+  GameColumn column = (GameColumn)index.column();
+  switch (column) {
     case GameColumn::kIconColumn: {
       QStyledItemDelegate::paint(painter, options, index);
       QImage icon = index.data().value<QImage>();
@@ -62,8 +63,9 @@ void XGameListViewDelegate::paintIcon(QPixmap& icon, QPainter* painter,
 
 QSize XGameListViewDelegate::sizeHint(const QStyleOptionViewItem& option,
                                       const QModelIndex& index) const {
-  switch (index.column()) {
-    case XGameLibraryModel::kIconColumn:
+  GameColumn column = (GameColumn)index.column();
+  switch (column) {
+    case GameColumn::kIconColumn:
       return QSize(58, 48);
     default:
       return QSize();

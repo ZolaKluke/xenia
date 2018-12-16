@@ -12,7 +12,7 @@ namespace qt {
 using app::XGameEntry;
 using app::XGameLibrary;
 
-enum class GameColumn : int {
+enum class GameColumn {
   kIconColumn,
   kTitleColumn,
   kTitleIdColumn,
@@ -34,7 +34,7 @@ enum class GameColumn : int {
   kColumnCount,  // For column counting, unused, keep as last entry
 };
 
-std::map<app::XGameRegions, QString> RegionStringMap{
+static std::map<app::XGameRegions, QString> RegionStringMap{
     {XEX_REGION_ALL, "Region Free"},
     {XEX_REGION_NTSCJ, "NTSC-J"},
     {XEX_REGION_NTSCJ_CHINA, "NTSC-J (China)"},
