@@ -127,8 +127,7 @@ inline Device* CreateDevice(const wstring& path) {
       return new vfs::HostPathDevice(mount_path, GetParentDirectory(path),
                                      true);
     case XGameFormat::kStfs:
-      // TODO: Load GOD Container when supported
-      return nullptr;  // new vfs::StfsContainerDevice(mount_path, path);
+      return new vfs::StfsContainerDevice(mount_path, path);
     default:
       return nullptr;
   }
