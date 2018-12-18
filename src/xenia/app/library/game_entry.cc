@@ -3,7 +3,13 @@
 namespace xe {
 namespace app {
 
-XGameEntry::XGameEntry(const GameInfo& info) { apply_info(info); };
+XGameEntry* XGameEntry::from_game_info(const GameInfo& info) {
+  auto entry = new XGameEntry();
+  auto result = entry->apply_info(info);
+
+  if (!result) return nullptr;
+  return entry;
+};
 
 XGameEntry::~XGameEntry(){};
 
@@ -20,27 +26,30 @@ bool XGameEntry::is_missing_data() {
   // TODO: Regions
 }
 
-void XGameEntry::apply_info(const GameInfo& info) {
+bool XGameEntry::apply_info(const GameInfo& info) {
   auto xex = info.xex_info;
   auto nxe = info.nxe_info;
 
   format_ = info.format;
-  file_path_ = std::string(info.path.begin(), info.path.end());
-  file_name_ = std::string(info.filename.begin(), info.filename.end());
+  file_path_ = info.path;
+  file_name_ = info.filename;
 
-  if(!xex) return; //TODO
+  if (!xex) return false;
 
-  title_id_ = xex->header.execution_info.title_id;
-  media_id_ = xex->header.execution_info.media_id;
-  version_ = xex->header.execution_info.version;
-  base_version_ = xex->header.execution_info.base_version;
-  ratings_ = xex->header.game_ratings;
-  regions_ = xex->header.loader_info.game_regions;
+  title_id_ = xex->header->execution_info.title_id;
+  media_id_ = xex->header->execution_info.media_id;
+  version_ = xex->header->execution_info.version;
+  base_version_ = xex->header->execution_info.base_version;
+  ratings_ = xex->header->game_ratings;
+  regions_ = xex->header->loader_info.game_regions;
 
-  /*alt_title_ids_.clear();
-  for (size_t i = 0; i < xex->header.alt_title_id_count; i++) {
-    alt_title_ids_.push_back(xex->header.alt_title_ids[i]);
-  }*/
+  // Add to disc map / launch paths
+  auto disc_id = xex->header->execution_info.disc_number;
+  disc_map_.insert_or_assign(disc_id, media_id_);
+  launch_paths_.insert_or_assign(info.path, media_id_);
+  if (!default_launch_paths_.count(media_id_)) {
+    default_launch_paths_.insert(std::make_pair(media_id_, info.path));
+  }
 
   if (xex->game_title.length() > 0) {
     title_ = xex->game_title;
@@ -59,6 +68,8 @@ void XGameEntry::apply_info(const GameInfo& info) {
     icon_ = (uint8_t*)calloc(1, icon_size_);
     memcpy(icon_, nxe->icon, icon_size_);
   }
+
+  return true;
 }
 
 }  // namespace app

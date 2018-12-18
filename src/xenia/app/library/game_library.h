@@ -17,28 +17,23 @@ class XGameLibrary {
   XGameLibrary& operator=(XGameLibrary const&) = delete;
   static XGameLibrary* Instance();
 
-  bool add(const std::string file_path);
-  bool add(XGameEntry* game_entry);
-  bool remove(const XGameEntry* game_entry);
-  bool rescan_game(const XGameEntry* game_entry);
+  bool add_path(const std::wstring& path);
+  bool remove_path(const std::wstring& path);
+  void scan_paths();
 
-  bool add_path(const std::string& path);
-  bool remove_path(const std::string& path);
-  bool scan_game_paths();
+  const XGameEntry* game(const uint32_t title_id) const;
+  const std::vector<XGameEntry*> games() const;
+  const size_t size() const;
 
+  void clear();
   bool load();
   bool save();
-
-  const XGameEntry* game(const uint32_t& title_id) const;
-  const std::vector<XGameEntry>& games() const { return games_; }
-  const int size() const { return (int)games_.size(); }
 
  private:
   XGameLibrary(){};
 
-  std::vector<XGameEntry> games_;
-  std::map<uint32_t, XGameEntry*> games_titleid_map_;
-  std::vector<std::string> game_paths_;
+  std::map<uint32_t, XGameEntry*> games_;
+  std::vector<std::wstring> paths_;
 };
 
 }  // namespace app

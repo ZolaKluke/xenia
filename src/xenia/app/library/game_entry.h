@@ -12,17 +12,22 @@ namespace app {
 
 class XGameEntry final {
  public:
-  XGameEntry() = default;
-  XGameEntry(const GameInfo& info);
+  static XGameEntry* from_game_info(const GameInfo& info);
   ~XGameEntry();
 
   bool is_valid();
   bool is_missing_data();
-  void apply_info(const GameInfo& info);
+  bool apply_info(const GameInfo& info);
 
   const XGameFormat& format() const { return format_; }
-  const std::string& file_path() const { return file_path_; }
-  const std::string& file_name() const { return file_name_; }
+  const std::wstring& file_path() const { return file_path_; }
+  const std::wstring& file_name() const { return file_name_; }
+  const std::map<std::wstring, uint32_t> launch_paths() const {
+    return launch_paths_;
+  }
+  const std::map<uint32_t, std::wstring> default_launch_paths() const {
+    return default_launch_paths_;
+  }
 
   const std::string& title() const { return title_; }
   const uint8_t* icon() const { return icon_; }
@@ -42,10 +47,14 @@ class XGameEntry final {
   const uint8_t& player_count() const { return player_count_; }
 
  private:
+  explicit XGameEntry(){};
+
   // File Info
   XGameFormat format_;
-  std::string file_path_;
-  std::string file_name_;
+  std::wstring file_path_;
+  std::wstring file_name_;
+  std::map<std::wstring, uint32_t> launch_paths_;          // <Path, MediaId>
+  std::map<uint32_t, std::wstring> default_launch_paths_;  // <MediaId, Path>
 
   // Game Metadata
   std::string title_;
