@@ -36,7 +36,7 @@ const vector<GameInfo> XGameScanner::ScanPath(const wstring& path) {
     if (current_file.type == FileInfo::Type::kDirectory) {
       vector<FileInfo> directory_files = filesystem::ListFiles(current_path);
       for (FileInfo file : directory_files) {
-        wstring next_path = AppendToPath(current_path, file.name);
+        auto next_path = xe::join_paths(current_path, file.name);
         queue.push_front(next_path);
       }
     } else if (ResolveFormat(current_path)) {

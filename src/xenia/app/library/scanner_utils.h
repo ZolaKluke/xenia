@@ -24,20 +24,9 @@ enum XGameFormat {
   kUnknown,
   kIso,
   kStfs,
+  kSvod,
   kXex,
 };
-
-inline wstring AppendToPath(const wstring& left, const wstring& right) {
-  wchar_t separator = xe::kWPathSeparator;
-  wstring path(left);
-
-  // Add path separator if not present
-  if (path[path.length() - 1] != separator) {
-    path = path + separator;
-  }
-
-  return path.append(right);
-}
 
 inline const bool CompareCaseInsensitive(const wstring& left,
                                          const wstring& right) {
