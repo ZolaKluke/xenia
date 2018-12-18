@@ -19,7 +19,7 @@ typedef xe_xex2_region_flags XGameRegions;
 typedef xe_xex2_version_t XGameVersion;
 
 struct XexInfo {
-  XexHeader header;
+  XexHeader* header;
   std::string game_title;
   uint8_t* icon;
   size_t icon_size;
@@ -30,8 +30,8 @@ class XexScanner {
   static const XexInfo* ScanXex(File* xex_file);
 
  private:
-  static const XexHeader ReadXexHeader(File* file);
-  static X_STATUS ReadXexImage(File* file, XexHeader& header, uint8_t*& image,
+  static XexHeader* ReadXexHeader(File* file);
+  static X_STATUS ReadXexImage(File* file, XexHeader* header, uint8_t*& image,
                                size_t& image_size);
   static X_STATUS ReadXexResources(File* file, XexInfo* info);
 };

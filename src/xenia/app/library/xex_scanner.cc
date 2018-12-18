@@ -1,6 +1,6 @@
-#include "xenia/app/library/scanner_utils.h"
 #include "xenia/app/library/xex_scanner.h"
 #include "third_party/crypto/rijndael-alg-fst.h"
+#include "xenia/app/library/scanner_utils.h"
 
 namespace xe {
 namespace app {
@@ -38,7 +38,7 @@ const XexInfo* XexScanner::ScanXex(File* file) {
   return info;
 }
 
-XexOptHeader ReadXexAltTitleIds(File* file, XexHeader& header,
+XexOptHeader ReadXexAltTitleIds(File* file, XexHeader* header,
                                 uint32_t offset) {
   uint32_t length = Read<uint32_t>(file, offset);
   uint32_t count = (length - 0x04) / 0x04;
@@ -49,19 +49,19 @@ XexOptHeader ReadXexAltTitleIds(File* file, XexHeader& header,
   opt_header.offset = offset;
   opt_header.length = length;
 
-  header.alt_title_id_count = count;
-  header.alt_title_ids = (uint32_t*)calloc(length, sizeof(uint32_t));
+  header->alt_title_id_count = count;
+  header->alt_title_ids = (uint32_t*)calloc(length, sizeof(uint32_t));
 
   uint8_t* cursor = data + 0x04;
   for (uint32_t i = 0; i < length; i++, cursor += 0x04) {
-    header.alt_title_ids[i] = xe::load_and_swap<uint32_t>(cursor);
+    header->alt_title_ids[i] = xe::load_and_swap<uint32_t>(cursor);
   }
 
   delete[] data;
   return opt_header;
 }
 
-XexOptHeader ReadXexExecutionInfo(File* file, XexHeader& header,
+XexOptHeader ReadXexExecutionInfo(File* file, XexHeader* header,
                                   uint32_t offset) {
   uint32_t length = sizeof(xe_xex2_execution_info_t);
   uint8_t* data = Read(file, offset, length);
@@ -71,7 +71,7 @@ XexOptHeader ReadXexExecutionInfo(File* file, XexHeader& header,
   opt_header.offset = offset;
   opt_header.length = length;
 
-  auto info = &header.execution_info;
+  auto info = &header->execution_info;
   info->media_id = xe::load_and_swap<uint32_t>(data + 0x00);
   info->version.value = xe::load_and_swap<uint32_t>(data + 0x04);
   info->base_version.value = xe::load_and_swap<uint32_t>(data + 0x08);
@@ -86,7 +86,7 @@ XexOptHeader ReadXexExecutionInfo(File* file, XexHeader& header,
   return opt_header;
 }
 
-XexOptHeader ReadXexFileFormatInfo(File* file, XexHeader& header,
+XexOptHeader ReadXexFileFormatInfo(File* file, XexHeader* header,
                                    uint32_t offset) {
   uint32_t length = Read<uint32_t>(file, offset);  // TODO
   uint8_t* data = Read(file, offset, length);
@@ -97,7 +97,7 @@ XexOptHeader ReadXexFileFormatInfo(File* file, XexHeader& header,
   opt_header.length = length;
 
   uint8_t* cursor = data;
-  auto info = &header.file_format_info;
+  auto info = &header->file_format_info;
   info->encryption_type =
       (xe_xex2_encryption_type)xe::load_and_swap<uint16_t>(cursor + 0x04);
   info->compression_type =
@@ -145,7 +145,7 @@ XexOptHeader ReadXexFileFormatInfo(File* file, XexHeader& header,
   return opt_header;
 }
 
-XexOptHeader ReadXexGameRatings(File* file, XexHeader& header,
+XexOptHeader ReadXexGameRatings(File* file, XexHeader* header,
                                 uint32_t offset) {
   uint32_t length = 0xC;
   uint8_t* data = Read(file, offset, length);
@@ -155,7 +155,7 @@ XexOptHeader ReadXexGameRatings(File* file, XexHeader& header,
   opt_header.offset = offset;
   opt_header.length = length;
 
-  auto ratings = &header.game_ratings;
+  auto ratings = &header->game_ratings;
   ratings->esrb =
       (xe_xex2_rating_esrb_value)xe::load_and_swap<uint8_t>(data + 0x00);
   ratings->pegi =
@@ -185,18 +185,18 @@ XexOptHeader ReadXexGameRatings(File* file, XexHeader& header,
   return opt_header;
 }
 
-XexOptHeader ReadXexImageBaseAddress(File* file, XexHeader& header,
+XexOptHeader ReadXexImageBaseAddress(File* file, XexHeader* header,
                                      uint32_t value) {
   XexOptHeader opt_header;
   opt_header.key = XEX_HEADER_IMAGE_BASE_ADDRESS;
   opt_header.value = value;
 
-  header.exe_address = value;
+  header->exe_address = value;
 
   return opt_header;
 }
 
-XexOptHeader ReadXexMultiDiscMediaIds(File* file, XexHeader& header,
+XexOptHeader ReadXexMultiDiscMediaIds(File* file, XexHeader* header,
                                       uint32_t offset) {
   uint32_t length = Read<uint32_t>(file, offset);
   uint32_t count = (length - 0x04) / 0x10;
@@ -208,13 +208,13 @@ XexOptHeader ReadXexMultiDiscMediaIds(File* file, XexHeader& header,
   opt_header.offset = offset;
   opt_header.length = length;
 
-  header.multi_disc_media_id_count = count;
-  header.multi_disc_media_ids =
+  header->multi_disc_media_id_count = count;
+  header->multi_disc_media_ids =
       (xe_xex2_multi_disc_media_id_t*)calloc(count, entry_size);
 
   uint8_t* cursor = data + 0x04;
   for (uint32_t i = 0; i < count; i++, cursor += 0x10) {
-    auto id = &header.multi_disc_media_ids[i];
+    auto id = &header->multi_disc_media_ids[i];
     memcpy(id->hash, cursor, 0x0C);
     id->media_id = xe::load_and_swap<uint32_t>(cursor + 0x0C);
   }
@@ -223,7 +223,7 @@ XexOptHeader ReadXexMultiDiscMediaIds(File* file, XexHeader& header,
   return opt_header;
 }
 
-XexOptHeader ReadXexOriginalPeName(File* file, XexHeader& header,
+XexOptHeader ReadXexOriginalPeName(File* file, XexHeader* header,
                                    uint32_t offset) {
   uint32_t length = Read<uint32_t>(file, offset);
   uint8_t* data = Read(file, offset, length);
@@ -234,14 +234,14 @@ XexOptHeader ReadXexOriginalPeName(File* file, XexHeader& header,
   opt_header.length = length;
 
   uint8_t* cursor = data + 0x04;
-  header.original_pe_name = (uint8_t*)calloc(length, 0x01);
-  memcpy(header.original_pe_name, cursor, length - 0x04);
+  header->original_pe_name = (uint8_t*)calloc(length, 0x01);
+  memcpy(header->original_pe_name, cursor, length - 0x04);
 
   delete[] data;
   return opt_header;
 }
 
-XexOptHeader ReadXexResourceInfo(File* file, XexHeader& header,
+XexOptHeader ReadXexResourceInfo(File* file, XexHeader* header,
                                  uint32_t offset) {
   uint32_t length = Read<uint32_t>(file, offset);
   uint32_t count = (length - 0x04) / 0x10;
@@ -253,12 +253,12 @@ XexOptHeader ReadXexResourceInfo(File* file, XexHeader& header,
   opt_header.offset = offset;
   opt_header.length = length;
 
-  header.resource_info_count = count;
-  header.resource_infos = (xe_xex2_resource_info_t*)calloc(count, size);
+  header->resource_info_count = count;
+  header->resource_infos = (xe_xex2_resource_info_t*)calloc(count, size);
 
   uint8_t* cursor = data + 0x04;
   for (uint32_t i = 0; i < count; i++, cursor += 0x10) {
-    auto info = &header.resource_infos[i];
+    auto info = &header->resource_infos[i];
     memcpy(info->name, cursor, 0x08);
     info->address = xe::load_and_swap<uint32_t>(cursor + 0x08);
     info->size = xe::load_and_swap<uint32_t>(cursor + 0x0C);
@@ -268,7 +268,7 @@ XexOptHeader ReadXexResourceInfo(File* file, XexHeader& header,
   return opt_header;
 }
 
-XexOptHeader ReadXexSystemFlags(File* file, XexHeader& header,
+XexOptHeader ReadXexSystemFlags(File* file, XexHeader* header,
                                 uint32_t offset) {
   uint32_t length = sizeof(xe_xex2_system_flags);
   uint8_t* data = Read(file, offset, length);
@@ -278,13 +278,13 @@ XexOptHeader ReadXexSystemFlags(File* file, XexHeader& header,
   opt_header.offset = offset;
   opt_header.length = length;
 
-  header.system_flags = (xe_xex2_system_flags)*data;
+  header->system_flags = (xe_xex2_system_flags)*data;
 
   delete[] data;
   return opt_header;
 }
 
-XexOptHeader ReadXexOptHeader(File* file, XexHeader& header, uint8_t* data) {
+XexOptHeader ReadXexOptHeader(File* file, XexHeader* header, uint8_t* data) {
   const uint32_t key = xe::load_and_swap<uint32_t>(data + 0x00);
   const uint32_t value = xe::load_and_swap<uint32_t>(data + 0x04);
 
@@ -316,11 +316,11 @@ XexOptHeader ReadXexOptHeader(File* file, XexHeader& header, uint8_t* data) {
   return unknown_opt_header;
 }
 
-void ReadXexLoaderInfo(File* file, XexHeader& header) {
+void ReadXexLoaderInfo(File* file, XexHeader* header) {
   uint32_t length = 0x180;
-  uint8_t* data = Read(file, header.certificate_offset, length);
+  uint8_t* data = Read(file, header->certificate_offset, length);
 
-  auto security = &header.loader_info;
+  auto security = &header->loader_info;
   security->header_size = xe::load_and_swap<uint32_t>(data + 0x000);
   security->image_size = xe::load_and_swap<uint32_t>(data + 0x004);
   memcpy(security->rsa_signature, data + 0x008, 0x100);
@@ -343,20 +343,20 @@ void ReadXexLoaderInfo(File* file, XexHeader& header) {
   delete[] data;
 
   // Decrypt Session Key
-  auto Decrypt = [file](XexHeader& header, const uint8_t* key) {
-    auto file_key = header.loader_info.file_key;
+  auto Decrypt = [file](XexHeader* header, const uint8_t* key) {
+    auto file_key = header->loader_info.file_key;
     uint32_t rk[4 * (MAXNR + 1)];
     uint32_t Nr = rijndaelKeySetupDec(rk, key, 128);
-    rijndaelDecrypt(rk, Nr, file_key, header.session_key);
+    rijndaelDecrypt(rk, Nr, file_key, header->session_key);
 
     // Check key validity by searching for PE Magic
     uint8_t enc_buffer[0x10] = {0};
     uint8_t dec_buffer[0x10] = {0};
-    uint8_t* block = Read(file, header.exe_offset, 0x10);
+    uint8_t* block = Read(file, header->exe_offset, 0x10);
 
     memcpy(enc_buffer, block, 0x10);
 
-    Nr = rijndaelKeySetupDec(rk, header.session_key, 128);
+    Nr = rijndaelKeySetupDec(rk, header->session_key, 128);
     rijndaelDecrypt(rk, Nr, enc_buffer, dec_buffer);
 
     const uint16_t PE_MAGIC = 0x4D5A;  // "MZ"
@@ -374,26 +374,26 @@ void ReadXexLoaderInfo(File* file, XexHeader& header) {
   }
 }
 
-void ReadXexSectionInfo(File* file, XexHeader& header) {
-  uint32_t offset = header.certificate_offset;
+void ReadXexSectionInfo(File* file, XexHeader* header) {
+  uint32_t offset = header->certificate_offset;
   uint32_t count = Read<uint32_t>(file, offset);
   uint32_t size = sizeof(xe_xex2_section_t);
   uint32_t length = count * size;
   uint8_t* data = Read(file, offset, length);
 
-  header.section_count = count;
-  header.sections = (xe_xex2_section_t*)calloc(count, size);
+  header->section_count = count;
+  header->sections = (xe_xex2_section_t*)calloc(count, size);
 
-  if (!header.sections || !count) {
+  if (!header->sections || !count) {
     return;
   }
 
   uint8_t* cursor = data + 0x04;
   for (uint32_t i = 0; i < count; i++) {
-    auto section = &header.sections[i];
+    auto section = &header->sections[i];
 
     // Determine page size (4kb/64kb)
-    uint32_t image_flags = header.loader_info.image_flags;
+    uint32_t image_flags = header->loader_info.image_flags;
     uint32_t page_size_4kb_flag = xe_xex2_image_flags::XEX_IMAGE_PAGE_SIZE_4KB;
     bool is_4kb = image_flags & page_size_4kb_flag;
     section->page_size = is_4kb ? 0x1000 : 0x10000;
@@ -406,24 +406,24 @@ void ReadXexSectionInfo(File* file, XexHeader& header) {
   delete[] data;
 }
 
-const XexHeader XexScanner::ReadXexHeader(File* file) {
-  XexHeader header;
+XexHeader* XexScanner::ReadXexHeader(File* file) {
+  XexHeader* header = (XexHeader*)calloc(1, sizeof(XexHeader));
   uint32_t header_size = Read<uint32_t>(file, 0x8);
   uint8_t* data = Read(file, 0x0, header_size);
 
   // Read Main Header Data
-  header.xex2 = xe::load_and_swap<uint32_t>(data + 0x00);
-  header.module_flags =
+  header->xex2 = xe::load_and_swap<uint32_t>(data + 0x00);
+  header->module_flags =
       (xe_xex2_module_flags)xe::load_and_swap<uint32_t>(data + 0x04);
-  header.exe_offset = xe::load_and_swap<uint32_t>(data + 0x08);
-  header.unknown0 = xe::load_and_swap<uint32_t>(data + 0x0C);
-  header.certificate_offset = xe::load_and_swap<uint32_t>(data + 0x10);
-  header.header_count = xe::load_and_swap<uint32_t>(data + 0x14);
+  header->exe_offset = xe::load_and_swap<uint32_t>(data + 0x08);
+  header->unknown0 = xe::load_and_swap<uint32_t>(data + 0x0C);
+  header->certificate_offset = xe::load_and_swap<uint32_t>(data + 0x10);
+  header->header_count = xe::load_and_swap<uint32_t>(data + 0x14);
 
   // Read Optional Headers
   uint8_t* cursor = data + 0x18;
-  for (int i = 0; i < header.header_count; i++, cursor += 0x8) {
-    header.headers[i] = ReadXexOptHeader(file, header, cursor);
+  for (int i = 0; i < header->header_count; i++, cursor += 0x8) {
+    header->headers[i] = ReadXexOptHeader(file, header, cursor);
   }
 
   ReadXexLoaderInfo(file, header);
@@ -433,22 +433,22 @@ const XexHeader XexScanner::ReadXexHeader(File* file) {
   return header;
 }
 
-X_STATUS ReadXexImageUncompressed(File* file, XexHeader& header,
+X_STATUS ReadXexImageUncompressed(File* file, XexHeader* header,
                                   uint8_t*& image, size_t& image_size) {
   size_t file_size = file->entry()->size();
-  auto format = &header.file_format_info;
+  auto format = &header->file_format_info;
 
-  const size_t exe_size = file_size - header.exe_offset;
+  const size_t exe_size = file_size - header->exe_offset;
 
   switch (format->encryption_type) {
     case XEX_ENCRYPTION_NONE: {
-      image = Read(file, header.exe_offset, exe_size);
+      image = Read(file, header->exe_offset, exe_size);
       image_size = exe_size;
       return X_STATUS_SUCCESS;
     }
     case XEX_ENCRYPTION_NORMAL: {
-      uint8_t* data = Read(file, header.exe_offset, exe_size);
-      image = DecryptXexData(header.session_key, data, exe_size);
+      uint8_t* data = Read(file, header->exe_offset, exe_size);
+      image = DecryptXexData(header->session_key, data, exe_size);
       image_size = exe_size;
       delete[] data;
       return X_STATUS_SUCCESS;
@@ -458,14 +458,14 @@ X_STATUS ReadXexImageUncompressed(File* file, XexHeader& header,
   }
 }
 
-X_STATUS ReadXexImageBasic(File* file, XexHeader& header, uint8_t*& image,
+X_STATUS ReadXexImageBasic(File* file, XexHeader* header, uint8_t*& image,
                            size_t& image_size) {
   auto file_size = file->entry()->size();
-  auto format = &header.file_format_info;
+  auto format = &header->file_format_info;
   auto compression = &format->compression_info.basic;
   auto encryption = format->encryption_type;
 
-  size_t exe_size = file_size - header.exe_offset;
+  size_t exe_size = file_size - header->exe_offset;
 
   // Calculate uncompressed size
   uint32_t uncompressed_size = 0;
@@ -475,7 +475,7 @@ X_STATUS ReadXexImageBasic(File* file, XexHeader& header, uint8_t*& image,
     uncompressed_size += data_size + zero_size;
   }
 
-  uint8_t* data = Read(file, header.exe_offset, exe_size);
+  uint8_t* data = Read(file, header->exe_offset, exe_size);
   uint8_t* decompressed = (uint8_t*)calloc(1, uncompressed_size);
 
   uint8_t* cursor_in = data;
@@ -491,7 +491,7 @@ X_STATUS ReadXexImageBasic(File* file, XexHeader& header, uint8_t*& image,
         break;
       case XEX_ENCRYPTION_NORMAL:
         uint8_t* decrypted =
-            DecryptXexData(header.session_key, cursor_in, data_size);
+            DecryptXexData(header->session_key, cursor_in, data_size);
         memcpy(cursor_out, decrypted, data_size);
         delete[] decrypted;
         cursor_in += data_size;
@@ -505,15 +505,15 @@ X_STATUS ReadXexImageBasic(File* file, XexHeader& header, uint8_t*& image,
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS ReadXexImageNormal(File* file, XexHeader& header, uint8_t*& image,
+X_STATUS ReadXexImageNormal(File* file, XexHeader* header, uint8_t*& image,
                             size_t& image_size) {
   // TODO
   return X_STATUS_UNSUCCESSFUL;
 }
 
-X_STATUS XexScanner::ReadXexImage(File* file, XexHeader& header,
-                                    uint8_t*& image, size_t& image_size) {
-  auto format = &header.file_format_info;
+X_STATUS XexScanner::ReadXexImage(File* file, XexHeader* header,
+                                  uint8_t*& image, size_t& image_size) {
+  auto format = &header->file_format_info;
 
   switch (format->compression_type) {
     case XEX_COMPRESSION_NONE:
@@ -529,12 +529,12 @@ X_STATUS XexScanner::ReadXexImage(File* file, XexHeader& header,
 
 X_STATUS XexScanner::ReadXexResources(File* file, XexInfo* info) {
   auto header = info->header;
-  auto resources = header.resource_infos;
+  auto resources = header->resource_infos;
 
-  for (size_t i = 0; i < header.resource_info_count; i++) {
+  for (size_t i = 0; i < header->resource_info_count; i++) {
     auto resource = &resources[i];
 
-    uint32_t title_id = header.execution_info.title_id;
+    uint32_t title_id = header->execution_info.title_id;
     uint32_t name =
         xe::string_util::from_string<uint32_t>(resource->name, true);
 
@@ -547,7 +547,7 @@ X_STATUS XexScanner::ReadXexResources(File* file, XexInfo* info) {
         return X_STATUS_UNSUCCESSFUL;
       }
 
-      auto offset = resource->address - header.exe_address;
+      auto offset = resource->address - header->exe_address;
       auto data = XdbfGameData(image + offset, resource->size);
 
       if (!data.is_valid()) {
@@ -574,6 +574,5 @@ X_STATUS XexScanner::ReadXexResources(File* file, XexInfo* info) {
   return X_STATUS_SUCCESS;
 }
 
-
-
-}}
+}  // namespace app
+}  // namespace xe
