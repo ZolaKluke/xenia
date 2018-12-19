@@ -41,8 +41,10 @@ void XGameListViewDelegate::paintIcon(QPixmap& icon, QPainter* painter,
                                       const QStyleOptionViewItem& options,
                                       const QModelIndex& index) const {
   // Get the column bounds
-  double width = options.rect.width();
-  double height = options.rect.height();
+  double col_x = options.rect.x();
+  double col_y = options.rect.y();
+  double col_width = options.rect.width();
+  double col_height = options.rect.height();
   double icon_size = options.rect.height() * 0.8;
 
   icon.setMask(icon_mask_);
@@ -50,8 +52,8 @@ void XGameListViewDelegate::paintIcon(QPixmap& icon, QPainter* painter,
   // Calculate the Icon position
   QRectF rect = icon.rect();
   QRectF icon_rect = QRectF(rect.x(), rect.y(), icon_size, icon_size);
-  double shift_x = (width - icon_size) / 2;
-  double shift_y = (height - icon_size) / 2 + options.rect.y();
+  double shift_x = (col_width - icon_size) / 2 + col_x;
+  double shift_y = (col_height - icon_size) / 2 + col_y;
   icon_rect.translate(shift_x, shift_y);
 
   // adding QPainter::Antialiasing here smoothes masked edges
