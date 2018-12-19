@@ -9,12 +9,18 @@ using vfs::File;
 
 struct NxeInfo {
   std::string game_title;
-  uint8_t* icon;
+  uint8_t* icon = nullptr;
   size_t icon_size;
-  uint8_t* nxe_background_image;     // TODO
-  size_t nxe_background_image_size;  // TODO
-  uint8_t* nxe_slot_image;           // TODO
-  size_t nxe_slot_image_size;        // TODO
+  uint8_t* nxe_background_image = nullptr;  // TODO
+  size_t nxe_background_image_size;         // TODO
+  uint8_t* nxe_slot_image = nullptr;        // TODO
+  size_t nxe_slot_image_size;               // TODO
+
+  ~NxeInfo() {
+    if (icon != nullptr) delete[] icon;
+    if (nxe_background_image != nullptr) delete[] nxe_background_image;
+    if (nxe_slot_image != nullptr) delete[] nxe_slot_image;
+  }
 };
 
 class NxeScanner {

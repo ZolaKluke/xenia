@@ -362,6 +362,7 @@ void ReadXexLoaderInfo(File* file, XexHeader* header) {
     const uint16_t PE_MAGIC = 0x4D5A;  // "MZ"
     uint16_t magic = xe::load_and_swap<uint16_t>(dec_buffer);
 
+    delete[] block;
     return magic == PE_MAGIC;
   };
 
@@ -500,6 +501,7 @@ X_STATUS ReadXexImageBasic(File* file, XexHeader* header, uint8_t*& image,
     }
   }
 
+  delete[] data;
   image = decompressed;
   image_size = uncompressed_size;
   return X_STATUS_SUCCESS;

@@ -17,12 +17,20 @@ struct GameInfo {
   wstring filename;
   const NxeInfo* nxe_info = nullptr;
   const XexInfo* xex_info = nullptr;
+
+  GameInfo() {}
+  GameInfo(const GameInfo& other) = delete;
+  GameInfo operator=(const GameInfo& other) = delete;
+  ~GameInfo() {
+    delete nxe_info;
+    delete xex_info;
+  }
 };
 
 class XGameScanner {
  public:
-  static const vector<GameInfo> ScanPath(const wstring& path);
-  static const GameInfo ScanGame(const wstring& path);
+  static const vector<const GameInfo*> ScanPath(const wstring& path);
+  static const GameInfo* ScanGame(const wstring& path);
 
  private:
 };

@@ -19,10 +19,18 @@ typedef xe_xex2_region_flags XGameRegions;
 typedef xe_xex2_version_t XGameVersion;
 
 struct XexInfo {
-  XexHeader* header;
   std::string game_title;
-  uint8_t* icon;
+  XexHeader* header = nullptr;
+  uint8_t* icon = nullptr;
   size_t icon_size;
+
+  XexInfo() {}
+  XexInfo(const XexInfo& other) = delete;
+  XexInfo& operator=(const XexInfo& other) = delete;
+  ~XexInfo() {
+    delete header;
+    delete[] icon;
+  }
 };
 
 class XexScanner {

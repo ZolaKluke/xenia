@@ -33,15 +33,16 @@ bool XGameLibrary::remove_path(const std::wstring& path) {
 void XGameLibrary::scan_paths() {
   clear();
 
-  std::vector<GameInfo> results;
+  std::vector<const GameInfo*> results;
   for (auto path : paths_) {
     auto found = XGameScanner::ScanPath(path);
     results.insert(results.end(), found.begin(), found.end());
   }
 
   for (auto result : results) {
-    uint32_t title_id = result.xex_info->header->execution_info.title_id;
+    if (!result->xex_info) continue;
 
+    uint32_t title_id = result->xex_info->header->execution_info.title_id;
     if (!games_.count(title_id)) {
       // Create a new XGameEntry with the factory constructor.
       // If a nullptr is returned, the scan info is invalid.
@@ -53,6 +54,8 @@ void XGameLibrary::scan_paths() {
       auto existing = games_.at(title_id);
       existing->apply_info(result);
     }
+
+    delete result;
   }
 }
 

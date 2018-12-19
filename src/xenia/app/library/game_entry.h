@@ -12,12 +12,12 @@ namespace app {
 
 class XGameEntry final {
  public:
-  static XGameEntry* from_game_info(const GameInfo& info);
+  static XGameEntry* from_game_info(const GameInfo* info);
   ~XGameEntry();
 
   bool is_valid();
   bool is_missing_data();
-  bool apply_info(const GameInfo& info);
+  bool apply_info(const GameInfo* info);
 
   const XGameFormat& format() const { return format_; }
   const std::wstring& file_path() const { return file_path_; }

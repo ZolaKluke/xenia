@@ -7,8 +7,8 @@ namespace xe {
 namespace app {
 using filesystem::FileInfo;
 
-const vector<GameInfo> XGameScanner::ScanPath(const wstring& path) {
-  vector<GameInfo> info;
+const vector<const GameInfo*> XGameScanner::ScanPath(const wstring& path) {
+  vector<const GameInfo*> info;
 
   // Check if the given path exists
   if (!filesystem::PathExists(path)) {
@@ -17,7 +17,7 @@ const vector<GameInfo> XGameScanner::ScanPath(const wstring& path) {
 
   // Scan if the given path is a file
   if (!filesystem::IsFolder(path)) {
-    GameInfo game_info = ScanGame(path);
+    const GameInfo* game_info = ScanGame(path);
     info.push_back(game_info);
     return info;
   }
@@ -40,7 +40,7 @@ const vector<GameInfo> XGameScanner::ScanPath(const wstring& path) {
         queue.push_front(next_path);
       }
     } else if (ResolveFormat(current_path)) {
-      GameInfo game_info = ScanGame(current_path);
+      const GameInfo* game_info = ScanGame(current_path);
       info.push_back(game_info);
     }
   }
@@ -48,11 +48,11 @@ const vector<GameInfo> XGameScanner::ScanPath(const wstring& path) {
   return info;
 }
 
-const GameInfo XGameScanner::ScanGame(const std::wstring& path) {
-  GameInfo info;
-  info.filename = GetFileName(path);
-  info.path = path;
-  info.format = ResolveFormat(path);
+const GameInfo* XGameScanner::ScanGame(const std::wstring& path) {
+  GameInfo* info = new GameInfo;
+  info->filename = GetFileName(path);
+  info->path = path;
+  info->format = ResolveFormat(path);
 
   auto device = CreateDevice(path);
   if (device == nullptr || !device->Initialize()) {
@@ -65,7 +65,7 @@ const GameInfo XGameScanner::ScanGame(const std::wstring& path) {
     File* xex_file = nullptr;
     auto status = xex_entry->Open(vfs::FileAccess::kFileReadData, &xex_file);
     if (XSUCCEEDED(status)) {
-      info.xex_info = XexScanner::ScanXex(xex_file);
+      info->xex_info = XexScanner::ScanXex(xex_file);
     }
 
     xex_file->Destroy();
@@ -77,7 +77,7 @@ const GameInfo XGameScanner::ScanGame(const std::wstring& path) {
     File* nxe_file = nullptr;
     auto status = nxe_entry->Open(vfs::FileAccess::kFileReadData, &nxe_file);
     if (XSUCCEEDED(status)) {
-      info.nxe_info = NxeScanner::ScanNxe(nxe_file);
+      info->nxe_info = NxeScanner::ScanNxe(nxe_file);
     }
 
     nxe_file->Destroy();

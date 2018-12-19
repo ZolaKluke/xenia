@@ -3,7 +3,7 @@
 namespace xe {
 namespace app {
 
-XGameEntry* XGameEntry::from_game_info(const GameInfo& info) {
+XGameEntry* XGameEntry::from_game_info(const GameInfo* info) {
   auto entry = new XGameEntry();
   auto result = entry->apply_info(info);
 
@@ -26,13 +26,12 @@ bool XGameEntry::is_missing_data() {
   // TODO: Regions
 }
 
-bool XGameEntry::apply_info(const GameInfo& info) {
-  auto xex = info.xex_info;
-  auto nxe = info.nxe_info;
+bool XGameEntry::apply_info(const GameInfo* info) {
+  auto xex = info->xex_info;
+  auto nxe = info->nxe_info;
 
-  format_ = info.format;
-  file_path_ = info.path;
-  file_name_ = info.filename;
+  format_ = info->format;
+  file_path_ = info->filename;
 
   if (!xex) return false;
 
@@ -46,9 +45,9 @@ bool XGameEntry::apply_info(const GameInfo& info) {
   // Add to disc map / launch paths
   auto disc_id = xex->header->execution_info.disc_number;
   disc_map_.insert_or_assign(disc_id, media_id_);
-  launch_paths_.insert_or_assign(info.path, media_id_);
+  launch_paths_.insert_or_assign(info->path, media_id_);
   if (!default_launch_paths_.count(media_id_)) {
-    default_launch_paths_.insert(std::make_pair(media_id_, info.path));
+    default_launch_paths_.insert(std::make_pair(media_id_, info->path));
   }
 
   if (xex->game_title.length() > 0) {
@@ -57,12 +56,12 @@ bool XGameEntry::apply_info(const GameInfo& info) {
     title_ = nxe->game_title;
   }
 
-  if (xex->icon_size > 0) {
+  if (xex->icon) {
     delete[] icon_;
     icon_size_ = xex->icon_size;
     icon_ = (uint8_t*)calloc(1, icon_size_);
     memcpy(icon_, xex->icon, icon_size_);
-  } else if (nxe && nxe->icon_size) {
+  } else if (nxe && nxe->icon) {
     delete[] icon_;
     icon_size_ = nxe->icon_size;
     icon_ = (uint8_t*)calloc(1, icon_size_);
