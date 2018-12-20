@@ -31,7 +31,8 @@ bool XGameEntry::apply_info(const GameInfo* info) {
   auto nxe = info->nxe_info;
 
   format_ = info->format;
-  file_path_ = info->filename;
+  file_path_ = info->path;
+  file_name_ = info->filename;
 
   if (!xex) return false;
 
