@@ -110,7 +110,9 @@ inline const XGameFormat ResolveFormat(const wstring& path) {
   if (extension.length() == 0) {
     std::string magic = ReadFileMagic(path);
 
-    if (magic.compare("LIVE") == 0) return XGameFormat::kStfs;
+    if (magic.compare("LIVE") == 0 || magic.compare("CON ") == 0 ||
+        magic.compare("PIRS") == 0)
+      return XGameFormat::kStfs;
   }
 
   return XGameFormat::kUnknown;
