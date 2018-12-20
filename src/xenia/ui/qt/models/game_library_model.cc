@@ -52,10 +52,10 @@ QVariant XGameLibraryModel::data(const QModelIndex& index, int role) const {
       break;
     case GameColumn::kVersionColumn:
       if (role == Qt::DisplayRole) {
-        auto version = entry->version();
+        auto version = &entry->version();
         QString version_str;
-        version_str.sprintf("v%d.%d.%d", version.major, version.minor,
-                            version.build);
+        version_str.sprintf("v%d.%d.%d", version->major, version->minor,
+                            version->build);
         return version_str;
       }
     case GameColumn::kGenreColumn:

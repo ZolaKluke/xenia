@@ -12,12 +12,12 @@ namespace app {
 
 class XGameEntry final {
  public:
-  static XGameEntry* from_game_info(const GameInfo* info);
+  static XGameEntry* from_game_info(GameInfo* info);
   ~XGameEntry();
 
   bool is_valid();
   bool is_missing_data();
-  bool apply_info(const GameInfo* info);
+  bool apply_info(GameInfo* info);
 
   const XGameFormat& format() const { return format_; }
   const std::wstring& file_path() const { return file_path_; }
@@ -37,10 +37,10 @@ class XGameEntry final {
   const std::vector<uint32_t>& alt_title_ids() const { return alt_title_ids_; }
   const std::vector<uint32_t>& alt_media_ids() const { return alt_media_ids_; }
   const std::map<uint8_t, uint32_t>& disc_map() const { return disc_map_; }
-  const XGameVersion& version() const { return version_; }
-  const XGameVersion& base_version() const { return base_version_; }
-  const XGameRatings& ratings() const { return ratings_; }
-  const XGameRegions& regions() const { return regions_; }
+  const xex2_version& version() const { return version_; }
+  const xex2_version& base_version() const { return base_version_; }
+  const xex2_game_ratings_t& ratings() const { return ratings_; }
+  const xex2_region_flags& regions() const { return regions_; }
   const std::string& genre() const { return genre_; }
   const std::string& build_date() const { return build_date_; }
   const std::string& release_date() const { return release_date_; }
@@ -65,10 +65,10 @@ class XGameEntry final {
   std::vector<uint32_t> alt_title_ids_;
   std::vector<uint32_t> alt_media_ids_;
   std::map<uint8_t, uint32_t> disc_map_;  // <Disc #, MediaID>
-  XGameVersion version_;
-  XGameVersion base_version_;
-  XGameRatings ratings_;
-  XGameRegions regions_;
+  xex2_version version_;
+  xex2_version base_version_;
+  xex2_game_ratings_t ratings_;
+  xex2_region_flags regions_;
   std::string build_date_;
   std::string genre_;
   std::string release_date_;

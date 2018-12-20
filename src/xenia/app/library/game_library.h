@@ -32,7 +32,8 @@ class XGameLibrary {
  private:
   XGameLibrary(){};
 
-  std::map<uint32_t, XGameEntry*> games_;
+  std::vector<XGameEntry*> games_;
+  std::map<uint32_t, XGameEntry*> games_map_;
   std::vector<std::wstring> paths_;
 };
 

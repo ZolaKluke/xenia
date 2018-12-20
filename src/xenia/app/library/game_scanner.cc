@@ -7,8 +7,8 @@ namespace xe {
 namespace app {
 using filesystem::FileInfo;
 
-const vector<const GameInfo*> XGameScanner::ScanPath(const wstring& path) {
-  vector<const GameInfo*> info;
+const vector<GameInfo*> XGameScanner::ScanPath(const wstring& path) {
+  vector<GameInfo*> info;
 
   // Check if the given path exists
   if (!filesystem::PathExists(path)) {
@@ -17,7 +17,8 @@ const vector<const GameInfo*> XGameScanner::ScanPath(const wstring& path) {
 
   // Scan if the given path is a file
   if (!filesystem::IsFolder(path)) {
-    const GameInfo* game_info = ScanGame(path);
+    GameInfo* game_info = (GameInfo*)calloc(1, sizeof(GameInfo));
+    ScanGame(path, game_info);
     info.push_back(game_info);
     return info;
   }
@@ -50,7 +51,8 @@ const vector<const GameInfo*> XGameScanner::ScanPath(const wstring& path) {
       auto filename = GetFileName(current_path);
       if (memcmp(filename.c_str(), L"Data", 4) == 0) continue;
 
-      const GameInfo* game_info = ScanGame(current_path);
+      GameInfo* game_info = (GameInfo*)calloc(1, sizeof(GameInfo));
+      ScanGame(current_path, game_info);
       info.push_back(game_info);
     }
   }
@@ -58,15 +60,14 @@ const vector<const GameInfo*> XGameScanner::ScanPath(const wstring& path) {
   return info;
 }
 
-const GameInfo* XGameScanner::ScanGame(const std::wstring& path) {
-  GameInfo* info = new GameInfo;
-  info->filename = GetFileName(path);
-  info->path = path;
-  info->format = ResolveFormat(path);
+X_STATUS XGameScanner::ScanGame(const std::wstring& path, GameInfo* out_info) {
+  out_info->filename = GetFileName(path);
+  out_info->path = path;
+  out_info->format = ResolveFormat(path);
 
   auto device = CreateDevice(path);
   if (device == nullptr || !device->Initialize()) {
-    return info;  // TODO
+    return X_STATUS_UNSUCCESSFUL;
   }
 
   // Read XEX
@@ -75,7 +76,7 @@ const GameInfo* XGameScanner::ScanGame(const std::wstring& path) {
     File* xex_file = nullptr;
     auto status = xex_entry->Open(vfs::FileAccess::kFileReadData, &xex_file);
     if (XSUCCEEDED(status)) {
-      info->xex_info = XexScanner::ScanXex(xex_file);
+      XexScanner::ScanXex(xex_file, &out_info->xex_info);
     }
 
     xex_file->Destroy();
@@ -87,14 +88,14 @@ const GameInfo* XGameScanner::ScanGame(const std::wstring& path) {
     File* nxe_file = nullptr;
     auto status = nxe_entry->Open(vfs::FileAccess::kFileReadData, &nxe_file);
     if (XSUCCEEDED(status)) {
-      info->nxe_info = NxeScanner::ScanNxe(nxe_file);
+      NxeScanner::ScanNxe(nxe_file, &out_info->nxe_info);
     }
 
     nxe_file->Destroy();
   }
 
   delete device;
-  return info;
+  return X_STATUS_SUCCESS;
 }
 
 }  // namespace app
