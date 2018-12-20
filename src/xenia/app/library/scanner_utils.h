@@ -24,7 +24,6 @@ enum XGameFormat {
   kUnknown,
   kIso,
   kStfs,
-  kSvod,
   kXex,
 };
 
@@ -107,11 +106,12 @@ inline const XGameFormat ResolveFormat(const wstring& path) {
   if (CompareCaseInsensitive(extension, L"xex")) return XGameFormat::kXex;
 
   // STFS Container
+  std::string magic;
   if (extension.length() == 0) {
-    std::string magic = ReadFileMagic(path);
+    magic = ReadFileMagic(path);
 
-    if (magic.compare("LIVE") == 0 || magic.compare("CON ") == 0 ||
-        magic.compare("PIRS") == 0)
+    if (memcmp(&magic, "LIVE", 4) == 0 || memcmp(&magic, "CON ", 4) == 0 ||
+        memcmp(&magic, "PIRS", 4) == 0)
       return XGameFormat::kStfs;
   }
 

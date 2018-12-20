@@ -39,7 +39,17 @@ const vector<const GameInfo*> XGameScanner::ScanPath(const wstring& path) {
         auto next_path = xe::join_paths(current_path, file.name);
         queue.push_front(next_path);
       }
-    } else if (ResolveFormat(current_path)) {
+    } else {
+      // Exclusively scan iso, xex, or files without an extension.
+      auto extension = GetFileExtension(current_path);
+      if (memcmp(&extension, L"xex", 3) && memcmp(&extension, L"iso", 3) &&
+          extension.size() > 0)
+        continue;
+
+      // Do not attempt to scan SVOD data files
+      auto filename = GetFileName(current_path);
+      if (memcmp(filename.c_str(), L"Data", 4) == 0) continue;
+
       const GameInfo* game_info = ScanGame(current_path);
       info.push_back(game_info);
     }
