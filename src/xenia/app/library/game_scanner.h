@@ -15,22 +15,18 @@ struct GameInfo {
   XGameFormat format;
   wstring path;
   wstring filename;
-  const NxeInfo* nxe_info = nullptr;
-  const XexInfo* xex_info = nullptr;
+  NxeInfo nxe_info;
+  XexInfo xex_info;
 
   GameInfo() {}
   GameInfo(const GameInfo& other) = delete;
   GameInfo operator=(const GameInfo& other) = delete;
-  ~GameInfo() {
-    delete nxe_info;
-    delete xex_info;
-  }
 };
 
 class XGameScanner {
  public:
-  static const vector<const GameInfo*> ScanPath(const wstring& path);
-  static const GameInfo* ScanGame(const wstring& path);
+  static const vector<GameInfo*> ScanPath(const wstring& path);
+  static X_STATUS ScanGame(const wstring& path, GameInfo* out_info);
 
  private:
 };

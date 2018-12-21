@@ -9,7 +9,7 @@
 
 #include <gflags/gflags.h>
 
-//#include "xenia/app/library/game_library.h"
+#include "xenia/app/library/game_library.h"
 //#include "xenia/base/debugging.h"
 //#include "xenia/base/logging.h"
 #include "xenia/base/main.h"
@@ -18,11 +18,7 @@
 //#include "xenia/base/threading.h"
 
 #include "xenia/app/emulator_window.h"
-
-//#include "xenia/app/library/game_scanner.h"
 #include "xenia/ui/qt/main_window.h"
-
-#include "xenia/vfs/devices/stfs_container_entry.h"
 
 #include <QApplication>
 #include <QFontDatabase>
@@ -43,6 +39,8 @@ int xenia_main(const std::vector<std::wstring>& args) {
   Profiler::ThreadEnter("main");*/
 
   // auto emulator = std::make_unique<xe::Emulator>(L"");
+  auto lib = XGameLibrary::Instance();
+  lib->scan_paths();
 
   // Start Qt
   QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);

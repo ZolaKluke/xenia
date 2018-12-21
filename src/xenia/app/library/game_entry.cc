@@ -3,7 +3,7 @@
 namespace xe {
 namespace app {
 
-XGameEntry* XGameEntry::from_game_info(const GameInfo* info) {
+XGameEntry* XGameEntry::from_game_info(GameInfo* info) {
   auto entry = new XGameEntry();
   auto result = entry->apply_info(info);
 
@@ -26,9 +26,9 @@ bool XGameEntry::is_missing_data() {
   // TODO: Regions
 }
 
-bool XGameEntry::apply_info(const GameInfo* info) {
-  auto xex = info->xex_info;
-  auto nxe = info->nxe_info;
+bool XGameEntry::apply_info(GameInfo* info) {
+  auto xex = &info->xex_info;
+  auto nxe = &info->nxe_info;
 
   format_ = info->format;
   file_path_ = info->path;
@@ -36,15 +36,16 @@ bool XGameEntry::apply_info(const GameInfo* info) {
 
   if (!xex) return false;
 
-  title_id_ = xex->header->execution_info.title_id;
-  media_id_ = xex->header->execution_info.media_id;
-  version_ = xex->header->execution_info.version;
-  base_version_ = xex->header->execution_info.base_version;
-  ratings_ = xex->header->game_ratings;
-  regions_ = xex->header->loader_info.game_regions;
+  title_id_ = xex->execution_info.title_id;
+  media_id_ = xex->execution_info.media_id;
+  version_ = xex->execution_info.version.value;
+  base_version_ = xex->execution_info.base_version.value;
+  ratings_ = xex->game_ratings;
+  regions_ = (xex2_region_flags)xe::byte_swap<uint32_t>(
+      xex->security_info.region.value);
 
   // Add to disc map / launch paths
-  auto disc_id = xex->header->execution_info.disc_number;
+  auto disc_id = xex->execution_info.disc_number;
   disc_map_.insert_or_assign(disc_id, media_id_);
   launch_paths_.insert_or_assign(info->path, media_id_);
   if (!default_launch_paths_.count(media_id_)) {
