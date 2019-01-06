@@ -4,7 +4,7 @@
 // This tab should not be shown in xenia releases
 #ifdef DEBUG
 
-#include <QVBoxLayout>
+#include <QGridLayout>
 #include "xenia/ui/qt/widgets/card.h"
 #include "xenia/ui/qt/widgets/tab.h"
 
@@ -21,7 +21,7 @@ class DebugTab : public XTab {
   void Build();
   void BuildCard();
 
-  QVBoxLayout* layout_ = nullptr;
+  QGridLayout* layout_ = nullptr;
   XCard* card_ = nullptr;
 };
 

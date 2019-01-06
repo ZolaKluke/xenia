@@ -9,7 +9,7 @@ namespace qt {
 DebugTab::DebugTab() : XTab("Debug", "DebugTab") { Build(); }
 
 void DebugTab::Build() {
-  layout_ = new QVBoxLayout();
+  layout_ = new QGridLayout();
   layout_->setContentsMargins(0, 0, 0, 0);
   layout_->setSpacing(0);
   setLayout(layout_);
@@ -18,10 +18,14 @@ void DebugTab::Build() {
 }
 
 void DebugTab::BuildCard() {
-  card_ = new XCard("Debug");
+  // this is a placeholder widget to make sure the grid layout is correct
+  // TODO: possibly move this to the card class?
+  QWidget* card_container = new QWidget(this);
 
-  layout_->addSpacing(100);
-  layout_->addWidget(card_, 0, Qt::AlignHCenter);
+  card_ = new XCard("Debug", card_container);
+
+  layout_->addWidget(card_container, 0, 0, 10, 10);
+  layout_->addWidget(card_, 1, 1, 9, 8);
 }
 
 }  // namespace qt
