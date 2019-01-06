@@ -19,11 +19,10 @@ void XCard::BuildCard() {
   layout->setContentsMargins(0, 0, 0, 0);
   layout->setSpacing(0);
 
-  container_->setLayout(layout);
+  setLayout(layout);
 
   // for now hardcode card size for testing purposes
   setFixedWidth(700);
-  setFixedHeight(394);
 
   setStyleSheet("background: #2D2D2D;");
 }
