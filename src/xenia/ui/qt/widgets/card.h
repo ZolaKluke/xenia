@@ -1,6 +1,8 @@
 #ifndef XENIA_UI_QT_CARD_H_
 #define XENIA_UI_QT_CARD_H_
 
+#include <QLabel>
+#include <QVBoxLayout>
 #include "xenia/ui/qt/themeable_widget.h"
 
 namespace xe {
@@ -16,13 +18,21 @@ class XCard : public Themeable<QWidget> {
   void add_widget(QWidget* widget);
 
   const QString& title() const { return title_; }
-  void set_title(const QString& title) { title_ = title; }
+  void set_title(const QString& title) {
+    title_ = title;
+    Update();
+  }
 
  private:
-  void BuildCard();
+  void Build();
+  void BuildTitle();
+
+  void Update();
 
   QString title_;
-  QWidget* container_;
+  QVBoxLayout* layout_ = nullptr;
+  QWidget* container_ = nullptr;
+  QLabel* title_label_ = nullptr;
 };
 
 }  // namespace qt
