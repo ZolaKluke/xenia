@@ -17,11 +17,19 @@ XCard::XCard(const QString& title, QWidget* parent)
 }
 
 void XCard::Build() {
-  layout_ = new QVBoxLayout();
+  layout_ = new QGridLayout();
   layout_->setContentsMargins(0, 0, 0, 0);
   layout_->setSpacing(0);
-
+  layout_->setRowStretch(0, 0);
+  layout_->setRowStretch(1, 1);
   setLayout(layout_);
+
+  // container holds widgets added using AddWidget()
+  container_layout_ = new QVBoxLayout();
+  container_layout_->setContentsMargins(0, 0, 0, 0);
+  container_layout_->setSpacing(0);
+
+  layout_->addLayout(container_layout_, 1, 0);
 
   setStyleSheet(
       "QLabel{color:white} QWidget#XCard{background: #2D2D2D; "
@@ -39,8 +47,8 @@ void XCard::Build() {
 }
 
 void XCard::BuildTitle() {
-  QWidget* title_container = new QWidget;
-  QVBoxLayout* title_container_layout = new QVBoxLayout;
+  QWidget* title_container = new QWidget();
+  QVBoxLayout* title_container_layout = new QVBoxLayout();
   title_container_layout->setContentsMargins(64, 32, 0, 0);
   title_container_layout->setSpacing(0);
   title_container->setLayout(title_container_layout);
@@ -50,7 +58,7 @@ void XCard::BuildTitle() {
 
   title_container_layout->addWidget(title_label_);
 
-  layout_->addWidget(title_container, 0, Qt::AlignTop);
+  layout_->addWidget(title_container, 0, 0);
 }
 
 void XCard::Update() {
@@ -61,6 +69,8 @@ void XCard::Update() {
     title_label_->setText(title_);
   }
 }
+
+void XCard::AddWidget(QWidget* widget) { container_layout_->addWidget(widget); }
 
 }  // namespace qt
 }  // namespace ui
