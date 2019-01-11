@@ -21,6 +21,8 @@ class DebugTab : public XTab {
   void Build();
   void BuildCard();
 
+  QWidget* CreateSliderGroup();
+
   QGridLayout* layout_ = nullptr;
   XCard* card_ = nullptr;
 };
