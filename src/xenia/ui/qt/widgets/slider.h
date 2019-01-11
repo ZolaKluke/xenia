@@ -13,10 +13,8 @@ class XSlider : public Themeable<QSlider> {
   Q_OBJECT;
 
  public:
-   explicit XSlider(Qt::Orientation orientation = Qt::Horizontal, QWidget* parent = nullptr);
-
- protected:
-   void paintEvent(QPaintEvent*) override;
+  explicit XSlider(Qt::Orientation orientation = Qt::Horizontal,
+                   QWidget* parent = nullptr);
 
  private:
   double bar_size_ = 3;
