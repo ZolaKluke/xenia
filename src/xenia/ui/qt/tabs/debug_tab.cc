@@ -47,28 +47,47 @@ QWidget* DebugTab::CreateSliderGroup() {
   group_layout->addWidget(title);
 
   QHBoxLayout* control_layout = new QHBoxLayout();
-  control_layout->setContentsMargins(0, 0, 0, 0);
+  control_layout->setContentsMargins(4, 4, 4, 4);
   control_layout->setSpacing(20);
 
   group_layout->addLayout(control_layout);
 
+  // horizontal slider
+
   XSlider* horizontal_slider = new XSlider();
   horizontal_slider->setFixedWidth(120);
 
-  QLabel* slider_label =
-      new QLabel(QStringLiteral("Value: %1").arg(horizontal_slider->value()));
+  QLabel* horizontal_label = new QLabel();
 
   connect(horizontal_slider, &XSlider::valueChanged, [=](int value) {
-    slider_label->setText(QStringLiteral("Value: %1").arg(value));
+    QString text;
+    horizontal_label->setText(text.sprintf("Value: %02d", value));
   });
-
-  XSlider* vertical_slider = new XSlider(Qt::Vertical);
-  vertical_slider->setFixedHeight(120);
+  horizontal_slider->valueChanged(0);
 
   control_layout->addWidget(horizontal_slider);
-  control_layout->addWidget(slider_label);
-  // TODO: XSlider is broken in vertical mode
-  // control_layout->addWidget(vertical_slider);
+  control_layout->addWidget(horizontal_label);
+
+  control_layout->addSpacing(16);
+
+  // vertical slider
+
+  XSlider* vertical_slider = new XSlider(Qt::Vertical);
+  vertical_slider->setFixedHeight(60);
+  vertical_slider->setFixedWidth(20);
+
+  QLabel* vertical_label = new QLabel();
+
+  connect(vertical_slider, &XSlider::valueChanged, [=](int value) {
+    QString text;
+    vertical_label->setText(text.sprintf("Value: %02d", value));
+  });
+  vertical_slider->valueChanged(0);
+
+  control_layout->addWidget(vertical_slider);
+  control_layout->addWidget(vertical_label);
+
+  control_layout->addStretch();
 
   group_layout->addStretch();
 
