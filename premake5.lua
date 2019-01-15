@@ -228,6 +228,7 @@ solution("xenia")
 
   -- Include third party files first so they don't have to deal with gflags.
   include("third_party/capstone.lua")
+  include("third_party/discord-rpc.lua")
   include("third_party/dxbc.lua")
   include("third_party/gflags.lua")
   include("third_party/glew.lua")
@@ -243,6 +244,7 @@ solution("xenia")
 
   include("src/xenia")
   include("src/xenia/app")
+  include("src/xenia/app/discord")
   include("src/xenia/apu")
   include("src/xenia/apu/nop")
   include("src/xenia/base")
