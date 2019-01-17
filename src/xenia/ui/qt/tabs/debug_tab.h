@@ -22,6 +22,7 @@ class DebugTab : public XTab {
   void BuildCard();
 
   QWidget* CreateSliderGroup();
+  QWidget* CreateCheckboxGroup();
 
   QGridLayout* layout_ = nullptr;
   XCard* card_ = nullptr;

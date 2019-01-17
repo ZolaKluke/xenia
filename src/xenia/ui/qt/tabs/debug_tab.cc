@@ -1,5 +1,6 @@
 #include "xenia/ui/qt/tabs/debug_tab.h"
 #include <QHBoxLayout>
+#include "xenia/ui/qt/widgets/checkbox.h"
 #include "xenia/ui/qt/widgets/slider.h"
 
 #ifdef DEBUG
@@ -26,6 +27,7 @@ void DebugTab::BuildCard() {
 
   card_ = new XCard("Debug", card_container);
   card_->AddWidget(CreateSliderGroup());
+  card_->AddWidget(CreateCheckboxGroup());
 
   layout_->addWidget(card_container, 0, 0, 10, 10);
   layout_->addWidget(card_, 1, 1, 9, 8);
@@ -86,6 +88,37 @@ QWidget* DebugTab::CreateSliderGroup() {
 
   control_layout->addWidget(vertical_slider);
   control_layout->addWidget(vertical_label);
+
+  control_layout->addStretch();
+
+  group_layout->addStretch();
+
+  return group;
+}
+
+QWidget* DebugTab::CreateCheckboxGroup() {
+  QWidget* group = new QWidget();
+
+  QVBoxLayout* group_layout = new QVBoxLayout();
+  group_layout->setContentsMargins(32, 32, 32, 32);
+  group_layout->setSpacing(16);
+  group->setLayout(group_layout);
+
+  QLabel* title = new QLabel("Checkboxes");
+  title->setFont(QFont("Segoe UI", 24));
+
+  group_layout->addWidget(title);
+
+  QHBoxLayout* control_layout = new QHBoxLayout();
+  control_layout->setContentsMargins(12, 12, 12, 12);
+  control_layout->setSpacing(20);
+
+  group_layout->addLayout(control_layout);
+
+  XCheckBox* checkbox = new XCheckBox();
+  checkbox->setText("Text");
+
+  control_layout->addWidget(checkbox);
 
   control_layout->addStretch();
 
