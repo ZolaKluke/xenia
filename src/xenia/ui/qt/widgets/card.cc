@@ -29,14 +29,9 @@ void XCard::Build() {
   container_ = new QListWidget(this);
   container_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
   container_->setFocusPolicy(Qt::NoFocus);
-  container_->setStyleSheet(
-      "QListWidget {background:transparent;border:none;} QListWidget::item { "
-      "background: transparent; border:none; }");
   layout_->addWidget(container_, 1, 0);
 
-  setStyleSheet(
-      "QLabel{color:white} QWidget#XCard{background: #2D2D2D; "
-      "border-top-right-radius: 2px; border-top-left-radius: 2px;}");
+  // Drop shadow around card
   QGraphicsDropShadowEffect* effect = new QGraphicsDropShadowEffect;
   effect->setBlurRadius(16);
   effect->setXOffset(0);
@@ -50,6 +45,7 @@ void XCard::Build() {
 }
 
 void XCard::BuildTitle() {
+  // Add title to pos(0,0) in grid
   QWidget* title_container = new QWidget();
   QVBoxLayout* title_container_layout = new QVBoxLayout();
   title_container_layout->setContentsMargins(64, 32, 0, 0);

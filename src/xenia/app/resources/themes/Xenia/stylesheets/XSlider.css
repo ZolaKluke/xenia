@@ -26,7 +26,7 @@ QSlider#XSlider::handle:vertical {
 
 /* Uncomment these to make slider color different before the handle to after */
 
-/* QSlider#XSlider::sub-page:horizontal {
+QSlider#XSlider::sub-page:horizontal {
   background: $secondaryDark;
   margin: 0px 1px 0px 1px;
 }
@@ -44,4 +44,4 @@ QSlider#XSlider::add-page:vertical {
 QSlider#XSlider::sub-page:vertical {
   background: $light3;
   margin: 1px 0px 1px 0px;
-} */
+}
