@@ -24,12 +24,15 @@ void XCard::Build() {
   layout_->setRowStretch(1, 1);
   setLayout(layout_);
 
-  // container holds widgets added using AddWidget()
-  container_layout_ = new QVBoxLayout();
-  container_layout_->setContentsMargins(0, 0, 0, 0);
-  container_layout_->setSpacing(0);
-
-  layout_->addLayout(container_layout_, 1, 0);
+  // container for widgets added through AddWidget()
+  // needed to allow the card to provide a scrollbar for the widgets
+  container_ = new QListWidget(this);
+  container_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+  container_->setFocusPolicy(Qt::NoFocus);
+  container_->setStyleSheet(
+      "QListWidget {background:transparent;border:none;} QListWidget::item { "
+      "background: transparent; border:none; }");
+  layout_->addWidget(container_, 1, 0);
 
   setStyleSheet(
       "QLabel{color:white} QWidget#XCard{background: #2D2D2D; "
@@ -70,7 +73,17 @@ void XCard::Update() {
   }
 }
 
-void XCard::AddWidget(QWidget* widget) { container_layout_->addWidget(widget); }
+void XCard::AddWidget(QWidget* widget) {
+  // Wrap a widget in a QListWidgetItem to add to container list
+  QListWidgetItem* item = new QListWidgetItem();
+  item->setBackground(Qt::transparent);
+  item->setForeground(Qt::transparent);
+  item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
+  item->setSizeHint(widget->sizeHint());
+
+  container_->addItem(item);
+  container_->setItemWidget(item, widget);
+}
 
 }  // namespace qt
 }  // namespace ui

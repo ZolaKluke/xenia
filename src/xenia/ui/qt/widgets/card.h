@@ -3,6 +3,7 @@
 
 #include <QGridLayout>
 #include <QLabel>
+#include <QListWidget>
 #include <QVBoxLayout>
 #include "xenia/ui/qt/themeable_widget.h"
 
@@ -32,7 +33,7 @@ class XCard : public Themeable<QWidget> {
 
   QString title_;
   QGridLayout* layout_ = nullptr;
-  QVBoxLayout* container_layout_ = nullptr;
+  QListWidget* container_ = nullptr;
   QLabel* title_label_ = nullptr;
 };
 
