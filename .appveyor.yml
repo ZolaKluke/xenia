@@ -1,3 +1,4 @@
+---
 #---------------------------------#
 #      general configuration      #
 #---------------------------------#
@@ -6,11 +7,8 @@
 version: 1.0.{build}-{branch}
 
 # branches to build
+# Only building master (and pull requests)
 branches:
-  # whitelist
-  # only:
-  #   - master
-
   # blacklist
   except:
     - gh-pages
@@ -23,8 +21,10 @@ skip_commits:
     - docs/*
     - LICENSE
     - README.md
-    - .clang-format
     - .travis.yml
+
+# Skip branches that have an open pull request.
+skip_branch_with_pr: true
 
 pull_requests:
   do_not_increment_build_number: true
@@ -60,7 +60,6 @@ install:
   - cmd: set PATH=C:\Program Files (x86)\MSBuild\14.0\Bin;%PATH%
   - cmd: xb.bat setup
 
-
 #---------------------------------#
 #       build configuration       #
 #---------------------------------#
@@ -83,20 +82,20 @@ configuration:
 
 # scripts to run before build
 #before_build:
-  #- xb.bat lint --all
+#- xb.bat lint --all
 
 # scripts to run after build
 after_build:
   - 7z a xenia-%appveyor_repo_branch%.zip LICENSE %APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia.exe %APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia.pdb
+  - 7z a xenia-vfs-dump-%appveyor_repo_branch%.zip LICENSE %APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia-vfs-dump.exe %APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia-vfs-dump.pdb
 
 # to run your custom scripts instead of automatic MSBuild
 # We also compile the tests here instead of later on.
 build_script:
-  - cmd: xb.bat build --config=%CONFIGURATION% --target=src\xenia-app --target=tests\xenia-cpu-ppc-tests
+  - cmd: xb.bat build --config=%CONFIGURATION% --target=src\xenia-app --target=tests\xenia-cpu-ppc-tests --target=src\xenia-vfs-dump
 
 # to disable automatic builds
 #build: off
-
 
 #---------------------------------#
 #       tests configuration       #
@@ -115,7 +114,6 @@ test_script:
 
 # to disable automatic tests
 #test: off
-
 
 #---------------------------------#
 #      artifacts configuration    #
@@ -137,7 +135,7 @@ artifacts:
 
   - path: xenia-cpu-ppc-test.log
   - path: xenia-$(appveyor_repo_branch).zip
-
+  - path: xenia-vfs-dump-$(appveyor_repo_branch).zip
 
 #---------------------------------#
 #     deployment configuration    #
@@ -149,14 +147,14 @@ deploy:
   - provider: Environment
     name: xenia-master
     release: xenia-$(appveyor_repo_branch)-v$(appveyor_build_version)
-    artifact: xenia-$(appveyor_repo_branch).zip
+    artifact: xenia-$(appveyor_repo_branch).zip,xenia-vfs-dump-$(appveyor_repo_branch).zip
     draft: false
     prerelease: true
     on:
-      branch: master                # release from master branch only
-      configuration: release        # deploy release builds only
-      appveyor_repo_tag: true       # deploy on tag push only
-      is_not_pr: true               # don't deploy pull requests
+      branch: master # release from master branch only
+      configuration: release # deploy release builds only
+      appveyor_repo_tag: true # deploy on tag push only
+      is_not_pr: true # don't deploy pull requests
 
 # scripts to run before deployment
 #before_deploy:
@@ -170,7 +168,6 @@ deploy:
 # to disable deployment
 # deploy: off
 
-
 #---------------------------------#
 #        global handlers          #
 #---------------------------------#
@@ -183,8 +180,6 @@ on_failure:
 
 # after build failure or success
 on_finish:
-
-
 #---------------------------------#
 #         notifications           #
 #---------------------------------#

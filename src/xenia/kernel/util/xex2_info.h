@@ -351,6 +351,30 @@ struct xex2_file_basic_compression_info {
   xex2_file_basic_compression_block blocks[1];
 };
 
+struct xex2_game_ratings_t {
+  xe::be<xex2_rating_esrb_value> esrb;
+  xe::be<xex2_rating_pegi_value> pegi;
+  xe::be<xex2_rating_pegi_fi_value> pegifi;
+  xe::be<xex2_rating_pegi_pt_value> pegipt;
+  xe::be<xex2_rating_bbfc_value> bbfc;
+  xe::be<xex2_rating_cero_value> cero;
+  xe::be<xex2_rating_usk_value> usk;
+  xe::be<xex2_rating_oflc_au_value> oflcau;
+  xe::be<xex2_rating_oflc_nz_value> oflcnz;
+  xe::be<xex2_rating_kmrb_value> kmrb;
+  xe::be<xex2_rating_brazil_value> brazil;
+  xe::be<xex2_rating_fpb_value> fpb;
+};
+
+struct xex2_file_basic_compression_block {
+  xe::be<uint32_t> data_size;
+  xe::be<uint32_t> zero_size;
+};
+
+struct xex2_file_basic_compression_info {
+  xex2_file_basic_compression_block blocks[1];
+};
+
 struct xex2_compressed_block_info {
   xe::be<uint32_t> block_size;
   uint8_t block_hash[20];

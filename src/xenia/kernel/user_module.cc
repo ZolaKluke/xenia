@@ -20,6 +20,8 @@
 #include "xenia/kernel/xfile.h"
 #include "xenia/kernel/xthread.h"
 
+DEFINE_bool(xex_apply_patches, true, "Apply XEX patches.");
+
 namespace xe {
 namespace kernel {
 
@@ -100,27 +102,29 @@ X_STATUS UserModule::LoadFromFile(std::string path) {
     return result;
   }
 
-  // Search for xexp patch file
-  auto patch_entry = kernel_state()->file_system()->ResolvePath(path_ + "p");
+  if (FLAGS_xex_apply_patches) {
+    // Search for xexp patch file
+    auto patch_entry = kernel_state()->file_system()->ResolvePath(path_ + "p");
 
-  if (patch_entry) {
-    auto patch_path = patch_entry->absolute_path();
+    if (patch_entry) {
+      auto patch_path = patch_entry->absolute_path();
 
-    XELOGI("Loading XEX patch from %s", patch_path.c_str());
+      XELOGI("Loading XEX patch from %s", patch_path.c_str());
 
-    auto patch_module = object_ref<UserModule>(new UserModule(kernel_state_));
-    result = patch_module->LoadFromFile(patch_path);
-    if (!result) {
-      result = patch_module->xex_module()->ApplyPatch(xex_module());
-      if (result) {
-        XELOGE("Failed to apply XEX patch, code: %d", result);
+      auto patch_module = object_ref<UserModule>(new UserModule(kernel_state_));
+      result = patch_module->LoadFromFile(patch_path);
+      if (!result) {
+        result = patch_module->xex_module()->ApplyPatch(xex_module());
+        if (result) {
+          XELOGE("Failed to apply XEX patch, code: %d", result);
+        }
+      } else {
+        XELOGE("Failed to load XEX patch, code: %d", result);
       }
-    } else {
-      XELOGE("Failed to load XEX patch, code: %d", result);
-    }
 
-    if (result) {
-      return X_STATUS_UNSUCCESSFUL;
+      if (result) {
+        return X_STATUS_UNSUCCESSFUL;
+      }
     }
   }
 
@@ -486,7 +490,7 @@ void UserModule::Dump() {
                                   o < opt_import_libraries->string_table.count;
              o++) {
           assert_true(o < xe::countof(string_table));
-          const char* str = &opt_import_libraries->string_table.data[o];
+          const char* str = &opt_import_libraries->string_table.data[j];
 
           string_table[o] = str;
           j += std::strlen(str) + 1;
@@ -498,9 +502,9 @@ void UserModule::Dump() {
         }
 
         auto library_data =
-            reinterpret_cast<const uint8_t*>(opt_import_libraries) +
-            opt_import_libraries->string_table.size + 12;
-        uint32_t library_offset = 0;
+            reinterpret_cast<const uint8_t*>(opt_import_libraries);
+        uint32_t library_offset = opt_import_libraries->string_table.size + 12;
+
         while (library_offset < opt_import_libraries->size) {
           auto library = reinterpret_cast<const xex2_import_library*>(
               library_data + library_offset);

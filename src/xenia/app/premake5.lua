@@ -16,6 +16,7 @@ project("xenia-app")
     "imgui",
     "libavcodec",
     "libavutil",
+    "mspack",
     "snappy",
     "spirv-tools",
     "volk",
@@ -120,6 +121,8 @@ project("xenia-app")
     "WinMain",  -- Use WinMain instead of main.
   })
   defines({
+    "XBYAK_NO_OP_NAMES",
+    "XBYAK_ENABLE_OMITTED_OPERAND",
   })
   includedirs({
     project_root.."/third_party/gflags/src",
@@ -132,6 +135,10 @@ project("xenia-app")
     -- Qt files
     "*.qrc",
   })
+
+  filter("files:xenia_main.cc or ../base/main_"..platform_suffix..".cc")
+    vectorextensions("IA32")  -- Disable AVX for main_win.cc so our AVX check/error can happen.
+
   filter("platforms:Windows")
     resincludedirs({
       project_root,
