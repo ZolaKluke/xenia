@@ -115,6 +115,7 @@ dword_result_t XamShowMessageBoxUI(dword_t user_index, lpwstring_t title_ptr,
     // Auto-pick the focused button.
     chosen_button = active_button;
   } else {
+    /*
     auto display_window = kernel_state()->emulator()->display_window();
     xe::threading::Fence fence;
     display_window->loop()->PostSynchronous([&]() {
@@ -140,7 +141,7 @@ dword_result_t XamShowMessageBoxUI(dword_t user_index, lpwstring_t title_ptr,
     ++xam_dialogs_shown_;
     fence.Wait();
     --xam_dialogs_shown_;
-    * /
+    */
   }
   *result_ptr = chosen_button;
 
@@ -318,6 +319,7 @@ void XamShowDirtyDiscErrorUI(dword_t user_index) {
     return;
   }
 
+  /*
   auto display_window = kernel_state()->emulator()->display_window();
   xe::threading::Fence fence;
   display_window->loop()->PostSynchronous([&]() {
@@ -330,11 +332,11 @@ void XamShowDirtyDiscErrorUI(dword_t user_index) {
   ++xam_dialogs_shown_;
   fence.Wait();
   --xam_dialogs_shown_;
-  * /
+  */
 
-      // This is death, and should never return.
-      // TODO(benvanik): cleaner exit.
-      exit(1);
+  // This is death, and should never return.
+  // TODO(benvanik): cleaner exit.
+  exit(1);
 }
 DECLARE_XAM_EXPORT1(XamShowDirtyDiscErrorUI, kUI, kImplemented);
 
