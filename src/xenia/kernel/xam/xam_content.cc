@@ -38,9 +38,9 @@ struct DeviceInfo {
 #define ONE_GB (1024ull * 1024ull * 1024ull)
 static const DeviceInfo dummy_device_info_ = {
     0xF00D0000,    1,
-    4ull * ONE_GB,  // 4GB
-    3ull * ONE_GB,  // 3GB, so it looks a little used.
-    L"Dummy HDD",
+    20ull * ONE_GB,  // 20GB
+    19ull * ONE_GB,  // 19GB, so it looks a little used.
+    L"HDD",
 };
 #undef ONE_GB
 
