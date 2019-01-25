@@ -12,7 +12,7 @@ namespace ui {
 namespace qt {
 
 class XToolBarItem : public Themeable<QToolButton> {
-  Q_OBJECT;
+  Q_OBJECT
 
  public:
   explicit XToolBarItem(XAction* action, QWidget* parent = nullptr);

@@ -4,13 +4,13 @@
 #include "xenia/ui/qt/widgets/separator.h"
 #include "xenia/ui/qt/widgets/slider.h"
 
+#include "xenia/app/emulator_window.h"
+
 namespace xe {
 namespace ui {
 namespace qt {
 
-HomeTab::HomeTab() : XTab("Home", "HomeTab") {
-  Build();
-}
+HomeTab::HomeTab() : XTab("Home", "HomeTab") { Build(); }
 
 void HomeTab::Build() {
   layout_ = new QHBoxLayout();
@@ -26,7 +26,7 @@ void HomeTab::BuildSidebar() {
   // sidebar container widget
   sidebar_ = new QWidget(this);
   sidebar_->setObjectName("sidebarContainer");
-  
+
   QVBoxLayout* sidebar_layout = new QVBoxLayout;
   sidebar_layout->setMargin(0);
   sidebar_layout->setSpacing(0);
@@ -34,11 +34,11 @@ void HomeTab::BuildSidebar() {
   sidebar_->setLayout(sidebar_layout);
 
   // Add drop shadow to sidebar widget
-  QGraphicsDropShadowEffect *effect = new QGraphicsDropShadowEffect;
+  QGraphicsDropShadowEffect* effect = new QGraphicsDropShadowEffect;
   effect->setBlurRadius(16);
   effect->setXOffset(4);
   effect->setYOffset(0);
-  effect->setColor(QColor(0,0,0,64));
+  effect->setColor(QColor(0, 0, 0, 64));
 
   sidebar_->setGraphicsEffect(effect);
 
@@ -83,7 +83,8 @@ void HomeTab::BuildSidebar() {
 
   sidebar_toolbar_->addSeparator();
 
-  sidebar_layout->addWidget(sidebar_toolbar_, 0, Qt::AlignHCenter | Qt::AlignTop);
+  sidebar_layout->addWidget(sidebar_toolbar_, 0,
+                            Qt::AlignHCenter | Qt::AlignTop);
   sidebar_layout->addStretch(1);
 
   // Add sidebar to tab widget
@@ -91,57 +92,83 @@ void HomeTab::BuildSidebar() {
 }
 
 void HomeTab::BuildRecentView() {
-    // Create container widget
-    QWidget *recent_container = new QWidget(this);
+  // Create container widget
+  QWidget* recent_container = new QWidget(this);
 
-    QVBoxLayout *recent_layout = new QVBoxLayout(this);
-    recent_layout->setContentsMargins(0, 0, 0, 0);
-    recent_layout->setSpacing(0);
+  QVBoxLayout* recent_layout = new QVBoxLayout(this);
+  recent_layout->setContentsMargins(0, 0, 0, 0);
+  recent_layout->setSpacing(0);
 
-    recent_container->setLayout(recent_layout);
+  recent_container->setLayout(recent_layout);
 
-    // Setup toolbar
-    auto toolbar = recent_toolbar_;
-    toolbar = new XToolBar(this);
+  // Setup toolbar
+  auto toolbar = recent_toolbar_;
+  toolbar = new XToolBar(this);
 
-    QLabel *title = new QLabel("Recent Games");
-    title->setObjectName("recentGames");
+  QLabel* title = new QLabel("Recent Games");
+  title->setObjectName("recentGames");
 
-    toolbar->addWidget(title);
+  toolbar->addWidget(title);
 
-    toolbar->addSeparator();
+  toolbar->addSeparator();
 
-    // TODO: handle button clicks
+  // TODO: handle button clicks
+  auto play_btn = toolbar->addAction(new XAction(QChar(0xEDB5), "Play"));
+  connect(play_btn, &XToolBarItem::clicked, [this]() { PlayTriggered(); });
 
-    toolbar->addAction(new XAction(QChar(0xEDB5), "Play"));
-    toolbar->addAction(new XAction(QChar(0xEBE8), "Debug"));
-    toolbar->addAction(new XAction(QChar(0xE946), "Info"));
+  toolbar->addAction(new XAction(QChar(0xEBE8), "Debug"));
+  toolbar->addAction(new XAction(QChar(0xE946), "Info"));
 
-    toolbar->addSeparator();
+  toolbar->addSeparator();
 
-    toolbar->addAction(new XAction(QChar(0xE8FD), "List"));
-    toolbar->addAction(new XAction(QChar(0xF0E2), "Grid"));
+  toolbar->addAction(new XAction(QChar(0xE8FD), "List"));
+  toolbar->addAction(new XAction(QChar(0xF0E2), "Grid"));
 
-    // TODO: hide slider unless "Grid" mode is selected
+  // TODO: hide slider unless "Grid" mode is selected
 
-    auto *slider = new XSlider(Qt::Horizontal, this);
-    slider->setRange(48, 96);
-    slider->setFixedWidth(100);
-    toolbar->addWidget(slider);
+  auto* slider = new XSlider(Qt::Horizontal, this);
+  slider->setRange(48, 96);
+  slider->setFixedWidth(100);
+  toolbar->addWidget(slider);
 
-    recent_layout->addWidget(toolbar);
+  recent_layout->addWidget(toolbar);
 
-    // Create recent games list view
-    // TODO: this should only be shown when "List" mode selected in toolbar
-    // and should also only load games from a "recent" cache
+  // Create recent games list view
+  // TODO: this should only be shown when "List" mode selected in toolbar
+  // and should also only load games from a "recent" cache
 
-    list_view_ = new XGameListView(this);
-    recent_layout->addWidget(list_view_);
+  list_view_ = new XGameListView(this);
+  recent_layout->addWidget(list_view_);
 
-    layout_->addWidget(recent_container);
+  layout_->addWidget(recent_container);
 
-    // Lower the widget to prevent overlap with sidebar's shadow
-    recent_container->lower();
+  // Lower the widget to prevent overlap with sidebar's shadow
+  recent_container->lower();
+}
+
+void HomeTab::PlayTriggered() {
+  // Get path from table and launch game in new EmulatorWindow
+  // This is purely a proof of concept
+  auto index = list_view_->selectionModel();
+  if (index->hasSelection()) {
+    QModelIndexList row =
+        index->selectedRows(static_cast<int>(GameColumn::kPathColumn));
+    const QModelIndex& model_index = row.at(0);
+
+    QString path = model_index.data().toString();
+
+    app::EmulatorWindow* wnd = new app::EmulatorWindow();
+    wnd->resize(1280, 720);
+    wnd->show();
+
+    // this manual conversion seems to be required as Qt's std::(w)string impl
+    // and the one i've been linking to seem incompatible
+    wchar_t* path_w = new wchar_t[path.length() + 1];
+    path.toWCharArray(path_w);
+    path_w[path.length()] = '\0';
+
+    wnd->Launch(path_w);
+  }
 }
 
 }  // namespace qt

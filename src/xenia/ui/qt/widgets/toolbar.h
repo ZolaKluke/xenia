@@ -28,8 +28,8 @@ class XToolBar : public Themeable<QToolBar> {
   void setSpacing(const int& spacing);
 
  private:
-   int spacing_ = 0;
-   QVector<QWidget*> spacers_;
+  int spacing_ = 0;
+  QVector<QWidget*> spacers_;
 };
 
 }  // namespace qt

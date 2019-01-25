@@ -2,11 +2,11 @@
 #define XENIA_UI_QT_TABS_HOME_H_
 
 #include <QToolBar>
+#include "xenia/ui/qt/widgets/game_listview.h"
 #include "xenia/ui/qt/widgets/sidebar.h"
-#include "xenia/ui/qt/widgets/toolbar.h"
 #include "xenia/ui/qt/widgets/sidebar_button.h"
 #include "xenia/ui/qt/widgets/tab.h"
-#include "xenia/ui/qt/widgets/game_listview.h"
+#include "xenia/ui/qt/widgets/toolbar.h"
 
 namespace xe {
 namespace ui {
@@ -16,6 +16,9 @@ class HomeTab : public XTab {
   Q_OBJECT
  public:
   explicit HomeTab();
+
+ public slots:
+  void PlayTriggered();
 
  private:
   void Build();

@@ -44,7 +44,7 @@ void XNav::BuildTabs() {
 #ifdef DEBUG
   std::vector<XTab*> tabs{new HomeTab(), new LibraryTab(), new XTab("Settings"),
                           new DebugTab()};
-#elif
+#else
   std::vector<XTab*> tabs{new HomeTab(), new LibraryTab(),
                           new XTab("Settings")};
 

@@ -19,15 +19,18 @@ XToolBarItem::XToolBarItem(XAction* action, QWidget* parent)
   setContentsMargins(0, 0, 0, 0);
   setCursor(Qt::PointingHandCursor);
 
-  connect(this, SIGNAL(triggered(QAction*)), SLOT(setDefaultAction(QAction*)));
+  // connect(this, SIGNAL(triggered(QAction*)),
+  // SLOT(setDefaultAction(QAction*)));
 }
 
-void XToolBarItem::enterEvent(QEvent*) {
+void XToolBarItem::enterEvent(QEvent* e) {
+  return QToolButton::enterEvent(e);
   // Disable mouseover animation
   // TODO: Animation?
 }
 
-void XToolBarItem::mousePressEvent(QMouseEvent*) {
+void XToolBarItem::mousePressEvent(QMouseEvent* e) {
+  return QToolButton::mousePressEvent(e);
   // Disable Button push-in
 }
 

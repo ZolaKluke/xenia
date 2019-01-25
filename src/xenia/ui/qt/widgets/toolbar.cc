@@ -10,11 +10,12 @@ XToolBar::XToolBar(QWidget* parent) : Themeable<QToolBar>("XToolBar", parent) {
   setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 };
 
-
 XToolBarItem* XToolBar::addAction(XAction* action) {
   addSpacing(spacing_);
   XToolBarItem* item = new XToolBarItem(action, this);
+
   QToolBar::addWidget(item);
+
   return item;
 }
 
