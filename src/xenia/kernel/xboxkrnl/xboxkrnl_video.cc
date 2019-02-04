@@ -129,7 +129,7 @@ void VdQueryVideoMode(pointer_t<X_VIDEO_MODE> video_mode) {
   video_mode->display_width = 1280;
   video_mode->display_height = 720;
   video_mode->is_interlaced = 0;
-  video_mode->is_widescreen = 1;
+  video_mode->is_widescreen = 0;
   video_mode->is_hi_def = 1;
   video_mode->refresh_rate = 60.0f;
   video_mode->video_standard = 1;  // NTSC
