@@ -115,10 +115,15 @@ QWidget* DebugTab::CreateCheckboxGroup() {
 
   group_layout->addLayout(control_layout);
 
-  XCheckBox* checkbox = new XCheckBox();
-  checkbox->setText("Text");
+  XCheckBox* checkbox1 = new XCheckBox();
+  checkbox1->setText("Text");
 
-  control_layout->addWidget(checkbox);
+  control_layout->addWidget(checkbox1);
+
+  XCheckBox* checkbox2 = new XCheckBox();
+  checkbox2->setText("Checkbox with really long text to test truncation");
+
+  control_layout->addWidget(checkbox2);
 
   control_layout->addStretch();
 
