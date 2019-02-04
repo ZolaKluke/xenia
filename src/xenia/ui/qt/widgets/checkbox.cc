@@ -18,8 +18,13 @@ void XCheckBox::Update() {
   // This should also be updated in paintEvent() as a theme change would not be
   // updated for this component otherwise.
   const Theme& theme = ThemeManager::Instance().current_theme();
-  border_color_ = theme.ColorForKey("light2");
-  checked_color_ = theme.ColorForKey("secondary");
+
+  if (!border_color_.isValid()) {
+    border_color_ = theme.ColorForKey("light2");
+  }
+  if (!checked_color_.isValid()) {
+    checked_color_ = theme.ColorForKey("secondary");
+  }
 }
 
 void XCheckBox::paintEvent(QPaintEvent* e) {
