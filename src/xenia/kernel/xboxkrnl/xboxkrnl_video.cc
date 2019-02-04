@@ -126,8 +126,8 @@ DECLARE_XBOXKRNL_EXPORT1(VdGetCurrentDisplayInformation, kVideo, kStub);
 void VdQueryVideoMode(pointer_t<X_VIDEO_MODE> video_mode) {
   // TODO(benvanik): get info from actual display.
   video_mode.Zero();
-  video_mode->display_width = 1280;
-  video_mode->display_height = 720;
+  video_mode->display_width = 640;
+  video_mode->display_height = 480;
   video_mode->is_interlaced = 0;
   video_mode->is_widescreen = 0;
   video_mode->is_hi_def = 1;
