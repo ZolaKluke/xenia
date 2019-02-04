@@ -39,7 +39,7 @@ QWidget* DebugTab::CreateSliderGroup() {
   group->setStyleSheet("QLabel { color: white; }");
 
   QVBoxLayout* group_layout = new QVBoxLayout();
-  group_layout->setContentsMargins(32, 32, 32, 32);
+  group_layout->setContentsMargins(32, 16, 32, 0);
   group_layout->setSpacing(16);
   group->setLayout(group_layout);
 
@@ -100,7 +100,7 @@ QWidget* DebugTab::CreateCheckboxGroup() {
   QWidget* group = new QWidget();
 
   QVBoxLayout* group_layout = new QVBoxLayout();
-  group_layout->setContentsMargins(32, 32, 32, 32);
+  group_layout->setContentsMargins(32, 16, 32, 0);
   group_layout->setSpacing(16);
   group->setLayout(group_layout);
 
@@ -109,23 +109,41 @@ QWidget* DebugTab::CreateCheckboxGroup() {
 
   group_layout->addWidget(title);
 
-  QHBoxLayout* control_layout = new QHBoxLayout();
-  control_layout->setContentsMargins(12, 12, 12, 12);
-  control_layout->setSpacing(20);
+  QVBoxLayout* control_layout = new QVBoxLayout();
+  control_layout->setContentsMargins(0, 0, 0, 0);
+  control_layout->setSpacing(12);
+
+  QHBoxLayout* layer_1_layout = new QHBoxLayout();
+  layer_1_layout->setContentsMargins(12, 0, 12, 0);
+  layer_1_layout->setSpacing(20);
+
+  QHBoxLayout* layer_2_layout = new QHBoxLayout();
+  layer_2_layout->setContentsMargins(12, 0, 12, 0);
+  layer_2_layout->setSpacing(20);
+
+  control_layout->addLayout(layer_1_layout);
+  control_layout->addLayout(layer_2_layout);
+
+  control_layout->addStretch();
 
   group_layout->addLayout(control_layout);
 
   XCheckBox* checkbox1 = new XCheckBox();
-  checkbox1->setText("Text");
-
-  control_layout->addWidget(checkbox1);
+  checkbox1->setText("Test Checkbox");
 
   XCheckBox* checkbox2 = new XCheckBox();
-  checkbox2->setText("Checkbox with really long text to test truncation");
+  checkbox2->set_checked_color(QColor(255, 150, 100));
+  checkbox2->setText("Alternate Color");
 
-  control_layout->addWidget(checkbox2);
+  layer_1_layout->addWidget(checkbox1);
+  layer_1_layout->addWidget(checkbox2);
 
-  control_layout->addStretch();
+  layer_1_layout->addStretch();
+
+  XCheckBox* checkbox3 = new XCheckBox();
+  checkbox3->setText("Checkbox with really long text to test truncation");
+
+  layer_2_layout->addWidget(checkbox3);
 
   group_layout->addStretch();
 
