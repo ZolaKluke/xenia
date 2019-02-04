@@ -46,8 +46,11 @@ void XCheckBox::paintEvent(QPaintEvent* e) {
 }
 
 QSize XCheckBox::sizeHint() const {
-  // TODO: calculate size based off text using QFontMetrics
-  return QSize(64, 20);
+  // Increase sizeHint by 8 to compensate for slightly larget indicator box and
+  // translated label.
+  // This is not exact, but to get it exact would require using
+  // an algorithm with QFontMetrics.
+  return QCheckBox::sizeHint() + QSize(8, 0);
 }
 
 }  // namespace qt
