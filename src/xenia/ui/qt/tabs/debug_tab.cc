@@ -1,6 +1,8 @@
 #include "xenia/ui/qt/tabs/debug_tab.h"
+#include <QButtonGroup>
 #include <QHBoxLayout>
 #include "xenia/ui/qt/widgets/checkbox.h"
+#include "xenia/ui/qt/widgets/radio_button.h"
 #include "xenia/ui/qt/widgets/slider.h"
 
 #ifdef DEBUG
@@ -26,8 +28,9 @@ void DebugTab::BuildCard() {
   QWidget* card_container = new QWidget(this);
 
   card_ = new XCard("Debug", card_container);
-  card_->AddWidget(CreateSliderGroup());
   card_->AddWidget(CreateCheckboxGroup());
+  card_->AddWidget(CreateRadioButtonGroup());
+  card_->AddWidget(CreateSliderGroup());
 
   layout_->addWidget(card_container, 0, 0, 10, 10);
   layout_->addWidget(card_, 1, 1, 9, 8);
@@ -144,6 +147,78 @@ QWidget* DebugTab::CreateCheckboxGroup() {
   checkbox3->setText("Checkbox with really long text to test truncation");
 
   layer_2_layout->addWidget(checkbox3);
+
+  group_layout->addStretch();
+
+  return group;
+}
+
+QWidget* DebugTab::CreateRadioButtonGroup() {
+  QWidget* group = new QWidget();
+
+  QVBoxLayout* group_layout = new QVBoxLayout();
+  group_layout->setContentsMargins(32, 16, 32, 0);
+  group_layout->setSpacing(16);
+  group->setLayout(group_layout);
+
+  QLabel* title = new QLabel("Radio Buttons");
+  title->setFont(QFont("Segoe UI", 24));
+
+  group_layout->addWidget(title);
+
+  QVBoxLayout* control_layout = new QVBoxLayout();
+  control_layout->setContentsMargins(0, 0, 0, 0);
+  control_layout->setSpacing(12);
+
+  QHBoxLayout* layer_1_layout = new QHBoxLayout();
+  layer_1_layout->setContentsMargins(12, 0, 12, 0);
+  layer_1_layout->setSpacing(20);
+
+  QHBoxLayout* layer_2_layout = new QHBoxLayout();
+  layer_2_layout->setContentsMargins(12, 0, 12, 0);
+  layer_2_layout->setSpacing(20);
+
+  control_layout->addLayout(layer_1_layout);
+  control_layout->addLayout(layer_2_layout);
+
+  control_layout->addStretch();
+
+  group_layout->addLayout(control_layout);
+
+  XRadioButton* radio1 = new XRadioButton();
+  radio1->setText("Test Radio Button 1");
+
+  XRadioButton* radio2 = new XRadioButton();
+  radio2->setText("Test Radio Button 2");
+
+  layer_1_layout->addWidget(radio1);
+  layer_1_layout->addWidget(radio2);
+
+  layer_1_layout->addStretch();
+
+  XRadioButton* radio3 = new XRadioButton();
+  radio3->setText("Radio Button with really long text to test truncation");
+  radio3->set_checked_color(QColor(255, 150, 100));
+
+  XRadioButton* radio4 = new XRadioButton();
+  radio4->setText("Error");
+  radio4->set_checked_color(QColor(255, 0, 0));
+
+  layer_2_layout->addWidget(radio3);
+  layer_2_layout->addWidget(radio4);
+
+  layer_2_layout->addStretch();
+
+  // add radio buttons to their respective groups
+
+  QButtonGroup* bg1 = new QButtonGroup();
+  QButtonGroup* bg2 = new QButtonGroup();
+
+  bg1->addButton(radio1);
+  bg1->addButton(radio2);
+
+  bg2->addButton(radio3);
+  bg2->addButton(radio4);
 
   group_layout->addStretch();
 
