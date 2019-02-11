@@ -2,9 +2,9 @@
 #include <QButtonGroup>
 #include <QHBoxLayout>
 #include "xenia/ui/qt/widgets/checkbox.h"
+#include "xenia/ui/qt/widgets/groupbox.h"
 #include "xenia/ui/qt/widgets/radio_button.h"
 #include "xenia/ui/qt/widgets/slider.h"
-
 #ifdef DEBUG
 
 namespace xe {
@@ -31,6 +31,7 @@ void DebugTab::BuildCard() {
   card_->AddWidget(CreateCheckboxGroup());
   card_->AddWidget(CreateRadioButtonGroup());
   card_->AddWidget(CreateSliderGroup());
+  card_->AddWidget(CreateGroupBoxGroup());
 
   layout_->addWidget(card_container, 0, 0, 10, 10);
   layout_->addWidget(card_, 1, 1, 9, 8);
@@ -221,6 +222,28 @@ QWidget* DebugTab::CreateRadioButtonGroup() {
   bg2->addButton(radio4);
 
   group_layout->addStretch();
+
+  return group;
+}
+
+QWidget* DebugTab::CreateGroupBoxGroup() {
+  QWidget* group = new QWidget();
+
+  QVBoxLayout* layout = new QVBoxLayout();
+  layout->setContentsMargins(32, 0, 200, 0);
+  layout->setSpacing(0);
+
+  group->setLayout(layout);
+
+  XGroupBox* groupbox = new XGroupBox("GroupBox");
+
+  QVBoxLayout* groupbox_layout = new QVBoxLayout();
+  groupbox->setLayout(groupbox_layout);
+
+  QLabel* test_label = new QLabel("Testing");
+  groupbox_layout->addWidget(test_label);
+
+  layout->addWidget(groupbox);
 
   return group;
 }

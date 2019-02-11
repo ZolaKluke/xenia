@@ -24,6 +24,7 @@ class DebugTab : public XTab {
   QWidget* CreateSliderGroup();
   QWidget* CreateCheckboxGroup();
   QWidget* CreateRadioButtonGroup();
+  QWidget* CreateGroupBoxGroup();
 
   QGridLayout* layout_ = nullptr;
   XCard* card_ = nullptr;
