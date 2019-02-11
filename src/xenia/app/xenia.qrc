@@ -21,5 +21,6 @@
         <file>resources/themes/Xenia/stylesheets/XSideBar.css</file>
         <file>resources/themes/Xenia/stylesheets/XStatusBar.css</file>
         <file>resources/themes/Xenia/stylesheets/XCard.css</file>
+        <file>resources/themes/Xenia/stylesheets/XGroupBox.css</file>
     </qresource>
 </RCC>
