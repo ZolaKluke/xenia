@@ -10,7 +10,7 @@ namespace ui {
 namespace qt {
 
 class XSlider : public Themeable<QSlider> {
-  Q_OBJECT;
+  Q_OBJECT
 
  public:
   explicit XSlider(Qt::Orientation orientation = Qt::Horizontal,

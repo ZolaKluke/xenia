@@ -13,7 +13,7 @@ namespace ui {
 namespace qt {
 
 class XToolBar : public Themeable<QToolBar> {
-  Q_OBJECT;
+  Q_OBJECT
   Q_PROPERTY(int spacing READ getSpacing WRITE setSpacing);
 
  public:

@@ -13,7 +13,7 @@ namespace ui {
 namespace qt {
 
 class XTabSelector : public Themeable<QWidget> {
-  Q_OBJECT;
+  Q_OBJECT
 
   Q_PROPERTY(QRectF bar_rect READ getBarRect WRITE setBarRect);
   Q_PROPERTY(QColor bar_color READ getBarColor WRITE setBarColor);

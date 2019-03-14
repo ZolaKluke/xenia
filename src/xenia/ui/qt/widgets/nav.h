@@ -13,7 +13,7 @@ namespace ui {
 namespace qt {
 
 class XNav : public Themeable<QWidget> {
-  Q_OBJECT;
+  Q_OBJECT
 
  public:
   explicit XNav();

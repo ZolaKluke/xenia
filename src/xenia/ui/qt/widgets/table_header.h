@@ -10,7 +10,7 @@ namespace ui {
 namespace qt {
 
 class XTableHeader : public Themeable<QHeaderView> {
-  Q_OBJECT;
+  Q_OBJECT
 
  public:
   explicit XTableHeader(Qt::Orientation orientation = Qt::Horizontal,

@@ -1,15 +1,15 @@
 #ifndef XENIA_UI_QT_GAME_LISTVIEW_DELEGATE_H_
 #define XENIA_UI_QT_GAME_LISTVIEW_DELEGATE_H_
 
-#include <QStyledItemDelegate>
 #include <QPixmap>
+#include <QStyledItemDelegate>
 
 namespace xe {
 namespace ui {
 namespace qt {
 
 class XGameListViewDelegate : public QStyledItemDelegate {
-  Q_OBJECT;
+  Q_OBJECT
 
  public:
   explicit XGameListViewDelegate(QWidget* parent = nullptr);
@@ -19,12 +19,12 @@ class XGameListViewDelegate : public QStyledItemDelegate {
   QSize sizeHint(const QStyleOptionViewItem& options,
                  const QModelIndex& index) const override;
 
-  private:
+ private:
   void paintIcon(QPixmap& icon, QPainter* painter,
                  const QStyleOptionViewItem& options,
                  const QModelIndex& index) const;
 
-    QPixmap icon_mask_;
+  QPixmap icon_mask_;
 };
 
 }  // namespace qt

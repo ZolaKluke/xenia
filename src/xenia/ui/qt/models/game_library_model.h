@@ -46,7 +46,7 @@ static std::map<app::XGameRegions, QString> RegionStringMap{
 };
 
 class XGameLibraryModel final : public QAbstractTableModel {
-  Q_OBJECT;
+  Q_OBJECT
 
  public:
   explicit XGameLibraryModel(QObject* parent = nullptr);

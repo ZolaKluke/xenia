@@ -11,7 +11,7 @@ namespace ui {
 namespace qt {
 
 class XTableView : public Themeable<QTableView> {
-  Q_OBJECT;
+  Q_OBJECT
   Q_PROPERTY(int rowSize MEMBER row_size_ NOTIFY rowSizeChanged);
 
  public:

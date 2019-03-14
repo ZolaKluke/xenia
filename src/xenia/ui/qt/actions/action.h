@@ -11,7 +11,7 @@ namespace ui {
 namespace qt {
 
 class XAction : public QAction {
-  Q_OBJECT;
+  Q_OBJECT
 
  public:
   explicit XAction();
