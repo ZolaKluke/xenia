@@ -47,8 +47,10 @@ void XCard::Build() {
 void XCard::BuildTitle() {
   // Add title to pos(0,0) in grid
   QWidget* title_container = new QWidget();
+  title_container->setObjectName("titleContainer");
+
   QVBoxLayout* title_container_layout = new QVBoxLayout();
-  title_container_layout->setContentsMargins(64, 32, 0, 0);
+  title_container_layout->setContentsMargins(64, 16, 0, 16);
   title_container_layout->setSpacing(0);
   title_container->setLayout(title_container_layout);
 
