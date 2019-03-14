@@ -19,6 +19,8 @@ void DebugTab::Build() {
   layout_->setSpacing(0);
   setLayout(layout_);
 
+  setStyleSheet("QWidget#XCard #titleContainer { background: #282828 }");
+
   BuildCard();
 }
 
@@ -230,14 +232,20 @@ QWidget* DebugTab::CreateGroupBoxGroup() {
   QWidget* group = new QWidget();
 
   QVBoxLayout* layout = new QVBoxLayout();
-  layout->setContentsMargins(32, 0, 200, 0);
+  layout->setContentsMargins(32, 16, 400, 16);
   layout->setSpacing(0);
+
+  QLabel* title = new QLabel("GroupBoxes");
+  title->setFont(QFont("Segoe UI", 24));
+
+  layout->addWidget(title);
 
   group->setLayout(layout);
 
-  XGroupBox* groupbox = new XGroupBox("GroupBox");
+  XGroupBox* groupbox = new XGroupBox("A GroupBox");
 
   QVBoxLayout* groupbox_layout = new QVBoxLayout();
+  groupbox_layout->setContentsMargins(12, 32, 12, 32);
   groupbox->setLayout(groupbox_layout);
 
   QLabel* test_label = new QLabel("Testing");
