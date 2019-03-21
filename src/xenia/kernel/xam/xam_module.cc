@@ -19,11 +19,19 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
+typedef struct _FU_LAUNCH_DATA {
+  xe::be<uint32_t> Source;           // 0x0 sz:0x4
+  xe::be<uint32_t> Reason;           // 0x4 sz:0x4
+  xe::be<uint32_t> LiveEnabled;      // 0x8 sz:0x4
+  char Padding[0x1F0];               // 0xC sz:0x1F0
+  char XBE[0x200];                   // 0x1FC sz:0x200
+} FU_LAUNCH_DATA, *PFU_LAUNCH_DATA;  // size 1020
+ 
 XamModule::XamModule(Emulator* emulator, KernelState* kernel_state)
     : KernelModule(kernel_state, "xe:\\xam.xex"), loader_data_() {
   RegisterExportTable(export_resolver_);
 
-  // Register all exported functions.
+// Register all exported functions.
   RegisterAvatarExports(export_resolver_, kernel_state_);
   RegisterContentExports(export_resolver_, kernel_state_);
   RegisterInfoExports(export_resolver_, kernel_state_);
@@ -36,6 +44,15 @@ XamModule::XamModule(Emulator* emulator, KernelState* kernel_state)
   RegisterUserExports(export_resolver_, kernel_state_);
   RegisterVideoExports(export_resolver_, kernel_state_);
   RegisterVoiceExports(export_resolver_, kernel_state_);
+
+  loader_data_.launch_data.resize(sizeof(FU_LAUNCH_DATA));
+  FU_LAUNCH_DATA* data = (FU_LAUNCH_DATA*)loader_data_.launch_data.data();
+  data->Source = 1;
+  data->Reason = 0;
+  data->LiveEnabled = 0;
+  memset(data->Padding, 0, 0x1F0);
+  strcpy_s(data->XBE, "\\Device\\Harddisk0\\Partition1\\default.xbe");
+  loader_data_.launch_data_present = true;
 }
 
 std::vector<xe::cpu::Export*> xam_exports(4096);
