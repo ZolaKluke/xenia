@@ -1,10 +1,15 @@
 #include "xenia/ui/qt/tabs/debug_tab.h"
+
 #include <QButtonGroup>
+#include <QGraphicsEffect>
 #include <QHBoxLayout>
+
 #include "xenia/ui/qt/widgets/checkbox.h"
 #include "xenia/ui/qt/widgets/groupbox.h"
 #include "xenia/ui/qt/widgets/radio_button.h"
+#include "xenia/ui/qt/widgets/separator.h"
 #include "xenia/ui/qt/widgets/slider.h"
+
 #ifdef DEBUG
 
 namespace xe {
@@ -14,29 +19,84 @@ namespace qt {
 DebugTab::DebugTab() : XTab("Debug", "DebugTab") { Build(); }
 
 void DebugTab::Build() {
-  layout_ = new QGridLayout();
+  layout_ = new QHBoxLayout();
   layout_->setContentsMargins(0, 0, 0, 0);
   layout_->setSpacing(0);
   setLayout(layout_);
 
   setStyleSheet("QWidget#XCard #titleContainer { background: #282828 }");
 
-  BuildCard();
+  BuildSidebar();
 }
 
-void DebugTab::BuildCard() {
-  // this is a placeholder widget to make sure the grid layout is correct
-  // TODO: possibly move this to the card class?
-  QWidget* card_container = new QWidget(this);
+void DebugTab::BuildSidebar() {
+  sidebar_container_ = new QWidget(this);
+  sidebar_container_->setObjectName("sidebarContainer");
+  sidebar_container_->setStyleSheet(
+      "background: #232323; min-width: 300px; max-width: 300px;");
+  QVBoxLayout* sidebar_layout = new QVBoxLayout;
+  sidebar_layout->setMargin(0);
+  sidebar_layout->setSpacing(0);
 
-  card_ = new XCard("Debug", card_container);
-  card_->AddWidget(CreateCheckboxGroup());
-  card_->AddWidget(CreateRadioButtonGroup());
-  card_->AddWidget(CreateSliderGroup());
-  card_->AddWidget(CreateGroupBoxGroup());
+  sidebar_container_->setLayout(sidebar_layout);
 
-  layout_->addWidget(card_container, 0, 0, 10, 10);
-  layout_->addWidget(card_, 1, 1, 9, 8);
+  // Add drop shadow to sidebar widget
+  QGraphicsDropShadowEffect* effect = new QGraphicsDropShadowEffect;
+  effect->setBlurRadius(16);
+  effect->setXOffset(4);
+  effect->setYOffset(0);
+  effect->setColor(QColor(0, 0, 0, 64));
+
+  sidebar_container_->setGraphicsEffect(effect);
+
+  // Create sidebar
+  sidebar_ = new XSideBar;
+  sidebar_->setOrientation(Qt::Vertical);
+  sidebar_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+  sidebar_->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
+
+  // Create sidebar title
+  QWidget* sidebar_title = new QWidget;
+  sidebar_title->setObjectName("sidebarTitle");
+
+  QVBoxLayout* title_layout = new QVBoxLayout;
+  title_layout->setMargin(0);
+  title_layout->setContentsMargins(0, 40, 0, 0);
+  title_layout->setSpacing(0);
+
+  sidebar_title->setLayout(title_layout);
+
+  // Title labels
+  QLabel* xenia_title = new QLabel("Debug");
+  xenia_title->setObjectName("sidebarTitleLabel");
+  xenia_title->setStyleSheet(
+      "color: #FFF;"
+      "font-size: 32px; "
+      "font-weight: normal;");
+  xenia_title->setAlignment(Qt::AlignCenter);
+  title_layout->addWidget(xenia_title, 0, Qt::AlignCenter);
+
+  // Title separator
+  auto separator = new XSeparator;
+  separator->setStyleSheet("background: #505050");
+  title_layout->addSpacing(32);
+  title_layout->addWidget(separator, 0, Qt::AlignCenter);
+
+  // Setup Sidebar toolbar
+  sidebar_->addWidget(sidebar_title);
+
+  sidebar_->addSpacing(20);
+
+  sidebar_->addAction(0xE90F, "Components");
+  sidebar_->addAction(0xE700, "Navigation");
+  sidebar_->addAction(0xE790, "Theme");
+  sidebar_->addAction(0xE8F1, "Library");
+
+  sidebar_layout->addWidget(sidebar_, 0, Qt::AlignHCenter | Qt::AlignTop);
+  sidebar_layout->addStretch(1);
+
+  // Add sidebar to tab widget
+  layout_->addWidget(sidebar_container_, 0, Qt::AlignLeft);
 }
 
 QWidget* DebugTab::CreateSliderGroup() {

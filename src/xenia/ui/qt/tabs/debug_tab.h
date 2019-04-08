@@ -4,8 +4,8 @@
 // This tab should not be shown in xenia releases
 #ifdef DEBUG
 
-#include <QGridLayout>
-#include "xenia/ui/qt/widgets/card.h"
+#include <QHBoxLayout>
+#include "xenia/ui/qt/widgets/sidebar.h"
 #include "xenia/ui/qt/widgets/tab.h"
 
 namespace xe {
@@ -19,15 +19,16 @@ class DebugTab : public XTab {
 
  private:
   void Build();
-  void BuildCard();
+  void BuildSidebar();
 
   QWidget* CreateSliderGroup();
   QWidget* CreateCheckboxGroup();
   QWidget* CreateRadioButtonGroup();
   QWidget* CreateGroupBoxGroup();
 
-  QGridLayout* layout_ = nullptr;
-  XCard* card_ = nullptr;
+  QHBoxLayout* layout_ = nullptr;
+  QWidget* sidebar_container_ = nullptr;
+  XSideBar* sidebar_ = nullptr;
 };
 
 }  // namespace qt
