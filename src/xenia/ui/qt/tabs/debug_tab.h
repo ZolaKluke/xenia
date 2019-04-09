@@ -5,12 +5,22 @@
 #ifdef DEBUG
 
 #include <QHBoxLayout>
+#include <QStackedLayout>
+
 #include "xenia/ui/qt/widgets/sidebar.h"
 #include "xenia/ui/qt/widgets/tab.h"
 
 namespace xe {
 namespace ui {
 namespace qt {
+
+// TODO: should this be in its own file for reusability?
+// Represents a sidebar item and a widget that is shown when the item is clicked
+struct SidebarItem {
+  QChar glyph;
+  const char* name;
+  QWidget* widget;
+};
 
 class DebugTab : public XTab {
   Q_OBJECT
@@ -21,6 +31,12 @@ class DebugTab : public XTab {
   void Build();
   void BuildSidebar();
 
+  QWidget* CreateComponentsTab();
+  QWidget* CreateNavigationTab();
+  QWidget* CreateThemeTab();
+  QWidget* CreateLibraryTab();
+
+  // create widgets for "components" tab
   QWidget* CreateSliderGroup();
   QWidget* CreateCheckboxGroup();
   QWidget* CreateRadioButtonGroup();
@@ -29,6 +45,8 @@ class DebugTab : public XTab {
   QHBoxLayout* layout_ = nullptr;
   QWidget* sidebar_container_ = nullptr;
   XSideBar* sidebar_ = nullptr;
+  QStackedLayout* content_layout_ = nullptr;
+  QList<SidebarItem> sidebar_items_;
 };
 
 }  // namespace qt

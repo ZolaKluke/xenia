@@ -16,7 +16,20 @@ namespace xe {
 namespace ui {
 namespace qt {
 
-DebugTab::DebugTab() : XTab("Debug", "DebugTab") { Build(); }
+// sidebar_->addAction(0xE90F, "Components");
+// sidebar_->addAction(0xE700, "Navigation");
+// sidebar_->addAction(0xE790, "Theme");
+// sidebar_->addAction(0xE8F1, "Library");
+
+DebugTab::DebugTab() : XTab("Debug", "DebugTab") {
+  sidebar_items_ =
+      QList<SidebarItem>{{0xE90F, "Components", CreateComponentsTab()},
+                         {0xE700, "Navigation", CreateNavigationTab()},
+                         {0xE790, "Theme", CreateThemeTab()},
+                         {0xE8F1, "Library", CreateLibraryTab()}};
+
+  Build();
+}
 
 void DebugTab::Build() {
   layout_ = new QHBoxLayout();
@@ -24,9 +37,13 @@ void DebugTab::Build() {
   layout_->setSpacing(0);
   setLayout(layout_);
 
-  setStyleSheet("QWidget#XCard #titleContainer { background: #282828 }");
+  content_layout_ = new QStackedLayout();
+  for (const SidebarItem& item : sidebar_items_) {
+    content_layout_->addWidget(item.widget);
+  }
 
   BuildSidebar();
+  layout_->addLayout(content_layout_);
 }
 
 void DebugTab::BuildSidebar() {
@@ -87,16 +104,38 @@ void DebugTab::BuildSidebar() {
 
   sidebar_->addSpacing(20);
 
-  sidebar_->addAction(0xE90F, "Components");
-  sidebar_->addAction(0xE700, "Navigation");
-  sidebar_->addAction(0xE790, "Theme");
-  sidebar_->addAction(0xE8F1, "Library");
+  for (const SidebarItem& item : sidebar_items_) {
+    auto btn = sidebar_->addAction(item.glyph, item.name);
+    connect(btn, &XSideBarButton::clicked,
+            [&]() { content_layout_->setCurrentWidget(item.widget); });
+  }
 
   sidebar_layout->addWidget(sidebar_, 0, Qt::AlignHCenter | Qt::AlignTop);
   sidebar_layout->addStretch(1);
 
   // Add sidebar to tab widget
   layout_->addWidget(sidebar_container_, 0, Qt::AlignLeft);
+}
+
+QWidget* DebugTab::CreateComponentsTab() {
+  QWidget* w = new QWidget();
+  w->setStyleSheet("background: red;");
+  return w;
+}
+QWidget* DebugTab::CreateNavigationTab() {
+  QWidget* w = new QWidget();
+  w->setStyleSheet("background: blue;");
+  return w;
+}
+QWidget* DebugTab::CreateThemeTab() {
+  QWidget* w = new QWidget();
+  w->setStyleSheet("background: green;");
+  return w;
+}
+QWidget* DebugTab::CreateLibraryTab() {
+  QWidget* w = new QWidget();
+  w->setStyleSheet("background: yellow;");
+  return w;
 }
 
 QWidget* DebugTab::CreateSliderGroup() {
