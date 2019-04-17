@@ -104,8 +104,12 @@ void DebugTab::BuildSidebar() {
 
   sidebar_->addSpacing(20);
 
+  QButtonGroup* bg = new QButtonGroup();
+
   for (const SidebarItem& item : sidebar_items_) {
     auto btn = sidebar_->addAction(item.glyph, item.name);
+    btn->setCheckable(true);
+    bg->addButton(btn);
     connect(btn, &XSideBarButton::clicked,
             [&]() { content_layout_->setCurrentWidget(item.widget); });
   }
