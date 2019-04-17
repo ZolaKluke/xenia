@@ -609,10 +609,6 @@ int InstrEmit_mfspr(PPCHIRBuilder& f, const InstrData& i) {
       // TBU
       v = f.Shr(f.LoadClock(), 32);
       break;
-    case 287:
-      // PVR
-      v = f.LoadConstantUint64(0x710800);
-      break;
     default:
       XEINSTRNOTIMPLEMENTED();
       return 1;
