@@ -40,7 +40,6 @@ class DebugTab : public XTab {
   QWidget* CreateSliderGroup();
   QWidget* CreateCheckboxGroup();
   QWidget* CreateRadioButtonGroup();
-  QWidget* CreateGroupBoxGroup();
 
   QHBoxLayout* layout_ = nullptr;
   QWidget* sidebar_container_ = nullptr;

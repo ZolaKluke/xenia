@@ -119,7 +119,18 @@ void DebugTab::BuildSidebar() {
 
 QWidget* DebugTab::CreateComponentsTab() {
   QWidget* w = new QWidget();
-  w->setStyleSheet("background: red;");
+  QVBoxLayout* layout = new QVBoxLayout();
+  w->setLayout(layout);
+
+  layout->setSpacing(16);
+  layout->setContentsMargins(0, 16, 0, 0);
+
+  layout->addWidget(CreateSliderGroup());
+  layout->addWidget(CreateCheckboxGroup());
+  layout->addWidget(CreateRadioButtonGroup());
+
+  layout->addStretch();
+
   return w;
 }
 QWidget* DebugTab::CreateNavigationTab() {
@@ -140,24 +151,20 @@ QWidget* DebugTab::CreateLibraryTab() {
 
 QWidget* DebugTab::CreateSliderGroup() {
   QWidget* group = new QWidget();
-
-  group->setStyleSheet("QLabel { color: white; }");
+  group->setStyleSheet("QLabel { color: white }");
 
   QVBoxLayout* group_layout = new QVBoxLayout();
-  group_layout->setContentsMargins(32, 16, 32, 0);
+  group_layout->setContentsMargins(32, 0, 32, 0);
   group_layout->setSpacing(16);
   group->setLayout(group_layout);
 
-  QLabel* title = new QLabel("Sliders");
-  title->setFont(QFont("Segoe UI", 24));
+  XGroupBox* groupbox = new XGroupBox("Sliders");
 
-  group_layout->addWidget(title);
+  QHBoxLayout* groupbox_layout = new QHBoxLayout();
+  groupbox_layout->setContentsMargins(16, 16, 16, 16);
+  groupbox->setLayout(groupbox_layout);
 
-  QHBoxLayout* control_layout = new QHBoxLayout();
-  control_layout->setContentsMargins(4, 4, 4, 4);
-  control_layout->setSpacing(20);
-
-  group_layout->addLayout(control_layout);
+  group_layout->addWidget(groupbox);
 
   // horizontal slider
 
@@ -165,38 +172,37 @@ QWidget* DebugTab::CreateSliderGroup() {
   horizontal_slider->setFixedWidth(120);
 
   QLabel* horizontal_label = new QLabel();
-
+  horizontal_label->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Ignored);
   connect(horizontal_slider, &XSlider::valueChanged, [=](int value) {
     QString text;
     horizontal_label->setText(text.sprintf("Value: %02d", value));
   });
   horizontal_slider->valueChanged(0);
 
-  control_layout->addWidget(horizontal_slider);
-  control_layout->addWidget(horizontal_label);
+  groupbox_layout->addWidget(horizontal_slider);
+  groupbox_layout->addWidget(horizontal_label);
 
-  control_layout->addSpacing(16);
+  groupbox_layout->addSpacing(16);
 
   // vertical slider
 
   XSlider* vertical_slider = new XSlider(Qt::Vertical);
-  vertical_slider->setFixedHeight(60);
-  vertical_slider->setFixedWidth(20);
+  vertical_slider->setFixedSize(20, 60);
+  // vertical slider causes issues in a vertical orientation right now
+  // TODO: fix this. for now just ignore its vertical size
+  vertical_slider->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Ignored);
 
   QLabel* vertical_label = new QLabel();
-
   connect(vertical_slider, &XSlider::valueChanged, [=](int value) {
     QString text;
     vertical_label->setText(text.sprintf("Value: %02d", value));
   });
   vertical_slider->valueChanged(0);
 
-  control_layout->addWidget(vertical_slider);
-  control_layout->addWidget(vertical_label);
+  groupbox_layout->addWidget(vertical_slider);
+  groupbox_layout->addWidget(vertical_label);
 
-  control_layout->addStretch();
-
-  group_layout->addStretch();
+  groupbox_layout->addStretch();
 
   return group;
 }
@@ -205,33 +211,30 @@ QWidget* DebugTab::CreateCheckboxGroup() {
   QWidget* group = new QWidget();
 
   QVBoxLayout* group_layout = new QVBoxLayout();
-  group_layout->setContentsMargins(32, 16, 32, 0);
+  group_layout->setContentsMargins(32, 0, 32, 0);
   group_layout->setSpacing(16);
   group->setLayout(group_layout);
 
-  QLabel* title = new QLabel("Checkboxes");
-  title->setFont(QFont("Segoe UI", 24));
+  XGroupBox* groupbox = new XGroupBox("Checkboxes");
 
-  group_layout->addWidget(title);
+  QVBoxLayout* groupbox_layout = new QVBoxLayout();
+  groupbox_layout->setContentsMargins(16, 16, 16, 16);
+  groupbox->setLayout(groupbox_layout);
 
-  QVBoxLayout* control_layout = new QVBoxLayout();
-  control_layout->setContentsMargins(0, 0, 0, 0);
-  control_layout->setSpacing(12);
+  group_layout->addWidget(groupbox);
 
   QHBoxLayout* layer_1_layout = new QHBoxLayout();
-  layer_1_layout->setContentsMargins(12, 0, 12, 0);
+  layer_1_layout->setContentsMargins(0, 0, 0, 0);
   layer_1_layout->setSpacing(20);
 
   QHBoxLayout* layer_2_layout = new QHBoxLayout();
-  layer_2_layout->setContentsMargins(12, 0, 12, 0);
+  layer_2_layout->setContentsMargins(0, 0, 0, 0);
   layer_2_layout->setSpacing(20);
 
-  control_layout->addLayout(layer_1_layout);
-  control_layout->addLayout(layer_2_layout);
+  groupbox_layout->addLayout(layer_1_layout);
+  groupbox_layout->addLayout(layer_2_layout);
 
-  control_layout->addStretch();
-
-  group_layout->addLayout(control_layout);
+  group_layout->addLayout(groupbox_layout);
 
   XCheckBox* checkbox1 = new XCheckBox();
   checkbox1->setText("Test Checkbox");
@@ -250,8 +253,6 @@ QWidget* DebugTab::CreateCheckboxGroup() {
 
   layer_2_layout->addWidget(checkbox3);
 
-  group_layout->addStretch();
-
   return group;
 }
 
@@ -259,33 +260,30 @@ QWidget* DebugTab::CreateRadioButtonGroup() {
   QWidget* group = new QWidget();
 
   QVBoxLayout* group_layout = new QVBoxLayout();
-  group_layout->setContentsMargins(32, 16, 32, 0);
-  group_layout->setSpacing(16);
+  group_layout->setContentsMargins(32, 0, 32, 0);
+  group_layout->setSpacing(0);
   group->setLayout(group_layout);
 
-  QLabel* title = new QLabel("Radio Buttons");
-  title->setFont(QFont("Segoe UI", 24));
+  XGroupBox* groupbox = new XGroupBox("Radio Buttons");
 
-  group_layout->addWidget(title);
+  QVBoxLayout* groupbox_layout = new QVBoxLayout();
+  groupbox_layout->setContentsMargins(16, 16, 16, 16);
+  groupbox->setLayout(groupbox_layout);
 
-  QVBoxLayout* control_layout = new QVBoxLayout();
-  control_layout->setContentsMargins(0, 0, 0, 0);
-  control_layout->setSpacing(12);
+  group_layout->addWidget(groupbox);
 
   QHBoxLayout* layer_1_layout = new QHBoxLayout();
-  layer_1_layout->setContentsMargins(12, 0, 12, 0);
+  layer_1_layout->setContentsMargins(0, 0, 0, 0);
   layer_1_layout->setSpacing(20);
 
   QHBoxLayout* layer_2_layout = new QHBoxLayout();
-  layer_2_layout->setContentsMargins(12, 0, 12, 0);
+  layer_2_layout->setContentsMargins(0, 0, 0, 0);
   layer_2_layout->setSpacing(20);
 
-  control_layout->addLayout(layer_1_layout);
-  control_layout->addLayout(layer_2_layout);
+  groupbox_layout->addLayout(layer_1_layout);
+  groupbox_layout->addLayout(layer_2_layout);
 
-  control_layout->addStretch();
-
-  group_layout->addLayout(control_layout);
+  group_layout->addLayout(groupbox_layout);
 
   XRadioButton* radio1 = new XRadioButton();
   radio1->setText("Test Radio Button 1");
@@ -321,36 +319,6 @@ QWidget* DebugTab::CreateRadioButtonGroup() {
 
   bg2->addButton(radio3);
   bg2->addButton(radio4);
-
-  group_layout->addStretch();
-
-  return group;
-}
-
-QWidget* DebugTab::CreateGroupBoxGroup() {
-  QWidget* group = new QWidget();
-
-  QVBoxLayout* layout = new QVBoxLayout();
-  layout->setContentsMargins(32, 16, 400, 16);
-  layout->setSpacing(0);
-
-  QLabel* title = new QLabel("GroupBoxes");
-  title->setFont(QFont("Segoe UI", 24));
-
-  layout->addWidget(title);
-
-  group->setLayout(layout);
-
-  XGroupBox* groupbox = new XGroupBox("A GroupBox");
-
-  QVBoxLayout* groupbox_layout = new QVBoxLayout();
-  groupbox_layout->setContentsMargins(12, 32, 12, 32);
-  groupbox->setLayout(groupbox_layout);
-
-  QLabel* test_label = new QLabel("Testing");
-  groupbox_layout->addWidget(test_label);
-
-  layout->addWidget(groupbox);
 
   return group;
 }
