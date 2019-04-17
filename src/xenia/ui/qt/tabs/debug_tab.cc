@@ -106,10 +106,21 @@ void DebugTab::BuildSidebar() {
 
   QButtonGroup* bg = new QButtonGroup();
 
-  for (const SidebarItem& item : sidebar_items_) {
+  // loop over sidebar button items and connect them to slots
+  int counter = 0;
+  for (auto it = sidebar_items_.begin(); it != sidebar_items_.end();
+       ++it, ++counter) {
+    SidebarItem& item = *it;
     auto btn = sidebar_->addAction(item.glyph, item.name);
     btn->setCheckable(true);
     bg->addButton(btn);
+
+    // set the first item to checked
+    if (counter == 0) {
+      btn->setChecked(true);
+    }
+
+    // link up the clicked signal
     connect(btn, &XSideBarButton::clicked,
             [&]() { content_layout_->setCurrentWidget(item.widget); });
   }
