@@ -232,6 +232,7 @@ solution("xenia")
   configurations({"Checked", "Debug", "Release"})
 
   -- Include third party files first so they don't have to deal with gflags.
+  include("third_party/aes_128.lua")
   include("third_party/capstone.lua")
   include("third_party/discord-rpc.lua")
   include("third_party/dxbc.lua")
