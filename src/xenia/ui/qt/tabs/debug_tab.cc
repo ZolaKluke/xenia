@@ -9,6 +9,7 @@
 #include "xenia/ui/qt/widgets/radio_button.h"
 #include "xenia/ui/qt/widgets/separator.h"
 #include "xenia/ui/qt/widgets/slider.h"
+#include "xenia/ui/qt/widgets/tab_selector.h"
 
 #ifdef DEBUG
 
@@ -150,7 +151,21 @@ QWidget* DebugTab::CreateComponentsTab() {
 }
 QWidget* DebugTab::CreateNavigationTab() {
   QWidget* w = new QWidget();
-  w->setStyleSheet("background: blue;");
+  QVBoxLayout* layout = new QVBoxLayout(w);
+  layout->setSpacing(0);
+  layout->setContentsMargins(64, 64, 64, 64);
+
+  QWidget* container = new QWidget();
+  container->setFixedWidth(350);
+  QVBoxLayout* container_layout = new QVBoxLayout(container);
+  container->setLayout(container_layout);
+  container->setStyleSheet("background:#373737");
+
+  std::vector<XTab*> tabs{new XTab("Tab1"), new XTab("Tab2"), new XTab("Tab3")};
+
+  XTabSelector* tab_selector = new XTabSelector(tabs);
+  container_layout->addWidget(tab_selector, 0, Qt::AlignHCenter | Qt::AlignTop);
+  layout->addWidget(container, 0, Qt::AlignHCenter | Qt::AlignTop);
   return w;
 }
 QWidget* DebugTab::CreateThemeTab() {
