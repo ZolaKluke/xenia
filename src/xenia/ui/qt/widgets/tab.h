@@ -17,8 +17,7 @@ class XTab : public Themeable<QWidget> {
   Q_OBJECT
  public:
   explicit XTab(const QString& tab_name)
-      : Themeable<QWidget>("XTab"), tab_name_(tab_name) {
-  }
+      : Themeable<QWidget>("XTab"), tab_name_(tab_name) {}
 
   explicit XTab(const QString& tab_name, const QString& object_name)
       : Themeable<QWidget>(object_name), tab_name_(tab_name) {}
@@ -27,7 +26,6 @@ class XTab : public Themeable<QWidget> {
 
  private:
   QString tab_name_;
-  QVBoxLayout* layout_;
 };
 
 }  // namespace qt
