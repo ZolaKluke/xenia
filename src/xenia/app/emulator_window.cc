@@ -15,6 +15,7 @@
 #include "third_party/imgui/imgui.h"
 #include "xenia/app/discord/discord_presence.h"
 #include "xenia/base/clock.h"
+#include "xenia/base/debugging.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/profiling.h"
@@ -146,6 +147,9 @@ bool EmulatorWindow::Initialize() {
       case 0x13: {  // VK_PAUSE
         CpuBreakIntoDebugger();
       } break;
+      case 0x03: {  // VK_CANCEL
+        CpuBreakIntoHostDebugger();
+      } break;
 
       case 0x70: {  // VK_F1
         ShowHelpWebsite();
@@ -212,8 +216,13 @@ bool EmulatorWindow::Initialize() {
   cpu_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
   {
     cpu_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, L"&Break and Show Debugger", L"Pause/Break",
+        MenuItem::Type::kString, L"&Break and Show Guest Debugger",
+        L"Pause/Break",
         std::bind(&EmulatorWindow::CpuBreakIntoDebugger, this)));
+    cpu_menu->AddChild(MenuItem::Create(
+        MenuItem::Type::kString, L"&Break into Host Debugger",
+        L"Ctrl+Pause/Break",
+        std::bind(&EmulatorWindow::CpuBreakIntoHostDebugger, this)));
   }
   main_menu->AddChild(std::move(cpu_menu));
 
@@ -370,6 +379,8 @@ void EmulatorWindow::CpuBreakIntoDebugger() {
     processor->ShowDebugger();
   }
 }
+
+void EmulatorWindow::CpuBreakIntoHostDebugger() { xe::debugging::Break(); }
 
 void EmulatorWindow::GpuTraceFrame() {
   emulator()->graphics_system()->RequestFrameTrace();
