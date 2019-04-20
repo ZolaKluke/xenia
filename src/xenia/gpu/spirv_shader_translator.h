@@ -88,10 +88,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
  private:
   spv::Function* CreateCubeFunction();
 
-  bool ProcessVectorAluOperation(const ParsedAluInstruction& instr,
-                                 bool& close_predicate_block);
-  bool ProcessScalarAluOperation(const ParsedAluInstruction& instr,
-                                 bool& close_predicate_block);
+  void ProcessVectorAluInstruction(const ParsedAluInstruction& instr);
+  void ProcessScalarAluInstruction(const ParsedAluInstruction& instr);
 
   spv::Id BitfieldExtract(spv::Id result_type, spv::Id base, bool is_signed,
                           uint32_t offset, uint32_t count);

@@ -2000,60 +2000,17 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
 
 void SpirvShaderTranslator::ProcessAluInstruction(
     const ParsedAluInstruction& instr) {
-  if (instr.is_nop()) {
-    return;
-  }
-
   auto& b = *builder_;
-
-  // Close the open predicated block if this instr isn't predicated or the
-  // conditions do not match.
-  if (open_predicated_block_ &&
-      (!instr.is_predicated ||
-       instr.predicate_condition != predicated_block_cond_)) {
-    b.createBranch(predicated_block_end_);
-    b.setBuildPoint(predicated_block_end_);
-    open_predicated_block_ = false;
-    predicated_block_cond_ = false;
-    predicated_block_end_ = nullptr;
-  }
-
-  if (!open_predicated_block_ && instr.is_predicated) {
-    Id pred_cond =
-        b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
-                      b.makeBoolConstant(instr.predicate_condition));
-    auto block = &b.makeNewBlock();
-    open_predicated_block_ = true;
-    predicated_block_cond_ = instr.predicate_condition;
-    predicated_block_end_ = &b.makeNewBlock();
-
-    b.createSelectionMerge(predicated_block_end_,
-                           spv::SelectionControlMaskNone);
-    b.createConditionalBranch(pred_cond, block, predicated_block_end_);
-    b.setBuildPoint(block);
-  }
-
-  bool close_predicated_block_vector = false;
-  bool store_vector =
-      ProcessVectorAluOperation(instr, close_predicated_block_vector);
-  bool close_predicated_block_scalar = false;
-  bool store_scalar =
-      ProcessScalarAluOperation(instr, close_predicated_block_scalar);
-
-  if (store_vector) {
-    StoreToResult(b.createLoad(pv_), instr.vector_result);
-  }
-  if (store_scalar) {
-    StoreToResult(b.createLoad(ps_), instr.scalar_result);
-  }
-
-  if ((close_predicated_block_vector || close_predicated_block_scalar) &&
-      open_predicated_block_) {
-    b.createBranch(predicated_block_end_);
-    b.setBuildPoint(predicated_block_end_);
-    open_predicated_block_ = false;
-    predicated_block_cond_ = false;
-    predicated_block_end_ = nullptr;
+  switch (instr.type) {
+    case ParsedAluInstruction::Type::kNop:
+      b.createNoResultOp(spv::Op::OpNop);
+      break;
+    case ParsedAluInstruction::Type::kVector:
+      ProcessVectorAluInstruction(instr);
+      break;
+    case ParsedAluInstruction::Type::kScalar:
+      ProcessScalarAluInstruction(instr);
+      break;
   }
 }
 
@@ -2245,23 +2202,45 @@ spv::Function* SpirvShaderTranslator::CreateCubeFunction() {
   return function;
 }
 
-bool SpirvShaderTranslator::ProcessVectorAluOperation(
-    const ParsedAluInstruction& instr, bool& close_predicated_block) {
-  close_predicated_block = false;
+void SpirvShaderTranslator::ProcessVectorAluInstruction(
+    const ParsedAluInstruction& instr) {
+  auto& b = *builder_;
 
-  if (!instr.has_vector_op) {
-    return false;
+  // Close the open predicated block if this instr isn't predicated or the
+  // conditions do not match.
+  if (open_predicated_block_ &&
+      (!instr.is_predicated ||
+       instr.predicate_condition != predicated_block_cond_)) {
+    b.createBranch(predicated_block_end_);
+    b.setBuildPoint(predicated_block_end_);
+    open_predicated_block_ = false;
+    predicated_block_cond_ = false;
+    predicated_block_end_ = nullptr;
   }
 
-  auto& b = *builder_;
+  if (!open_predicated_block_ && instr.is_predicated) {
+    Id pred_cond =
+        b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
+                      b.makeBoolConstant(instr.predicate_condition));
+    auto block = &b.makeNewBlock();
+    open_predicated_block_ = true;
+    predicated_block_cond_ = instr.predicate_condition;
+    predicated_block_end_ = &b.makeNewBlock();
+
+    b.createSelectionMerge(predicated_block_end_,
+                           spv::SelectionControlMaskNone);
+    b.createConditionalBranch(pred_cond, block, predicated_block_end_);
+    b.setBuildPoint(block);
+  }
 
   // TODO: If we have identical operands, reuse previous one.
   Id sources[3] = {0};
   Id dest = vec4_float_zero_;
-  for (size_t i = 0; i < instr.vector_operand_count; i++) {
-    sources[i] = LoadFromOperand(instr.vector_operands[i]);
+  for (size_t i = 0; i < instr.operand_count; i++) {
+    sources[i] = LoadFromOperand(instr.operands[i]);
   }
 
+  bool close_predicated_block = false;
   switch (instr.vector_opcode) {
     case AluVectorOpcode::kAdd: {
       dest = b.createBinOp(spv::Op::OpFAdd, vec4_float_type_, sources[0],
@@ -2624,30 +2603,58 @@ bool SpirvShaderTranslator::ProcessVectorAluOperation(
   assert_true(b.getTypeId(dest) == vec4_float_type_);
   if (dest) {
     b.createStore(dest, pv_);
-    return true;
+    StoreToResult(dest, instr.result);
   }
-  return false;
+
+  if (close_predicated_block && open_predicated_block_) {
+    b.createBranch(predicated_block_end_);
+    b.setBuildPoint(predicated_block_end_);
+    open_predicated_block_ = false;
+    predicated_block_cond_ = false;
+    predicated_block_end_ = nullptr;
+  }
 }
 
-bool SpirvShaderTranslator::ProcessScalarAluOperation(
-    const ParsedAluInstruction& instr, bool& close_predicated_block) {
-  close_predicated_block = false;
+void SpirvShaderTranslator::ProcessScalarAluInstruction(
+    const ParsedAluInstruction& instr) {
+  auto& b = *builder_;
 
-  if (!instr.has_scalar_op) {
-    return false;
+  // Close the open predicated block if this instr isn't predicated or the
+  // conditions do not match.
+  if (open_predicated_block_ &&
+      (!instr.is_predicated ||
+       instr.predicate_condition != predicated_block_cond_)) {
+    b.createBranch(predicated_block_end_);
+    b.setBuildPoint(predicated_block_end_);
+    open_predicated_block_ = false;
+    predicated_block_cond_ = false;
+    predicated_block_end_ = nullptr;
   }
 
-  auto& b = *builder_;
+  if (!open_predicated_block_ && instr.is_predicated) {
+    Id pred_cond =
+        b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
+                      b.makeBoolConstant(instr.predicate_condition));
+    auto block = &b.makeNewBlock();
+    open_predicated_block_ = true;
+    predicated_block_cond_ = instr.predicate_condition;
+    predicated_block_end_ = &b.makeNewBlock();
+
+    b.createSelectionMerge(predicated_block_end_,
+                           spv::SelectionControlMaskNone);
+    b.createConditionalBranch(pred_cond, block, predicated_block_end_);
+    b.setBuildPoint(block);
+  }
 
   // TODO: If we have identical operands, reuse previous one.
   Id sources[3] = {0};
   Id dest = b.makeFloatConstant(0);
-  for (size_t i = 0, x = 0; i < instr.scalar_operand_count; i++) {
-    auto src = LoadFromOperand(instr.scalar_operands[i]);
+  for (size_t i = 0, x = 0; i < instr.operand_count; i++) {
+    auto src = LoadFromOperand(instr.operands[i]);
 
     // Pull components out of the vector operands and use them as sources.
-    if (instr.scalar_operands[i].component_count > 1) {
-      for (int j = 0; j < instr.scalar_operands[i].component_count; j++) {
+    if (instr.operands[i].component_count > 1) {
+      for (int j = 0; j < instr.operands[i].component_count; j++) {
         sources[x++] = b.createCompositeExtract(src, float_type_, j);
       }
     } else {
@@ -2655,6 +2662,7 @@ bool SpirvShaderTranslator::ProcessScalarAluOperation(
     }
   }
 
+  bool close_predicated_block = false;
   switch (instr.scalar_opcode) {
     case AluScalarOpcode::kAdds:
     case AluScalarOpcode::kAddsc0:
@@ -3065,9 +3073,16 @@ bool SpirvShaderTranslator::ProcessScalarAluOperation(
   assert_true(b.getTypeId(dest) == float_type_);
   if (dest) {
     b.createStore(dest, ps_);
-    return true;
+    StoreToResult(dest, instr.result);
   }
-  return false;
+
+  if (close_predicated_block && open_predicated_block_) {
+    b.createBranch(predicated_block_end_);
+    b.setBuildPoint(predicated_block_end_);
+    open_predicated_block_ = false;
+    predicated_block_cond_ = false;
+    predicated_block_end_ = nullptr;
+  }
 }
 
 Id SpirvShaderTranslator::CreateGlslStd450InstructionCall(

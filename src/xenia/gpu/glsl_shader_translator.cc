@@ -820,36 +820,18 @@ void GlslShaderTranslator::ProcessTextureFetchInstruction(
 
 void GlslShaderTranslator::ProcessAluInstruction(
     const ParsedAluInstruction& instr) {
-  EmitSource("/*\n");
+  EmitSource("// ");
   instr.Disassemble(&source_);
-  EmitSource("*/\n");
 
-  if (instr.is_nop()) {
-    return;
-  }
-
-  // Emit if statement only if we have a different predicate condition than our
-  // containing block.
-  bool conditional = false;
-  if (instr.is_predicated &&
-      (!cf_exec_pred_ || (cf_exec_pred_cond_ != instr.predicate_condition))) {
-    conditional = true;
-    EmitSourceDepth("if (%cp0) {\n", instr.predicate_condition ? ' ' : '!');
-    Indent();
-  }
-
-  bool store_vector = ProcessVectorAluOperation(instr);
-  bool store_scalar = ProcessScalarAluOperation(instr);
-  if (store_vector) {
-    EmitStoreVectorResult(instr.vector_result);
-  }
-  if (store_scalar) {
-    EmitStoreScalarResult(instr.scalar_result);
-  }
-
-  if (conditional) {
-    Unindent();
-    EmitSourceDepth("}\n");
+  switch (instr.type) {
+    case ParsedAluInstruction::Type::kNop:
+      break;
+    case ParsedAluInstruction::Type::kVector:
+      ProcessVectorAluInstruction(instr);
+      break;
+    case ParsedAluInstruction::Type::kScalar:
+      ProcessScalarAluInstruction(instr);
+      break;
   }
 }
 
@@ -1059,14 +1041,20 @@ void GlslShaderTranslator::EmitStoreResult(const InstructionResult& result,
   EmitSource(";\n");
 }
 
-bool GlslShaderTranslator::ProcessVectorAluOperation(
+void GlslShaderTranslator::ProcessVectorAluInstruction(
     const ParsedAluInstruction& instr) {
-  if (!instr.has_vector_op) {
-    return false;
+  // Emit if statement only if we have a different predicate condition than our
+  // containing block.
+  bool conditional = false;
+  if (instr.is_predicated &&
+      (!cf_exec_pred_ || (cf_exec_pred_cond_ != instr.predicate_condition))) {
+    conditional = true;
+    EmitSourceDepth("if (%cp0) {\n", instr.predicate_condition ? ' ' : '!');
+    Indent();
   }
 
-  for (size_t i = 0; i < instr.vector_operand_count; ++i) {
-    EmitLoadOperand(i, instr.vector_operands[i]);
+  for (size_t i = 0; i < instr.operand_count; ++i) {
+    EmitLoadOperand(i, instr.operands[i]);
   }
 
   switch (instr.vector_opcode) {
@@ -1263,17 +1251,26 @@ bool GlslShaderTranslator::ProcessVectorAluOperation(
       break;
   }
 
-  return true;
+  EmitStoreVectorResult(instr.result);
+
+  if (conditional) {
+    Unindent();
+    EmitSourceDepth("}\n");
+  }
 }
 
-bool GlslShaderTranslator::ProcessScalarAluOperation(
+void GlslShaderTranslator::ProcessScalarAluInstruction(
     const ParsedAluInstruction& instr) {
-  if (!instr.has_scalar_op) {
-    return false;
+  bool conditional = false;
+  if (instr.is_predicated &&
+      (!cf_exec_pred_ || (cf_exec_pred_cond_ != instr.predicate_condition))) {
+    conditional = true;
+    EmitSourceDepth("if (%cp0) {\n", instr.predicate_condition ? ' ' : '!');
+    Indent();
   }
 
-  for (size_t i = 0; i < instr.scalar_operand_count; ++i) {
-    EmitLoadOperand(i, instr.scalar_operands[i]);
+  for (size_t i = 0; i < instr.operand_count; ++i) {
+    EmitLoadOperand(i, instr.operands[i]);
   }
 
   switch (instr.scalar_opcode) {
@@ -1598,7 +1595,12 @@ bool GlslShaderTranslator::ProcessScalarAluOperation(
       break;
   }
 
-  return true;
+  EmitStoreScalarResult(instr.result);
+
+  if (conditional) {
+    Unindent();
+    EmitSourceDepth("}\n");
+  }
 }
 
 }  // namespace gpu
