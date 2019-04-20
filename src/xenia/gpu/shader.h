@@ -498,8 +498,7 @@ struct ParsedAluInstruction {
   InstructionOperand vector_operands[3];
   // Number of source operands of the scalar operation.
   size_t scalar_operand_count = 0;
-  // Describes each source operand of the vector operation.
-  InstructionOperand scalar_operands[3];
+
 
   // If this is a valid eA write (MAD with a stream constant), returns the index
   // of the stream float constant, otherwise returns UINT32_MAX.
