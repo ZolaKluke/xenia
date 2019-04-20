@@ -25,7 +25,8 @@ void XSideBarButton::paintEvent(QPaintEvent* event) {
   painter.setRenderHints(QPainter::TextAntialiasing | QPainter::Antialiasing);
 
   // Draw Glyph
-  QFont glyph_font = QFont("Segoe MDL2 Assets", 24);
+  QFont glyph_font = QFont("Segoe MDL2 Assets");
+  glyph_font.setPixelSize(24);
   const QColor& color = this->property("color").value<QColor>();
 
   // Paint the Glyph
@@ -42,8 +43,8 @@ void XSideBarButton::paintEvent(QPaintEvent* event) {
   QRect text_rect = glyph_rect;
   text_rect.translate(40, 0);
 
-  QFont text_font = QFont();
-  text_font.setPointSizeF(20);
+  QFont text_font = QFont("Segoe UI");
+  text_font.setPixelSize(24);
 
   painter.setFont(text_font);
   painter.drawText(text_rect, Qt::AlignVCenter, text_);
