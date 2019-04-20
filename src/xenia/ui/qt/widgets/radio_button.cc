@@ -1,5 +1,7 @@
 #include "radio_button.h"
+
 #include <QStyleOption>
+
 #include "xenia/ui/qt/theme_manager.h"
 
 namespace xe {
@@ -33,16 +35,24 @@ void XRadioButton::paintEvent(QPaintEvent* e) {
   QStyleOptionButton option;
   initStyleOption(&option);
 
-  // get original rect for radio button label
-
-  QRect label_rect = style()->proxy()->subElementRect(
-      QStyle::SE_RadioButtonContents, &option, this);
-  label_rect.translate(label_indent_, 0);
-
   // create rect for indicator box
   // rect must start at 1 as the painter draws either side of start offset so
   // starting at (0,0) would leave 2 sides cut off
   QRectF indicator_box = QRectF(1, 1, 16, 16);
+
+  // get original rect for radio button label
+
+  QRect label_rect = style()->proxy()->subElementRect(
+      QStyle::SE_RadioButtonContents, &option, this);
+
+  QFontMetrics metrics(font());
+  QRect font_rect = metrics.boundingRect(text());
+
+  // TODO(Razzile): I can't seem to work out why this -1 is needed. I think the
+  // Segoe UI font file misreports height of font
+  label_rect.setY(indicator_box.center().y() - (font_rect.height() / 2) - 1);
+
+  label_rect.translate(label_indent_, 0);
 
   QPainter painter(this);
   painter.setRenderHints(QPainter::Antialiasing);

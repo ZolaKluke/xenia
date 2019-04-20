@@ -1,5 +1,7 @@
 #include "checkbox.h"
+
 #include <QStyleOption>
+
 #include "xenia/ui/qt/theme_manager.h"
 
 namespace xe {
@@ -33,16 +35,23 @@ void XCheckBox::paintEvent(QPaintEvent* e) {
   QStyleOptionButton option;
   initStyleOption(&option);
 
-  // get original rect for checkbox label
-
-  QRect label_rect = style()->proxy()->subElementRect(
-      QStyle::SE_CheckBoxContents, &option, this);
-  label_rect.translate(label_indent_, 0);
-
   // create rect for indicator box
   // rect must start at 1 as the painter draws either side of start offset so
   // starting at (0,0) would leave 2 sides cut off
   QRectF indicator_box = QRectF(1, 1, 16, 16);
+
+  // get original rect for checkbox label
+
+  QRect label_rect = style()->proxy()->subElementRect(
+      QStyle::SE_CheckBoxContents, &option, this);
+
+  QFontMetrics metrics(font());
+  QRect font_rect = metrics.boundingRect(text());
+
+  // TODO(Razzile): I can't seem to work out why this -1 is needed. I think the
+  // Segoe UI font file misreports height of font
+  label_rect.setY(indicator_box.center().y() - (font_rect.height() / 2) - 1);
+  label_rect.translate(label_indent_, 0);
 
   QPainter painter(this);
   painter.setRenderHints(QPainter::Antialiasing);
@@ -59,7 +68,8 @@ void XCheckBox::paintEvent(QPaintEvent* e) {
   if (isChecked()) {
     painter.setPen(Qt::transparent);
     QBrush checked_brush = QBrush(checked_color_);
-    QRectF checked_rect = QRectF(3, 3, 12, 12);
+    QRectF checked_rect =
+        QRectF(indicator_box.x() + 2, indicator_box.y() + 2, 12, 12);
 
     painter.setBrush(checked_brush);
     painter.drawRect(checked_rect);
