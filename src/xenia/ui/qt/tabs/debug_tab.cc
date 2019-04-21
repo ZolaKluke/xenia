@@ -156,15 +156,58 @@ QWidget* DebugTab::CreateNavigationTab() {
   layout->setContentsMargins(64, 64, 64, 64);
 
   QWidget* container = new QWidget();
-  container->setFixedWidth(350);
+  container->setFixedSize(640, 480);
   QVBoxLayout* container_layout = new QVBoxLayout(container);
+  container_layout->setSpacing(4);
+  container_layout->setContentsMargins(0, 0, 0, 0);
   container->setLayout(container_layout);
   container->setStyleSheet("background:#373737");
 
-  std::vector<XTab*> tabs{new XTab("Tab1"), new XTab("Tab2"), new XTab("Tab3")};
+  XTab *tab1 = new XTab("Tab1"), *tab2 = new XTab("Tab2"),
+       *tab3 = new XTab("Tab3");
+
+  QVBoxLayout *tab1_layout = new QVBoxLayout(tab1),
+              *tab2_layout = new QVBoxLayout(tab2),
+              *tab3_layout = new QVBoxLayout(tab3);
+
+  std::vector<XTab*> tabs{tab1, tab2, tab3};
 
   XTabSelector* tab_selector = new XTabSelector(tabs);
-  container_layout->addWidget(tab_selector, 0, Qt::AlignHCenter | Qt::AlignTop);
+  container_layout->addWidget(tab_selector, 0, Qt::AlignCenter);
+
+  QStackedLayout* content_layout = new QStackedLayout();
+  content_layout->setSpacing(0);
+  content_layout->setContentsMargins(0, 0, 0, 0);
+
+  container_layout->addLayout(content_layout);
+
+  QWidget* test1 = new QWidget();
+  test1->setStyleSheet("background:red");
+
+  tab1_layout->addWidget(test1);
+
+  QWidget* test2 = new QWidget();
+  test2->setStyleSheet("background:blue");
+
+  tab2_layout->addWidget(test2);
+
+  QWidget* test3 = new QWidget();
+  test3->setStyleSheet("background:green");
+
+  tab3_layout->addWidget(test3);
+
+  for (XTab* tab : tabs) {
+    QVBoxLayout* tab_layout = qobject_cast<QVBoxLayout*>(tab->layout());
+    tab_layout->setContentsMargins(0, 0, 0, 0);
+    tab_layout->setSpacing(0);
+    content_layout->addWidget(tab);
+  }
+  content_layout->setCurrentWidget(tab1);
+
+  connect(tab_selector, &XTabSelector::TabChanged, [content_layout](XTab* tab) {
+    content_layout->setCurrentWidget(tab);
+  });
+
   layout->addWidget(container, 0, Qt::AlignHCenter | Qt::AlignTop);
   return w;
 }
