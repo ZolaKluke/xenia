@@ -14,6 +14,8 @@ namespace xe {
 namespace ui {
 namespace qt {
 
+class XTabSelector;
+
 // TODO: should this be in its own file for reusability?
 // Represents a sidebar item and a widget that is shown when the item is clicked
 struct SidebarItem {
@@ -40,6 +42,14 @@ class DebugTab : public XTab {
   QWidget* CreateSliderGroup();
   QWidget* CreateCheckboxGroup();
   QWidget* CreateRadioButtonGroup();
+
+  // create widgets for "navigation" tab
+  QWidget* CreateTab1Widget(XTabSelector* tab_selector,
+                            QStackedLayout* tab_stack_layout);
+  QWidget* CreateTab2Widget(XTabSelector* tab_selector,
+                            QStackedLayout* tab_stack_layout);
+  QWidget* CreateTab3Widget(XTabSelector* tab_selector,
+                            QStackedLayout* tab_stack_layout);
 
   QHBoxLayout* layout_ = nullptr;
   QWidget* sidebar_container_ = nullptr;

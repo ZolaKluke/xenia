@@ -181,10 +181,7 @@ QWidget* DebugTab::CreateNavigationTab() {
 
   container_layout->addLayout(content_layout);
 
-  QWidget* test1 = new QWidget();
-  test1->setStyleSheet("background:red");
-
-  tab1_layout->addWidget(test1);
+  tab1_layout->addWidget(CreateTab1Widget(tab_selector, content_layout));
 
   QWidget* test2 = new QWidget();
   test2->setStyleSheet("background:blue");
@@ -394,6 +391,36 @@ QWidget* DebugTab::CreateRadioButtonGroup() {
   bg2->addButton(radio4);
 
   return group;
+}
+
+QWidget* DebugTab::CreateTab1Widget(XTabSelector* tab_selector,
+                                    QStackedLayout* tab_stack_layout) {
+  QWidget* widget = new QWidget();
+  QVBoxLayout* layout = new QVBoxLayout(widget);
+  layout->setSpacing(0);
+  layout->setContentsMargins(16, 16, 16, 16);
+
+  QPushButton* changeTabButton = new QPushButton("Go to Tab 2");
+  changeTabButton->setFixedSize(80, 24);
+  connect(changeTabButton, &QPushButton::clicked, [=]() {
+    tab_selector->SetTabIndex(1);
+    tab_stack_layout->setCurrentIndex(1);
+  });
+
+  layout->addWidget(changeTabButton, 0, Qt::AlignCenter);
+  layout->addStretch();
+
+  return widget;
+}
+
+QWidget* DebugTab::CreateTab2Widget(XTabSelector* tab_selector,
+                                    QStackedLayout* tab_stack_layout) {
+  return nullptr;
+}
+
+QWidget* DebugTab::CreateTab3Widget(XTabSelector* tab_selector,
+                                    QStackedLayout* tab_stack_layout) {
+  return nullptr;
 }
 
 }  // namespace qt
