@@ -27,7 +27,6 @@ void XSideBarButton::paintEvent(QPaintEvent* event) {
   // Draw Glyph
   QFont glyph_font = QFont("Segoe MDL2 Assets");
   glyph_font.setPixelSize(24);
-  const QColor& color = this->property("color").value<QColor>();
 
   // Paint the Glyph
   painter.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing);
