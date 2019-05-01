@@ -17,6 +17,10 @@ class XTabSelector : public Themeable<QWidget> {
 
   Q_PROPERTY(QRectF bar_rect READ getBarRect WRITE setBarRect);
   Q_PROPERTY(QColor bar_color READ getBarColor WRITE setBarColor);
+  Q_PROPERTY(QFont font READ getFont WRITE setFont);
+  Q_PROPERTY(QColor font_color READ getFontColor WRITE setFontColor);
+  Q_PROPERTY(int font_size READ getFontSize WRITE setFontSize);
+  Q_PROPERTY(int tab_spacing READ getTabSpacing WRITE setTabSpacing);
 
  public:
   explicit XTabSelector();
