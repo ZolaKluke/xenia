@@ -31,8 +31,10 @@ class XTabSelector : public Themeable<QWidget> {
     Rebuild();
   }
   XTab* getActiveTab() const { return active_tab_; }
+
   QColor getBarColor() const { return bar_color_; }
   void setBarColor(const QColor& color) { bar_color_ = color; }
+
   int getBarHeight() const { return bar_height_; }
   void setBarHeight(int height) {
     bar_height_ = height;
@@ -40,6 +42,7 @@ class XTabSelector : public Themeable<QWidget> {
   }
   int getBarMoveDuration() const { return bar_move_duration_; }
   void setBarMoveDuration(int ms) { bar_move_duration_ = ms; }
+
   double getBarRatio() const { return bar_ratio_; }
   void setBarRatio(double ratio) {
     bar_ratio_ = ratio;
@@ -47,6 +50,7 @@ class XTabSelector : public Themeable<QWidget> {
   }
   QRectF getBarRect() const { return bar_rect_; }
   void setBarRect(QRectF rect) { bar_rect_ = rect; }
+
   int getBarTextGap() const { return bar_text_gap_; }
   void setBarTextGap(int gap) {
     bar_text_gap_ = gap;
@@ -59,6 +63,7 @@ class XTabSelector : public Themeable<QWidget> {
   }
   QColor getFontColor() const { return font_color_; }
   void setFontColor(const QColor& color) { font_color_ = color; }
+
   int getFontSize() const { return font_size_; }
   void setFontSize(int size) {
     font_size_ = size;
@@ -70,6 +75,7 @@ class XTabSelector : public Themeable<QWidget> {
     Rebuild();
   }
   std::vector<XTab*> getTabs() const { return tabs_; }
+
   void Rebuild() { needs_build_ = true; }
 
  signals:
@@ -77,6 +83,7 @@ class XTabSelector : public Themeable<QWidget> {
 
  public slots:
   void SetTab(XTab* tab);
+  void SetTabIndex(int tab_index);
 
  protected:
   void mousePressEvent(QMouseEvent* event);

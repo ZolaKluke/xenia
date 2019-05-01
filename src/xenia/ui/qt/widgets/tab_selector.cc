@@ -95,6 +95,12 @@ void XTabSelector::SetTab(XTab* tab) {
   emit TabChanged(tab);
 }
 
+void XTabSelector::SetTabIndex(int tab_index) {
+  if (tab_index < tabs_.size()) {
+    SetTab(tabs_.at(tab_index));
+  }
+}
+
 void XTabSelector::mousePressEvent(QMouseEvent* event) {
   // Try to find a tab located inside the click
   XTab* clicked_tab = nullptr;
@@ -119,8 +125,7 @@ void XTabSelector::paintEvent(QPaintEvent*) {
   }
 
   QPainter painter(this);
-  painter.setRenderHints(QPainter::TextAntialiasing |
-                         QPainter::Antialiasing);
+  painter.setRenderHints(QPainter::TextAntialiasing | QPainter::Antialiasing);
 
   // Draw Text
   painter.setFont(font_);
