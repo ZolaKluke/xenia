@@ -1,0 +1,16 @@
+QPushButton#XPushButton {
+  background: $dark1;
+  color: $primary;
+  border: 2px solid $light3;
+}
+
+QPushButton#XPushButton:hover:!pressed,
+QPushButton#XPushButton:focus {
+  border: 2px solid $secondaryDark;
+  outline: none;
+}
+
+QPushButton#XPushButton:pressed {
+  background: $secondaryDark;
+  border: none;
+}

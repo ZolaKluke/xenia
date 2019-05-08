@@ -6,6 +6,7 @@
 
 #include "xenia/ui/qt/widgets/checkbox.h"
 #include "xenia/ui/qt/widgets/groupbox.h"
+#include "xenia/ui/qt/widgets/push_button.h"
 #include "xenia/ui/qt/widgets/radio_button.h"
 #include "xenia/ui/qt/widgets/separator.h"
 #include "xenia/ui/qt/widgets/slider.h"
@@ -400,7 +401,7 @@ QWidget* DebugTab::CreateTab1Widget(XTabSelector* tab_selector,
   layout->setSpacing(0);
   layout->setContentsMargins(16, 16, 16, 16);
 
-  QPushButton* changeTabButton = new QPushButton("Go to Tab 2");
+  XPushButton* changeTabButton = new XPushButton("Go to Tab 2");
   changeTabButton->setFixedSize(80, 24);
   connect(changeTabButton, &QPushButton::clicked, [=]() {
     tab_selector->SetTabIndex(1);
