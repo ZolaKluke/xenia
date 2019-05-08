@@ -39,6 +39,7 @@ class DebugTab : public XTab {
   QWidget* CreateLibraryTab();
 
   // create widgets for "components" tab
+  QWidget* CreateButtonGroup();
   QWidget* CreateSliderGroup();
   QWidget* CreateCheckboxGroup();
   QWidget* CreateRadioButtonGroup();

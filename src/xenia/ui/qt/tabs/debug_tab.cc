@@ -142,6 +142,7 @@ QWidget* DebugTab::CreateComponentsTab() {
   layout->setSpacing(16);
   layout->setContentsMargins(0, 16, 0, 0);
 
+  layout->addWidget(CreateButtonGroup());
   layout->addWidget(CreateSliderGroup());
   layout->addWidget(CreateCheckboxGroup());
   layout->addWidget(CreateRadioButtonGroup());
@@ -218,6 +219,48 @@ QWidget* DebugTab::CreateLibraryTab() {
   QWidget* w = new QWidget();
   w->setStyleSheet("background: yellow;");
   return w;
+}
+
+QWidget* DebugTab::CreateButtonGroup() {
+  QWidget* group = new QWidget();
+  group->setStyleSheet("QLabel { color:white; }");
+
+  QVBoxLayout* group_layout = new QVBoxLayout();
+  group_layout->setContentsMargins(32, 0, 32, 0);
+  group_layout->setSpacing(16);
+  group->setLayout(group_layout);
+
+  XGroupBox* groupbox = new XGroupBox("Checkboxes");
+
+  QVBoxLayout* groupbox_layout = new QVBoxLayout();
+  groupbox_layout->setContentsMargins(16, 16, 16, 16);
+  groupbox->setLayout(groupbox_layout);
+
+  group_layout->addWidget(groupbox);
+
+  QLabel* label = new QLabel("Push Buttons");
+  groupbox_layout->addWidget(label);
+
+  QHBoxLayout* pushbtn_layout = new QHBoxLayout();
+  pushbtn_layout->setSpacing(32);
+  pushbtn_layout->setContentsMargins(0, 0, 0, 0);
+
+  QSize btn_size(120, 40);
+
+  XPushButton* pushbtn1 = new XPushButton("Push Button");
+  pushbtn1->setFixedSize(btn_size);
+  XPushButton* pushbtn2 = new XPushButton("Disabled");
+  pushbtn2->setDisabled(true);
+  pushbtn2->setFixedSize(btn_size);
+
+  pushbtn_layout->addWidget(pushbtn1);
+  pushbtn_layout->addWidget(pushbtn2);
+
+  pushbtn_layout->addStretch();
+
+  groupbox_layout->addLayout(pushbtn_layout);
+
+  return group;
 }
 
 QWidget* DebugTab::CreateSliderGroup() {
