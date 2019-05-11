@@ -104,12 +104,28 @@ dword_result_t NtCreateFile(lpdword_t handle_out, dword_t desired_access,
         device->mount_path(), xe::join_paths(root_file->path(), target_path));
   }
 
+  auto disposition = vfs::FileDisposition((uint32_t)creation_disposition);
+
+  // If we're creating as a directory and disposition allows creating when it
+  // doesn't exist, try creating a new directory before calling OpenFile, this
+  // will prevent non-existent dirs from being accidentally created as a file
+  if ((create_options & CreateOptions::FILE_DIRECTORY_FILE) &&
+      disposition != vfs::FileDisposition::kOpen &&
+      disposition != vfs::FileDisposition::kOverwrite) {
+    std::string absolute_path = target_path;
+    if (absolute_path.back() != xe::kPathSeparator) {
+      absolute_path += xe::kPathSeparator;
+    }
+
+    kernel_state()->file_system()->CreatePath(
+        absolute_path, vfs::FileAttributeFlags::kFileAttributeDirectory);
+  }
+
   // Attempt open (or create).
   vfs::File* vfs_file;
   vfs::FileAction file_action;
   X_STATUS result = kernel_state()->file_system()->OpenFile(
-      target_path, vfs::FileDisposition((uint32_t)creation_disposition),
-      desired_access, &vfs_file, &file_action);
+      target_path, disposition, desired_access, &vfs_file, &file_action);
   object_ref<XFile> file = nullptr;
 
   X_HANDLE handle = X_INVALID_HANDLE_VALUE;
