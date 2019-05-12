@@ -230,7 +230,7 @@ QWidget* DebugTab::CreateButtonGroup() {
   group_layout->setSpacing(16);
   group->setLayout(group_layout);
 
-  XGroupBox* groupbox = new XGroupBox("Checkboxes");
+  XGroupBox* groupbox = new XGroupBox("Buttons");
 
   QVBoxLayout* groupbox_layout = new QVBoxLayout();
   groupbox_layout->setContentsMargins(16, 16, 16, 16);
