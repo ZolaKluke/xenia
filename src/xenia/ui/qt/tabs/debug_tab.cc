@@ -445,7 +445,7 @@ QWidget* DebugTab::CreateTab1Widget(XTabSelector* tab_selector,
   layout->setContentsMargins(16, 16, 16, 16);
 
   XPushButton* changeTabButton = new XPushButton("Go to Tab 2");
-  changeTabButton->setFixedSize(80, 24);
+  changeTabButton->setFixedSize(100, 24);
   connect(changeTabButton, &QPushButton::clicked, [=]() {
     tab_selector->SetTabIndex(1);
     tab_stack_layout->setCurrentIndex(1);
