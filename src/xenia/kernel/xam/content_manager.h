@@ -84,7 +84,6 @@ class ContentManager {
   X_RESULT SetContentThumbnail(const XCONTENT_DATA& data,
                                std::vector<uint8_t> buffer);
   X_RESULT DeleteContent(const XCONTENT_DATA& data);
-  std::wstring ResolveGameUserContentPath();
 
  private:
   std::wstring ResolvePackageRoot(uint32_t content_type);
