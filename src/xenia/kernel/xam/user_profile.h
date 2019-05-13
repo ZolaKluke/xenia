@@ -15,7 +15,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "xenia/kernel/xam/xdbf/xdbf.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -26,7 +25,7 @@ class UserProfile {
  public:
   struct Setting {
     enum class Type {
-      UNKNOWN = 0,
+      CONTENT = 0,
       INT32 = 1,
       INT64 = 2,
       DOUBLE = 3,
@@ -49,8 +48,13 @@ class UserProfile {
     Type type;
     size_t size;
     bool is_set;
+    uint32_t loaded_title_id;
     Setting(uint32_t setting_id, Type type, size_t size, bool is_set)
-        : setting_id(setting_id), type(type), size(size), is_set(is_set) {}
+        : setting_id(setting_id),
+          type(type),
+          size(size),
+          is_set(is_set),
+          loaded_title_id(0) {}
     virtual size_t extra_size() const { return 0; }
     virtual size_t Append(uint8_t* user_data, uint8_t* buffer,
                           uint32_t buffer_ptr, size_t buffer_offset) {
@@ -58,6 +62,10 @@ class UserProfile {
                                   static_cast<uint8_t>(type));
       return buffer_offset;
     }
+    virtual std::vector<uint8_t> Serialize() const {
+      return std::vector<uint8_t>();
+    }
+    virtual void Deserialize(std::vector<uint8_t>) {}
     bool is_title_specific() const { return (setting_id & 0x3F00) == 0x3F00; }
 
    protected:
@@ -168,6 +176,13 @@ class UserProfile {
       }
       return buffer_offset + length;
     }
+    std::vector<uint8_t> Serialize() const override {
+      return std::vector<uint8_t>(value.data(), value.data() + value.size());
+    }
+    void Deserialize(std::vector<uint8_t> data) override {
+      value = data;
+      is_set = true;
+    }
   };
   struct DateTimeSetting : public Setting {
     DateTimeSetting(uint32_t setting_id, int64_t value)
@@ -191,27 +206,14 @@ class UserProfile {
   void AddSetting(std::unique_ptr<Setting> setting);
   Setting* GetSetting(uint32_t setting_id);
 
-  xdbf::GpdFile* SetTitleSpaData(const xdbf::SpaFile& spa_data);
-  xdbf::GpdFile* GetTitleGpd(uint32_t title_id = -1);
-
-  void GetTitles(std::vector<xdbf::GpdFile*>& titles);
-
-  bool UpdateTitleGpd(uint32_t title_id = -1);
-  bool UpdateAllGpds();
-
  private:
-  void LoadGpdFiles();
-  bool UpdateGpd(uint32_t title_id, xdbf::GpdFile& gpd_data);
-
   uint64_t xuid_;
   std::string name_;
   std::vector<std::unique_ptr<Setting>> setting_list_;
   std::unordered_map<uint32_t, Setting*> settings_;
 
-  std::unordered_map<uint32_t, xdbf::GpdFile> title_gpds_;
-  xdbf::GpdFile dash_gpd_;
-  xdbf::GpdFile* curr_gpd_ = nullptr;
-  uint32_t curr_title_id_ = -1;
+  void LoadSetting(UserProfile::Setting*);
+  void SaveSetting(UserProfile::Setting*);
 };
 
 }  // namespace xam
