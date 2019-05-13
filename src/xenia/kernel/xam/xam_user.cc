@@ -51,12 +51,16 @@ dword_result_t XamUserGetSigninState(dword_t user_index) {
   }
 }
 <<<<<<< HEAD
+<<<<<<< HEAD
 DECLARE_XAM_EXPORT2(XamUserGetSigninState, kUserProfiles, kImplemented,
                     kHighFrequency);
 =======
 DECLARE_XAM_EXPORT(XamUserGetSigninState,
                    ExportTag::kUserProfiles | ExportTag::kImplemented);
 >>>>>>> parent of 394105d3... [CPU/Kernel] Cleanup and rework of how kernel exports are declared.
+=======
+DECLARE_XAM_EXPORT1(XamUserGetSigninState, kUserProfiles, kImplemented);
+>>>>>>> parent of b24936d2... [Kernel] Tag XamUserGetSigninState as high frequency.
 
 typedef struct {
   xe::be<uint64_t> xuid;
