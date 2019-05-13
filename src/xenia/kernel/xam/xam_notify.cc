@@ -43,7 +43,7 @@ DECLARE_XAM_EXPORT1(XamNotifyCreateListener, kNone, kImplemented);
 DECLARE_XAM_EXPORT(XamNotifyCreateListener, ExportTag::kImplemented);
 >>>>>>> parent of 394105d3... [CPU/Kernel] Cleanup and rework of how kernel exports are declared.
 
-// https://github.com/CodeAsm/ffplay360/blob/master/Common/AtgSignIn.cpp
+// http://ffplay360.googlecode.com/svn/Test/Common/AtgSignIn.cpp
 dword_result_t XNotifyGetNext(dword_t handle, dword_t match_id,
                               lpdword_t id_ptr, lpdword_t param_ptr) {
   if (!handle) {

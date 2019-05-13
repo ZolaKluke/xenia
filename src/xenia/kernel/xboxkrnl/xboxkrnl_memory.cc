@@ -505,7 +505,7 @@ dword_result_t MmQueryStatistics(
 }
 DECLARE_XBOXKRNL_EXPORT(MmQueryStatistics, ExportTag::kImplemented);
 
-// https://msdn.microsoft.com/en-us/library/windows/hardware/ff554547(v=vs.85).aspx
+// http://msdn.microsoft.com/en-us/library/windows/hardware/ff554547(v=vs.85).aspx
 dword_result_t MmGetPhysicalAddress(dword_t base_address) {
   // PHYSICAL_ADDRESS MmGetPhysicalAddress(
   //   _In_  PVOID BaseAddress

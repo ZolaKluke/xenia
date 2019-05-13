@@ -82,8 +82,13 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
 
   if (!cpu_.has(Xbyak::util::Cpu::tAVX)) {
     xe::FatalError(
+<<<<<<< HEAD
         "Your CPU does not support AVX, which is required by Xenia. See the "
         "FAQ for system requirements at https://xenia.jp");
+=======
+        "Your CPU is too old to support Xenia. See the FAQ for system "
+        "requirements at http://xenia.jp");
+>>>>>>> parent of 896ac4a6... Update documentation.
     return;
   }
 }
@@ -163,7 +168,11 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   // Function prolog.
   // Must be 16b aligned.
   // Windows is very strict about the form of this and the epilog:
+<<<<<<< HEAD
   // https://docs.microsoft.com/en-us/cpp/build/prolog-and-epilog?view=vs-2017
+=======
+  // http://msdn.microsoft.com/en-us/library/tawsa7cb.aspx
+>>>>>>> parent of 896ac4a6... Update documentation.
   // IMPORTANT: any changes to the prolog must be kept in sync with
   //     X64CodeCache, which dynamically generates exception information.
   //     Adding or changing anything here must be matched!
@@ -743,7 +752,7 @@ Xbyak::Address X64Emitter::GetXmmConstPtr(XmmConst id) {
 }
 
 void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v) {
-  // https://www.agner.org/optimize/optimizing_assembly.pdf
+  // http://www.agner.org/optimize/optimizing_assembly.pdf
   // 13.4 Generating constants
   if (!v.low && !v.high) {
     // 0000...

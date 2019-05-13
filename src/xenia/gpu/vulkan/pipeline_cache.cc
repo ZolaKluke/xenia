@@ -658,7 +658,7 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   }
 
   // Whether each of the viewport settings are enabled.
-  // https://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
+  // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
   bool vport_xscale_enable = (regs.pa_cl_vte_cntl & (1 << 0)) > 0;
   bool vport_xoffset_enable = (regs.pa_cl_vte_cntl & (1 << 1)) > 0;
   bool vport_yscale_enable = (regs.pa_cl_vte_cntl & (1 << 2)) > 0;
@@ -863,7 +863,7 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
       push_constants.window_scale[3] = (-1280.f / window_height_scalar) + 0.5f;
     }
 
-    // https://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
+    // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
     // VTX_XY_FMT = true: the incoming XY have already been multiplied by 1/W0.
     //            = false: multiply the X, Y coordinates by 1/W0.
     // VTX_Z_FMT = true: the incoming Z has already been multiplied by 1/W0.

@@ -286,7 +286,11 @@ bool EmulatorWindow::Initialize() {
                          std::bind(&EmulatorWindow::ShowHelpWebsite, this)));
     help_menu->AddChild(MenuItem::Create(
         MenuItem::Type::kString, L"&About...",
+<<<<<<< HEAD
         [this]() { LaunchBrowser(L"https://xenia.jp/about/"); }));
+=======
+        [this]() { LaunchBrowser("http://xenia.jp/about/"); }));
+>>>>>>> parent of 896ac4a6... Update documentation.
   }
   main_menu->AddChild(std::move(help_menu));
 
@@ -434,7 +438,11 @@ void EmulatorWindow::ToggleFullscreen() {
   }
 }
 
+<<<<<<< HEAD
 void EmulatorWindow::ShowHelpWebsite() { LaunchBrowser(L"https://xenia.jp"); }
+=======
+void EmulatorWindow::ShowHelpWebsite() { LaunchBrowser("http://xenia.jp"); }
+>>>>>>> parent of 896ac4a6... Update documentation.
 
 void EmulatorWindow::UpdateTitle() {
   std::wstring title(base_title_);

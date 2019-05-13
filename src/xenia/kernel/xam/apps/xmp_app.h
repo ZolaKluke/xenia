@@ -25,7 +25,7 @@ namespace xam {
 namespace apps {
 
 // Only source of docs for a lot of these functions:
-// https://github.com/oukiar/freestyledash/blob/master/Freestyle/Scenes/Media/Music/ScnMusic.cpp
+// http://freestyledash.googlecode.com/svn-history/r1/trunk/Freestyle/Scenes/Media/Music/ScnMusic.cpp
 
 class XmpApp : public App {
  public:

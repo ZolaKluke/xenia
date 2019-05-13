@@ -64,6 +64,7 @@ void HandleSetThreadName(pointer_t<X_EXCEPTION_RECORD> record) {
     thread->set_name(name);
   }
 
+<<<<<<< HEAD
   // TODO(benvanik): unwinding required here?
 }
 
@@ -126,6 +127,13 @@ void RtlRaiseException(pointer_t<X_EXCEPTION_RECORD> record) {
       HandleCppException(record);
       return;
     }
+=======
+  if (record->exception_code == 0xE06D7363) {
+    // C++ exception.
+    // http://blogs.msdn.com/b/oldnewthing/archive/2010/07/30/10044061.aspx
+    xe::debugging::Break();
+    return;
+>>>>>>> parent of 896ac4a6... Update documentation.
   }
 
   // TODO(benvanik): unwinding.
