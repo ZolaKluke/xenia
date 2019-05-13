@@ -19,7 +19,7 @@
 namespace xe {
 namespace vfs {
 
-// https://free60project.github.io/wiki/STFS.html
+// http://www.free60.org/wiki/STFS
 
 class StfsContainerEntry;
 

@@ -27,7 +27,7 @@ typedef uint32_t X_HANDLE;
 // TODO(benvanik): type all of this so we get some safety.
 
 // NT_STATUS (STATUS_*)
-// https://msdn.microsoft.com/en-us/library/cc704588.aspx
+// http://msdn.microsoft.com/en-us/library/cc704588.aspx
 // Adding as needed.
 typedef uint32_t X_STATUS;
 #define XSUCCEEDED(s)     ((s & 0xC0000000) == 0)
@@ -162,7 +162,7 @@ enum X_FILE_ATTRIBUTES : uint32_t {
   X_FILE_ATTRIBUTE_ENCRYPTED = 0x4000,
 };
 
-// https://github.com/oukiar/vdash/blob/master/vdash/include/kernel.h
+// http://code.google.com/p/vdash/source/browse/trunk/vdash/include/kernel.h
 enum X_FILE_INFORMATION_CLASS {
   XFileDirectoryInformation = 1,
   XFileFullDirectoryInformation,
@@ -326,10 +326,10 @@ struct X_UNICODE_STRING {
 };
 static_assert_size(X_UNICODE_STRING, 8);
 
-// https://pastebin.com/SMypYikG
+// http://pastebin.com/SMypYikG
 typedef uint32_t XNotificationID;
 
-// https://github.com/CodeAsm/ffplay360/blob/master/Common/XTLOnPC.h
+// http://ffplay360.googlecode.com/svn/trunk/Common/XTLOnPC.h
 struct X_VIDEO_MODE {
   be<uint32_t> display_width;
   be<uint32_t> display_height;
@@ -363,7 +363,7 @@ struct X_SINGLE_LIST_ENTRY {
 };
 static_assert_size(X_SINGLE_LIST_ENTRY, 4);
 
-// https://www.nirsoft.net/kernel_struct/vista/SLIST_HEADER.html
+// http://www.nirsoft.net/kernel_struct/vista/SLIST_HEADER.html
 struct X_SLIST_HEADER {
   X_SINGLE_LIST_ENTRY next;  // 0x0
   be<uint16_t> depth;        // 0x4
