@@ -48,13 +48,19 @@ enum class PrimitiveType : uint32_t {
   k2DLineStrip = 0x15,
   k2DTriStrip = 0x16,
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> parent of c84511a5... [GPU/D3D12] Update tessellation enums
 };
 
 enum class TessellationMode : uint32_t {
   kDiscrete = 0,
   kContinuous = 1,
   kPerEdge = 2,
+<<<<<<< HEAD
+>>>>>>> parent of c84511a5... [GPU/D3D12] Update tessellation enums
+=======
 >>>>>>> parent of c84511a5... [GPU/D3D12] Update tessellation enums
 };
 
