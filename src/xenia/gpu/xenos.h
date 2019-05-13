@@ -43,16 +43,6 @@ enum class PrimitiveType : uint32_t {
   k2DFillRectList = 0x14,
   k2DLineStrip = 0x15,
   k2DTriStrip = 0x16,
-  // Tessellation patches (D3DTPT) - reusing 2DCopyRectList types.
-  kLinePatch = 0x10,
-  kTrianglePatch = 0x11,
-  kQuadPatch = 0x12,
-};
-
-enum class TessellationMode : uint32_t {
-  kDiscrete = 0,
-  kContinuous = 1,
-  kAdaptive = 2,
 };
 
 enum class Dimension : uint32_t {
