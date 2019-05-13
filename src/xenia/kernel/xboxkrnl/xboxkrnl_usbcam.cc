@@ -23,13 +23,13 @@ dword_result_t XUsbcamCreate(unknown_t unk1,  // E
   // 0 = success.
   return X_ERROR_DEVICE_NOT_CONNECTED;
 }
-DECLARE_XBOXKRNL_EXPORT1(XUsbcamCreate, kNone, kStub);
+DECLARE_XBOXKRNL_EXPORT(XUsbcamCreate, ExportTag::kStub);
 
 dword_result_t XUsbcamGetState() {
   // 0 = not connected.
   return 0;
 }
-DECLARE_XBOXKRNL_EXPORT1(XUsbcamGetState, kNone, kStub);
+DECLARE_XBOXKRNL_EXPORT(XUsbcamGetState, ExportTag::kStub);
 
 void RegisterUsbcamExports(xe::cpu::ExportResolver* export_resolver,
                            KernelState* kernel_state) {}

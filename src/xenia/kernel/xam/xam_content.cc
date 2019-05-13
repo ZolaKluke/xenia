@@ -187,7 +187,7 @@ dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
   *handle_out = e->handle();
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamContentCreateEnumerator, kContent, kImplemented);
+DECLARE_XAM_EXPORT(XamContentCreateEnumerator, ExportTag::kImplemented);
 
 dword_result_t XamContentCreateDeviceEnumerator(dword_t content_type,
                                                 dword_t content_flags,
@@ -310,7 +310,7 @@ dword_result_t XamContentCreateEx(dword_t user_index, lpstring_t root_name,
     return result;
   }
 }
-DECLARE_XAM_EXPORT1(XamContentCreateEx, kContent, kImplemented);
+DECLARE_XAM_EXPORT(XamContentCreateEx, ExportTag::kImplemented);
 
 dword_result_t XamContentCreate(dword_t user_index, lpstring_t root_name,
                                 lpvoid_t content_data_ptr, dword_t flags,
@@ -321,7 +321,7 @@ dword_result_t XamContentCreate(dword_t user_index, lpstring_t root_name,
                             disposition_ptr, license_mask_ptr, 0, 0,
                             overlapped_ptr);
 }
-DECLARE_XAM_EXPORT1(XamContentCreate, kContent, kImplemented);
+DECLARE_XAM_EXPORT(XamContentCreate, ExportTag::kImplemented);
 
 dword_result_t XamContentOpenFile(dword_t user_index, lpstring_t root_name,
                                   lpstring_t path, dword_t flags,
@@ -331,7 +331,7 @@ dword_result_t XamContentOpenFile(dword_t user_index, lpstring_t root_name,
   // TODO(gibbed): arguments assumed based on XamContentCreate.
   return X_ERROR_FILE_NOT_FOUND;
 }
-DECLARE_XAM_EXPORT1(XamContentOpenFile, kContent, kStub);
+DECLARE_XAM_EXPORT(XamContentOpenFile, ExportTag::kStub);
 
 dword_result_t XamContentFlush(lpstring_t root_name,
                                lpunknown_t overlapped_ptr) {
