@@ -4493,6 +4493,7 @@ struct VECTOR_SHL_V128
       e.vaddps(i.dest, i.dest, src3);  // $0 = $1 + $2
     }
   }
+<<<<<<< HEAD
 };
 EMITTER_OPCODE_TABLE(OPCODE_MUL_ADD, MUL_ADD_F32, MUL_ADD_F64, MUL_ADD_V128);
 
@@ -4594,6 +4595,60 @@ struct MUL_SUB_F64
           e.vmovsd(e.xmm1, i.src3);
           src3 = e.xmm1;
         }
+=======
+  static void EmitInt32(X64Emitter& e, const EmitArgType& i) {
+    if (i.src2.is_constant) {
+      const auto& shamt = i.src2.constant();
+      bool all_same = true;
+      for (size_t n = 0; n < 4 - n; ++n) {
+        if (shamt.u32[n] != shamt.u32[n + 1]) {
+          all_same = false;
+          break;
+        }
+      }
+      if (all_same) {
+        // Every count is the same, so we can use vpslld.
+        e.vpslld(i.dest, i.src1, shamt.u8[0] & 0x1F);
+        return;
+      }
+    }
+
+    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+      if (i.src2.is_constant) {
+        const auto& shamt = i.src2.constant();
+        // Counts differ, so pre-mask and load constant.
+        vec128_t masked = i.src2.constant();
+        for (size_t n = 0; n < 4; ++n) {
+          masked.u32[n] &= 0x1F;
+        }
+        e.LoadConstantXmm(e.xmm0, masked);
+        e.vpsllvd(i.dest, i.src1, e.xmm0);
+      } else {
+        // Fully variable shift.
+        // src shift mask may have values >31, and x86 sets to zero when
+        // that happens so we mask.
+        e.vandps(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
+        e.vpsllvd(i.dest, i.src1, e.xmm0);
+      }
+    } else {
+      // Shift 4 words in src1 by amount specified in src2.
+      Xbyak::Label emu, end;
+
+      // See if the shift is equal first for a shortcut.
+      // Only bother with this check if shift amt isn't constant.
+      if (!i.src2.is_constant) {
+        e.vpshufd(e.xmm0, i.src2, 0b00000000);
+        e.vpxor(e.xmm1, e.xmm0, i.src2);
+        e.vptest(e.xmm1, e.xmm1);
+        e.jnz(emu);
+
+        // Equal. Shift using vpsrad.
+        e.mov(e.rax, 0x1F);
+        e.vmovq(e.xmm1, e.rax);
+        e.vpand(e.xmm0, e.xmm0, e.xmm1);
+        e.vpslld(i.dest, i.src1, e.xmm0);
+        e.jmp(end);
+>>>>>>> parent of ff363d85... Merge branch 'master' into d3d12
       }
 
       // Multiply operation is commutative.
@@ -4645,6 +4700,12 @@ struct MUL_SUB_V128
           src3 = e.xmm1;
         }
       }
+<<<<<<< HEAD
+=======
+      e.lea(e.r8, e.StashXmm(0, i.src1));
+      e.CallNativeSafe(reinterpret_cast<void*>(EmulateVectorShlI32));
+      e.vmovaps(i.dest, e.xmm0);
+>>>>>>> parent of ff363d85... Merge branch 'master' into d3d12
 
       // Multiply operation is commutative.
       EmitCommutativeBinaryXmmOp(
@@ -4718,10 +4779,81 @@ struct ABS_F64 : Sequence<ABS_F64, I<OPCODE_ABS, F64Op, F64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.vpand(i.dest, i.src1, e.GetXmmConstPtr(XMMAbsMaskPD));
   }
+<<<<<<< HEAD
 };
 struct ABS_V128 : Sequence<ABS_V128, I<OPCODE_ABS, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.vpand(i.dest, i.src1, e.GetXmmConstPtr(XMMAbsMaskPS));
+=======
+  static void EmitInt32(X64Emitter& e, const EmitArgType& i) {
+    if (i.src2.is_constant) {
+      const auto& shamt = i.src2.constant();
+      bool all_same = true;
+      for (size_t n = 0; n < 4 - n; ++n) {
+        if (shamt.u32[n] != shamt.u32[n + 1]) {
+          all_same = false;
+          break;
+        }
+      }
+      if (all_same) {
+        // Every count is the same, so we can use vpsrld.
+        e.vpsrld(i.dest, i.src1, shamt.u8[0] & 0x1F);
+        return;
+      } else {
+        if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+          // Counts differ, so pre-mask and load constant.
+          vec128_t masked = i.src2.constant();
+          for (size_t n = 0; n < 4; ++n) {
+            masked.u32[n] &= 0x1F;
+          }
+          e.LoadConstantXmm(e.xmm0, masked);
+          e.vpsrlvd(i.dest, i.src1, e.xmm0);
+          return;
+        }
+      }
+    }
+
+    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+      // Fully variable shift.
+      // src shift mask may have values >31, and x86 sets to zero when
+      // that happens so we mask.
+      e.vandps(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
+      e.vpsrlvd(i.dest, i.src1, e.xmm0);
+    } else {
+      // Shift 4 words in src1 by amount specified in src2.
+      Xbyak::Label emu, end;
+
+      // See if the shift is equal first for a shortcut.
+      // Only bother with this check if shift amt isn't constant.
+      if (!i.src2.is_constant) {
+        e.vpshufd(e.xmm0, i.src2, 0b00000000);
+        e.vpxor(e.xmm1, e.xmm0, i.src2);
+        e.vptest(e.xmm1, e.xmm1);
+        e.jnz(emu);
+
+        // Equal. Shift using vpsrld.
+        e.mov(e.rax, 0x1F);
+        e.vmovq(e.xmm1, e.rax);
+        e.vpand(e.xmm0, e.xmm0, e.xmm1);
+        e.vpsrld(i.dest, i.src1, e.xmm0);
+        e.jmp(end);
+      }
+
+      // TODO(benvanik): native version.
+      e.L(emu);
+      if (i.src2.is_constant) {
+        e.LoadConstantXmm(e.xmm0, i.src2.constant());
+        e.lea(e.r9, e.StashXmm(1, e.xmm0));
+      } else {
+        e.lea(e.r9, e.StashXmm(1, i.src2));
+      }
+      e.lea(e.r8, e.StashXmm(0, i.src1));
+      e.CallNativeSafe(reinterpret_cast<void*>(EmulateVectorShrI32));
+      e.vmovaps(i.dest, e.xmm0);
+
+      e.L(end);
+    }
+>>>>>>> parent of ff363d85... Merge branch 'master' into d3d12
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_ABS, ABS_F32, ABS_F64, ABS_V128);

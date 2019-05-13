@@ -300,6 +300,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant()) {
             if (i->src1.value->type != VEC128_TYPE) {
               if (i->src1.value->IsConstantTrue()) {
+<<<<<<< HEAD
                 auto src2 = i->src2.value;
                 i->Replace(&OPCODE_ASSIGN_info, 0);
                 i->set_src1(src2);
@@ -309,6 +310,13 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
                 i->Replace(&OPCODE_ASSIGN_info, 0);
                 i->set_src1(src3);
                 result = true;
+=======
+                v->set_from(i->src2.value);
+                i->Remove();
+              } else if (i->src1.value->IsConstantFalse()) {
+                v->set_from(i->src3.value);
+                i->Remove();
+>>>>>>> parent of ff363d85... Merge branch 'master' into d3d12
               } else if (i->src2.value->IsConstant() &&
                          i->src3.value->IsConstant()) {
                 // TODO: Select
@@ -682,12 +690,15 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             v->set_from(i->src1.value);
             v->Shl(i->src2.value);
             i->Remove();
+<<<<<<< HEAD
             result = true;
           } else if (i->src2.value->IsConstantZero()) {
             auto src1 = i->src1.value;
             i->Replace(&OPCODE_ASSIGN_info, 0);
             i->set_src1(src1);
             result = true;
+=======
+>>>>>>> parent of ff363d85... Merge branch 'master' into d3d12
           }
           break;
         case OPCODE_SHR:
@@ -695,12 +706,15 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             v->set_from(i->src1.value);
             v->Shr(i->src2.value);
             i->Remove();
+<<<<<<< HEAD
             result = true;
           } else if (i->src2.value->IsConstantZero()) {
             auto src1 = i->src1.value;
             i->Replace(&OPCODE_ASSIGN_info, 0);
             i->set_src1(src1);
             result = true;
+=======
+>>>>>>> parent of ff363d85... Merge branch 'master' into d3d12
           }
           break;
         case OPCODE_SHA:

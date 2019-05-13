@@ -52,6 +52,7 @@ dword_result_t XamUserGetSigninState(dword_t user_index) {
 }
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 DECLARE_XAM_EXPORT2(XamUserGetSigninState, kUserProfiles, kImplemented,
                     kHighFrequency);
 =======
@@ -61,6 +62,9 @@ DECLARE_XAM_EXPORT(XamUserGetSigninState,
 =======
 DECLARE_XAM_EXPORT1(XamUserGetSigninState, kUserProfiles, kImplemented);
 >>>>>>> parent of b24936d2... [Kernel] Tag XamUserGetSigninState as high frequency.
+=======
+DECLARE_XAM_EXPORT1(XamUserGetSigninState, kUserProfiles, kImplemented);
+>>>>>>> parent of ff363d85... Merge branch 'master' into d3d12
 
 typedef struct {
   xe::be<uint64_t> xuid;

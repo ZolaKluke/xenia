@@ -53,6 +53,7 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) : frontend_(frontend) {
   if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
   compiler_->AddPass(std::make_unique<passes::ContextPromotionPass>());
   if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
+<<<<<<< HEAD
 
   // Grouped simplification + constant propagation.
   // Loops until no changes are made.
@@ -63,6 +64,12 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) : frontend_(frontend) {
   if (validate) sap->AddPass(std::make_unique<passes::ValidationPass>());
   compiler_->AddPass(std::move(sap));
 
+=======
+  compiler_->AddPass(std::make_unique<passes::SimplificationPass>());
+  if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
+  compiler_->AddPass(std::make_unique<passes::ConstantPropagationPass>());
+  if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
+>>>>>>> parent of ff363d85... Merge branch 'master' into d3d12
   if (backend->machine_info()->supports_extended_load_store) {
     // Backend supports the advanced LOAD/STORE instructions.
     // These will save us a lot of HIR opcodes.
