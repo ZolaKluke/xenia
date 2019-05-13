@@ -1207,20 +1207,20 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       render_target_cache_->GetCurrentPipelineRenderTargets();
 
   bool indexed = index_buffer_info != nullptr && index_buffer_info->guest_base;
-  // Adaptive tessellation requires an index buffer, but it contains per-edge
+  // Per-edge tessellation requires an index buffer, but it contains per-edge
   // tessellation factors (as floats) in it instead of control point indices.
-  bool adaptive_tessellation;
+  bool per_edge_tessellation;
   if (primitive_type == PrimitiveType::kTrianglePatch ||
       primitive_type == PrimitiveType::kQuadPatch) {
     TessellationMode tessellation_mode =
         TessellationMode(regs[XE_GPU_REG_VGT_HOS_CNTL].u32 & 0x3);
-    adaptive_tessellation = tessellation_mode == TessellationMode::kAdaptive;
-    if (adaptive_tessellation &&
+    per_edge_tessellation = tessellation_mode == TessellationMode::kPerEdge;
+    if (per_edge_tessellation &&
         (!indexed || index_buffer_info->format != IndexFormat::kInt32)) {
       return false;
     }
     // TODO(Triang3l): Implement all tessellation modes if games using any other
-    // than adaptive are found. The biggest question about them is what is being
+    // than per-edge are found. The biggest question about them is what is being
     // passed to vertex shader registers, especially if patches are drawn with
     // an index buffer.
     // https://www.slideshare.net/blackdevilvikas/next-generation-graphics-programming-on-xbox-360
@@ -1229,26 +1229,26 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     //             for triangles though.
     // - Continuous: fractional_even partitioning, factors
     //               VGT_HOS_MAX_TESS_LEVEL + 1.
-    // - Adaptive: fractional_even partitioning, edge factors are float values
+    // - Per-edge: fractional_even partitioning, edge factors are float values
     //             in the index buffer clamped to VGT_HOS_MIN_TESS_LEVEL and
     //             VGT_HOS_MAX_TESS_LEVEL, plus one, inner factor appears to be
     //             the minimum of the two edge factors (but without adding 1) in
     //             each direction. This relies on memexport in games heavily for
     //             generation of the factor buffer, in Halo 3 the buffer is not
     //             initialized at all before the memexport pass.
-    // Adaptive partitioning is likely fractional because this presentation,
+    // Per-edge partitional is likely fractional because this presentation,
     // though only mentioning the Xbox 360, demonstrates adaptive tessellation
     // using fractional partitioning:
     // http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.221.4656&rep=rep1&type=pdf
-    if (tessellation_mode != TessellationMode::kAdaptive) {
+    if (tessellation_mode != TessellationMode::kPerEdge) {
       XELOGE(
-          "Tessellation mode %u is not implemented yet, only adaptive is "
+          "Tessellation mode %u is not implemented yet, only per-edge is "
           "partially available now - report the game to Xenia developers!",
           uint32_t(tessellation_mode));
       return false;
     }
   } else {
-    adaptive_tessellation = false;
+    per_edge_tessellation = false;
   }
 
   // TODO(Triang3l): Non-indexed line loops (by movc'ing zero to the vertex
@@ -1396,7 +1396,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     shared_memory_->UseForReading();
     command_list->IASetIndexBuffer(&index_buffer_view);
     SubmitBarriers();
-    if (adaptive_tessellation) {
+    if (per_edge_tessellation) {
       // Index buffer used for per-edge factors.
       command_list->DrawInstanced(index_count, 1, 0, 0);
     } else {
