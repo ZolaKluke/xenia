@@ -32,6 +32,14 @@ QToolButton#XDropdownButton::menu-button {
   border: none;
 }
 
+QToolButton#XDropdownButton:disabled,
+QToolButton#XDropdownButton::menu-button {
+  width: 15px;
+  margin: 2px;
+  background: $light3;
+  border: none;
+}
+
 QToolButton#XDropdownButton::menu-button:pressed {
   background: $secondaryDark;
 }
