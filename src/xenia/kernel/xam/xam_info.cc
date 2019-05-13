@@ -187,12 +187,12 @@ dword_result_t XamGetSystemVersion() {
   // 0x20096B00
   return 0;
 }
-DECLARE_XAM_EXPORT1(XamGetSystemVersion, kNone, kStub);
+DECLARE_XAM_EXPORT(XamGetSystemVersion, ExportTag::kStub);
 
 void XCustomRegisterDynamicActions() {
   // ???
 }
-DECLARE_XAM_EXPORT1(XCustomRegisterDynamicActions, kNone, kStub);
+DECLARE_XAM_EXPORT(XCustomRegisterDynamicActions, ExportTag::kStub);
 
 dword_result_t XGetAVPack() {
   // DWORD
@@ -202,10 +202,10 @@ dword_result_t XGetAVPack() {
   // they explode with errors if not in PAL mode.
   return 6;
 }
-DECLARE_XAM_EXPORT1(XGetAVPack, kNone, kStub);
+DECLARE_XAM_EXPORT(XGetAVPack, ExportTag::kStub);
 
 dword_result_t XGetGameRegion() { return 0xFFFF; }
-DECLARE_XAM_EXPORT1(XGetGameRegion, kNone, kStub);
+DECLARE_XAM_EXPORT(XGetGameRegion, ExportTag::kStub);
 
 dword_result_t XGetLanguage() {
   uint32_t desired_language = X_LANGUAGE_ENGLISH;
@@ -222,7 +222,7 @@ dword_result_t XGetLanguage() {
 
   return desired_language;
 }
-DECLARE_XAM_EXPORT1(XGetLanguage, kNone, kImplemented);
+DECLARE_XAM_EXPORT(XGetLanguage, ExportTag::kImplemented);
 
 dword_result_t XamGetExecutionId(lpdword_t info_ptr) {
   auto module = kernel_state()->GetExecutableModule();
@@ -239,7 +239,7 @@ dword_result_t XamGetExecutionId(lpdword_t info_ptr) {
   *info_ptr = guest_hdr_ptr;
   return X_STATUS_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamGetExecutionId, kNone, kImplemented);
+DECLARE_XAM_EXPORT(XamGetExecutionId, ExportTag::kImplemented);
 
 dword_result_t XamLoaderSetLaunchData(lpvoid_t data, dword_t size) {
   auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
@@ -249,7 +249,7 @@ dword_result_t XamLoaderSetLaunchData(lpvoid_t data, dword_t size) {
   std::memcpy(loader_data.launch_data.data(), data, size);
   return 0;
 }
-DECLARE_XAM_EXPORT1(XamLoaderSetLaunchData, kNone, kSketchy);
+DECLARE_XAM_EXPORT(XamLoaderSetLaunchData, ExportTag::kSketchy);
 
 dword_result_t XamLoaderGetLaunchDataSize(lpdword_t size_ptr) {
   if (!size_ptr) {
@@ -266,7 +266,7 @@ dword_result_t XamLoaderGetLaunchDataSize(lpdword_t size_ptr) {
   *size_ptr = uint32_t(xam->loader_data().launch_data.size());
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamLoaderGetLaunchDataSize, kNone, kSketchy);
+DECLARE_XAM_EXPORT(XamLoaderGetLaunchDataSize, ExportTag::kSketchy);
 
 dword_result_t XamLoaderGetLaunchData(lpvoid_t buffer_ptr,
                                       dword_t buffer_size) {
@@ -281,7 +281,7 @@ dword_result_t XamLoaderGetLaunchData(lpvoid_t buffer_ptr,
   std::memcpy(buffer_ptr, loader_data.launch_data.data(), copy_size);
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamLoaderGetLaunchData, kNone, kSketchy);
+DECLARE_XAM_EXPORT(XamLoaderGetLaunchData, ExportTag::kSketchy);
 
 void XamLoaderLaunchTitle(lpstring_t raw_name, dword_t flags) {
   auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
@@ -309,13 +309,13 @@ void XamLoaderLaunchTitle(lpstring_t raw_name, dword_t flags) {
   // This function does not return.
   kernel_state()->TerminateTitle();
 }
-DECLARE_XAM_EXPORT1(XamLoaderLaunchTitle, kNone, kSketchy);
+DECLARE_XAM_EXPORT(XamLoaderLaunchTitle, ExportTag::kSketchy);
 
 void XamLoaderTerminateTitle() {
   // This function does not return.
   kernel_state()->TerminateTitle();
 }
-DECLARE_XAM_EXPORT1(XamLoaderTerminateTitle, kNone, kSketchy);
+DECLARE_XAM_EXPORT(XamLoaderTerminateTitle, ExportTag::kSketchy);
 
 dword_result_t XamAlloc(dword_t unk, dword_t size, lpdword_t out_ptr) {
   assert_true(unk == 0);
@@ -327,14 +327,14 @@ dword_result_t XamAlloc(dword_t unk, dword_t size, lpdword_t out_ptr) {
 
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamAlloc, kMemory, kImplemented);
+DECLARE_XAM_EXPORT(XamAlloc, ExportTag::kImplemented);
 
 dword_result_t XamFree(lpdword_t ptr) {
   kernel_state()->memory()->SystemHeapFree(ptr.guest_address());
 
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamFree, kMemory, kImplemented);
+DECLARE_XAM_EXPORT(XamFree, ExportTag::kImplemented);
 
 // https://github.com/LestaD/SourceEngine2007/blob/master/se2007/engine/xboxsystem.cpp#L518
 dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
@@ -404,7 +404,7 @@ dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
     return X_ERROR_INVALID_PARAMETER;
   }
 }
-DECLARE_XAM_EXPORT1(XamEnumerate, kNone, kImplemented);
+DECLARE_XAM_EXPORT(XamEnumerate, ExportTag::kImplemented);
 
 dword_result_t XamCreateEnumeratorHandle(unknown_t unk1, unknown_t unk2,
                                          unknown_t unk3, unknown_t unk4,
@@ -412,13 +412,13 @@ dword_result_t XamCreateEnumeratorHandle(unknown_t unk1, unknown_t unk2,
                                          unknown_t unk7, unknown_t unk8) {
   return X_ERROR_INVALID_PARAMETER;
 }
-DECLARE_XAM_EXPORT1(XamCreateEnumeratorHandle, kNone, kStub);
+DECLARE_XAM_EXPORT(XamCreateEnumeratorHandle, ExportTag::kStub);
 
 dword_result_t XamGetPrivateEnumStructureFromHandle(unknown_t unk1,
                                                     unknown_t unk2) {
   return X_ERROR_INVALID_PARAMETER;
 }
-DECLARE_XAM_EXPORT1(XamGetPrivateEnumStructureFromHandle, kNone, kStub);
+DECLARE_XAM_EXPORT(XamGetPrivateEnumStructureFromHandle, ExportTag::kStub);
 
 dword_result_t XamQueryLiveHiveW(lpwstring_t name, lpvoid_t out_buf,
                                  dword_t out_size, dword_t type /* guess */) {

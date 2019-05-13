@@ -31,6 +31,7 @@ dword_result_t XamNotifyCreateListenerInternal(qword_t mask, dword_t unk,
 
   return handle;
 }
+<<<<<<< HEAD
 DECLARE_XAM_EXPORT2(XamNotifyCreateListenerInternal, kNone, kImplemented,
                     kSketchy);
 
@@ -38,6 +39,9 @@ dword_result_t XamNotifyCreateListener(qword_t mask, dword_t one) {
   return XamNotifyCreateListenerInternal(mask, 0, one);
 }
 DECLARE_XAM_EXPORT1(XamNotifyCreateListener, kNone, kImplemented);
+=======
+DECLARE_XAM_EXPORT(XamNotifyCreateListener, ExportTag::kImplemented);
+>>>>>>> parent of 394105d3... [CPU/Kernel] Cleanup and rework of how kernel exports are declared.
 
 // https://github.com/CodeAsm/ffplay360/blob/master/Common/AtgSignIn.cpp
 dword_result_t XNotifyGetNext(dword_t handle, dword_t match_id,
@@ -75,18 +79,19 @@ dword_result_t XNotifyGetNext(dword_t handle, dword_t match_id,
 
   return dequeued ? 1 : 0;
 }
-DECLARE_XAM_EXPORT2(XNotifyGetNext, kNone, kImplemented, kHighFrequency);
+DECLARE_XAM_EXPORT(XNotifyGetNext,
+                   ExportTag::kImplemented | ExportTag::kHighFrequency);
 
 dword_result_t XNotifyDelayUI(dword_t delay_ms) {
   // Ignored.
   return 0;
 }
-DECLARE_XAM_EXPORT1(XNotifyDelayUI, kNone, kStub);
+DECLARE_XAM_EXPORT(XNotifyDelayUI, ExportTag::kStub);
 
 void XNotifyPositionUI(dword_t position) {
   // Ignored.
 }
-DECLARE_XAM_EXPORT1(XNotifyPositionUI, kNone, kStub);
+DECLARE_XAM_EXPORT(XNotifyPositionUI, ExportTag::kStub);
 
 void RegisterNotifyExports(xe::cpu::ExportResolver* export_resolver,
                            KernelState* kernel_state) {}

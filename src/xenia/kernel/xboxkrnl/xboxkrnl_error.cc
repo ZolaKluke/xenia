@@ -1010,12 +1010,17 @@ uint32_t xeRtlNtStatusToDosError(uint32_t source_status) {
   XELOGE("RtlNtStatusToDosError lookup NOT IMPLEMENTED");
   return 317;  // ERROR_MR_MID_NOT_FOUND
 }
+<<<<<<< HEAD
 
 dword_result_t RtlNtStatusToDosError(dword_t source_status) {
   return xeRtlNtStatusToDosError(source_status);
 }
 DECLARE_XBOXKRNL_EXPORT3(RtlNtStatusToDosError, kNone, kImportant,
                          kHighFrequency, kLogResult);
+=======
+DECLARE_XBOXKRNL_EXPORT(RtlNtStatusToDosError,
+                        ExportTag::kImportant | ExportTag::kLogResult);
+>>>>>>> parent of 394105d3... [CPU/Kernel] Cleanup and rework of how kernel exports are declared.
 
 void RegisterErrorExports(xe::cpu::ExportResolver* export_resolver,
                           KernelState* kernel_state) {}

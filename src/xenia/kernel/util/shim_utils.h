@@ -531,10 +531,11 @@ xe::cpu::Export* RegisterExport(void (*fn)(Ps&...), const char* name,
 
 using xe::cpu::ExportTag;
 
-#define DECLARE_EXPORT(module_name, name, category, tags)                  \
+#define DECLARE_EXPORT(module_name, name, tags)                            \
   const auto EXPORT_##module_name##_##name = RegisterExport_##module_name( \
       xe::kernel::shim::RegisterExport<                                    \
           xe::kernel::shim::KernelModuleId::module_name, ordinals::name>(  \
+<<<<<<< HEAD
           &name, #name,                                                    \
           tags | (static_cast<xe::cpu::ExportTag::type>(                   \
                       xe::cpu::ExportCategory::category)                   \
@@ -568,6 +569,13 @@ using xe::cpu::ExportTag;
   DECLARE_EXPORT(xboxkrnl, name, category,                               \
                  xe::cpu::ExportTag::tag1 | xe::cpu::ExportTag::tag2 |   \
                      xe::cpu::ExportTag::tag3 | xe::cpu::ExportTag::tag4)
+=======
+          &name, #name, tags));
+
+#define DECLARE_XAM_EXPORT(name, tags) DECLARE_EXPORT(xam, name, tags)
+#define DECLARE_XBDM_EXPORT(name, tags) DECLARE_EXPORT(xbdm, name, tags)
+#define DECLARE_XBOXKRNL_EXPORT(name, tags) DECLARE_EXPORT(xboxkrnl, name, tags)
+>>>>>>> parent of 394105d3... [CPU/Kernel] Cleanup and rework of how kernel exports are declared.
 
 }  // namespace kernel
 }  // namespace xe
