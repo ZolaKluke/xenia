@@ -3,8 +3,10 @@
 #include <QButtonGroup>
 #include <QGraphicsEffect>
 #include <QHBoxLayout>
+#include <QMenu>
 
 #include "xenia/ui/qt/widgets/checkbox.h"
+#include "xenia/ui/qt/widgets/dropdown_button.h"
 #include "xenia/ui/qt/widgets/groupbox.h"
 #include "xenia/ui/qt/widgets/push_button.h"
 #include "xenia/ui/qt/widgets/radio_button.h"
@@ -238,8 +240,8 @@ QWidget* DebugTab::CreateButtonGroup() {
 
   group_layout->addWidget(groupbox);
 
-  QLabel* label = new QLabel("Push Buttons");
-  groupbox_layout->addWidget(label);
+  QLabel* pushbtn_label = new QLabel("Push Buttons");
+  groupbox_layout->addWidget(pushbtn_label);
 
   QHBoxLayout* pushbtn_layout = new QHBoxLayout();
   pushbtn_layout->setSpacing(32);
@@ -259,6 +261,32 @@ QWidget* DebugTab::CreateButtonGroup() {
   pushbtn_layout->addStretch();
 
   groupbox_layout->addLayout(pushbtn_layout);
+
+  QLabel* dropdown_btn_label = new QLabel("Dropdown Buttons");
+  groupbox_layout->addWidget(dropdown_btn_label);
+
+  QHBoxLayout* dropdown_btn_layout = new QHBoxLayout();
+  dropdown_btn_layout->setSpacing(32);
+  dropdown_btn_layout->setContentsMargins(0, 0, 0, 0);
+
+  QMenu* menu = new QMenu(this);
+  menu->addAction("Test");
+  menu->addSeparator();
+  menu->addAction("Close");
+
+  XDropdownButton* dropdown_btn = new XDropdownButton("Dropdown Button", menu);
+  dropdown_btn->setFixedSize(btn_size);
+
+  XDropdownButton* dropdown_btn_disabled = new XDropdownButton("Disabled");
+  dropdown_btn_disabled->setDisabled(true);
+  dropdown_btn_disabled->setFixedSize(btn_size);
+
+  dropdown_btn_layout->addWidget(dropdown_btn);
+  dropdown_btn_layout->addWidget(dropdown_btn_disabled);
+
+  dropdown_btn_layout->addStretch();
+
+  groupbox_layout->addLayout(dropdown_btn_layout);
 
   return group;
 }
