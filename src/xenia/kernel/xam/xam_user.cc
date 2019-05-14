@@ -32,7 +32,8 @@ X_HRESULT_result_t XamUserGetXUID(dword_t user_index, dword_t unk,
   }
   return X_E_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamUserGetXUID, kUserProfiles, kImplemented);
+DECLARE_XAM_EXPORT(XamUserGetXUID,
+                   ExportTag::kUserProfiles | ExportTag::kImplemented);
 
 dword_result_t XamUserGetSigninState(dword_t user_index) {
   // Yield, as some games spam this.
@@ -49,8 +50,13 @@ dword_result_t XamUserGetSigninState(dword_t user_index) {
     return 0;
   }
 }
+<<<<<<< HEAD
 DECLARE_XAM_EXPORT2(XamUserGetSigninState, kUserProfiles, kImplemented,
                     kHighFrequency);
+== == ==
+    = DECLARE_XAM_EXPORT(XamUserGetSigninState,
+                         ExportTag::kUserProfiles | ExportTag::kImplemented);
+>>>>>>> parent of 394105d3... [CPU/Kernel] Cleanup and rework of how kernel exports are declared.
 
 typedef struct {
   xe::be<uint64_t> xuid;
@@ -79,7 +85,8 @@ X_HRESULT_result_t XamUserGetSigninInfo(dword_t user_index, dword_t flags,
   std::strncpy(info->name, user_profile->name().data(), 15);
   return X_E_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamUserGetSigninInfo, kUserProfiles, kImplemented);
+DECLARE_XAM_EXPORT(XamUserGetSigninInfo,
+                   ExportTag::kUserProfiles | ExportTag::kImplemented);
 
 dword_result_t XamUserGetName(dword_t user_index, lpstring_t buffer,
                               dword_t buffer_len) {
@@ -90,7 +97,8 @@ dword_result_t XamUserGetName(dword_t user_index, lpstring_t buffer,
   std::strncpy(buffer, user_profile->name().data(), buffer_len);
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamUserGetName, kUserProfiles, kImplemented);
+DECLARE_XAM_EXPORT(XamUserGetName,
+                   ExportTag::kUserProfiles | ExportTag::kImplemented);
 
 typedef struct {
   xe::be<uint32_t> setting_count;
@@ -224,7 +232,8 @@ dword_result_t XamUserReadProfileSettings(
   }
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamUserReadProfileSettings, kUserProfiles, kImplemented);
+DECLARE_XAM_EXPORT(XamUserReadProfileSettings,
+                   ExportTag::kUserProfiles | ExportTag::kImplemented);
 
 typedef struct {
   xe::be<uint32_t> from;
@@ -328,7 +337,8 @@ dword_result_t XamUserWriteProfileSettings(
   }
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamUserWriteProfileSettings, kUserProfiles, kImplemented);
+DECLARE_XAM_EXPORT(XamUserWriteProfileSettings,
+                   ExportTag::kUserProfiles | ExportTag::kImplemented);
 
 dword_result_t XamUserCheckPrivilege(dword_t user_index, dword_t mask,
                                      lpdword_t out_value) {
@@ -346,7 +356,8 @@ dword_result_t XamUserCheckPrivilege(dword_t user_index, dword_t mask,
   *out_value = 0;
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamUserCheckPrivilege, kUserProfiles, kStub);
+DECLARE_XAM_EXPORT(XamUserCheckPrivilege,
+                   ExportTag::kUserProfiles | ExportTag::kStub);
 
 dword_result_t XamUserContentRestrictionGetFlags(dword_t user_index,
                                                  lpdword_t out_flags) {
@@ -364,7 +375,8 @@ dword_result_t XamUserContentRestrictionGetFlags(dword_t user_index,
   *out_flags = 0;
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamUserContentRestrictionGetFlags, kUserProfiles, kStub);
+DECLARE_XAM_EXPORT(XamUserContentRestrictionGetFlags,
+                   ExportTag::kUserProfiles | ExportTag::kStub);
 
 dword_result_t XamUserContentRestrictionGetRating(dword_t user_index,
                                                   dword_t unk1,
@@ -386,7 +398,8 @@ dword_result_t XamUserContentRestrictionGetRating(dword_t user_index,
   *out_unk3 = 0;
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamUserContentRestrictionGetRating, kUserProfiles, kStub);
+DECLARE_XAM_EXPORT(XamUserContentRestrictionGetRating,
+                   ExportTag::kUserProfiles | ExportTag::kStub);
 
 dword_result_t XamUserContentRestrictionCheckAccess(dword_t user_index,
                                                     dword_t unk1, dword_t unk2,
@@ -403,7 +416,8 @@ dword_result_t XamUserContentRestrictionCheckAccess(dword_t user_index,
 
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamUserContentRestrictionCheckAccess, kUserProfiles, kStub);
+DECLARE_XAM_EXPORT(XamUserContentRestrictionCheckAccess,
+                   ExportTag::kUserProfiles | ExportTag::kStub);
 
 dword_result_t XamUserAreUsersFriends(dword_t user_index, dword_t unk1,
                                       dword_t unk2, lpdword_t out_value,
@@ -437,7 +451,8 @@ dword_result_t XamUserAreUsersFriends(dword_t user_index, dword_t unk1,
   }
   return result;
 }
-DECLARE_XAM_EXPORT1(XamUserAreUsersFriends, kUserProfiles, kStub);
+DECLARE_XAM_EXPORT(XamUserAreUsersFriends,
+                   ExportTag::kUserProfiles | ExportTag::kStub);
 
 dword_result_t XamShowSigninUI(dword_t unk, dword_t unk_mask) {
   // Mask values vary. Probably matching user types? Local/remote?
@@ -445,7 +460,8 @@ dword_result_t XamShowSigninUI(dword_t unk, dword_t unk_mask) {
   kernel_state()->BroadcastNotification(0x00000009, 0);
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamShowSigninUI, kUserProfiles, kStub);
+DECLARE_XAM_EXPORT(XamShowSigninUI,
+                   ExportTag::kUserProfiles | ExportTag::kStub);
 
 dword_result_t XamUserCreateAchievementEnumerator(dword_t title_id,
                                                   dword_t user_index,
@@ -465,8 +481,8 @@ dword_result_t XamUserCreateAchievementEnumerator(dword_t title_id,
 
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamUserCreateAchievementEnumerator, kUserProfiles,
-                    kSketchy);
+DECLARE_XAM_EXPORT(XamUserCreateAchievementEnumerator,
+                   ExportTag::kUserProfiles | ExportTag::kSketchy);
 
 dword_result_t XamParseGamerTileKey(lpdword_t key_ptr, lpdword_t out1_ptr,
                                     lpdword_t out2_ptr, lpdword_t out3_ptr) {
@@ -475,7 +491,8 @@ dword_result_t XamParseGamerTileKey(lpdword_t key_ptr, lpdword_t out1_ptr,
   *out3_ptr = 0xC0DE0003;
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamParseGamerTileKey, kUserProfiles, kStub);
+DECLARE_XAM_EXPORT(XamParseGamerTileKey,
+                   ExportTag::kUserProfiles | ExportTag::kStub);
 
 dword_result_t XamReadTileToTexture(dword_t unk1, dword_t unk2, dword_t unk3,
                                     dword_t unk4, lpvoid_t buffer_ptr,
@@ -493,7 +510,8 @@ dword_result_t XamReadTileToTexture(dword_t unk1, dword_t unk2, dword_t unk3,
   }
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamReadTileToTexture, kUserProfiles, kStub);
+DECLARE_XAM_EXPORT(XamReadTileToTexture,
+                   ExportTag::kUserProfiles | ExportTag::kStub);
 
 dword_result_t XamWriteGamerTile(dword_t arg1, dword_t arg2, dword_t arg3,
                                  dword_t arg4, dword_t arg5,
@@ -505,20 +523,23 @@ dword_result_t XamWriteGamerTile(dword_t arg1, dword_t arg2, dword_t arg3,
   }
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamWriteGamerTile, kUserProfiles, kStub);
+DECLARE_XAM_EXPORT(XamWriteGamerTile,
+                   ExportTag::kUserProfiles | ExportTag::kStub);
 
 dword_result_t XamSessionCreateHandle(lpdword_t handle_ptr) {
   *handle_ptr = 0xCAFEDEAD;
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamSessionCreateHandle, kUserProfiles, kStub);
+DECLARE_XAM_EXPORT(XamSessionCreateHandle,
+                   ExportTag::kUserProfiles | ExportTag::kStub);
 
 dword_result_t XamSessionRefObjByHandle(dword_t handle, lpdword_t obj_ptr) {
   assert_true(handle == 0xCAFEDEAD);
   *obj_ptr = 0;
   return X_ERROR_FUNCTION_FAILED;
 }
-DECLARE_XAM_EXPORT1(XamSessionRefObjByHandle, kUserProfiles, kStub);
+DECLARE_XAM_EXPORT(XamSessionRefObjByHandle,
+                   ExportTag::kUserProfiles | ExportTag::kStub);
 
 }  // namespace xam
 }  // namespace kernel
