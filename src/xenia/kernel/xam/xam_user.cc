@@ -455,10 +455,11 @@ dword_result_t XamUserCreateAchievementEnumerator(dword_t title_id,
                                                   lpdword_t buffer_size_ptr,
                                                   lpdword_t handle_ptr) {
   if (buffer_size_ptr) {
-    *buffer_size_ptr = 500 * count;
+    // TODO(benvanik): struct size/etc.
+    *buffer_size_ptr = 64 * count;
   }
 
-  auto e = new XStaticEnumerator(kernel_state(), count, 500);
+  auto e = new XStaticEnumerator(kernel_state(), count, 64);
   e->Initialize();
 
   *handle_ptr = e->handle();
