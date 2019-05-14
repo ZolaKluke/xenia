@@ -111,6 +111,9 @@ filter({"platforms:Linux", "language:C++", "toolset:gcc"})
   })
   links({
   })
+  disablewarnings({
+    "unused-result"
+  })
 
 filter({"platforms:Linux", "toolset:gcc"})
   if ARCH == "ppc64" then
@@ -171,7 +174,6 @@ filter("platforms:Windows")
     "wsock32",
     "ws2_32",
     "xinput",
-    "xaudio2",
     "glu32",
     "opengl32",
     "comctl32",
