@@ -875,15 +875,16 @@ bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
-  uint32_t offset_x = 0;
-  uint32_t offset_y = 0;
-  uint32_t address = src.GetMipLocation(mip, &offset_x, &offset_y, true);
+  uint32_t offset_x = 0, offset_y = 0, offset_z = 0;
+  uint32_t address = src.GetMipLocation(mip, &offset_x, &offset_y, &offset_z,
+                                        true);
   if (!address) {
     return false;
   }
 
   void* host_address = memory_->TranslatePhysical(address);
 
+  auto is_3d = src.dimension == Dimension::k3D;
   auto is_cube = src.dimension == Dimension::kCube;
   auto src_extent = src.GetMipExtent(mip, true);
   auto dst_extent = GetMipExtent(src, mip);
@@ -897,6 +898,7 @@ bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
 
   const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
   if (!src.is_tiled) {
+    src_mem += offset_z * src_extent.block_pitch_v * src_pitch;
     for (uint32_t face = 0; face < dst_extent.depth; face++) {
       src_mem += offset_y * src_pitch;
       src_mem += offset_x * src.format_info()->bytes_per_block();
@@ -910,15 +912,21 @@ bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
   } else {
     // Untile image.
     // We could do this in a shader to speed things up, as this is pretty slow.
-    for (uint32_t face = 0; face < dst_extent.depth; face++) {
+    uint32_t face_count = is_3d ? 1 : dst_extent.depth;
+    for (uint32_t face = 0; face < face_count; face++) {
       texture_conversion::UntileInfo untile_info;
       std::memset(&untile_info, 0, sizeof(untile_info));
+      untile_info.is_3d = is_3d;
       untile_info.offset_x = offset_x;
       untile_info.offset_y = offset_y;
+      untile_info.offset_z = offset_z;
       untile_info.width = src_extent.block_width;
       untile_info.height = src_extent.block_height;
-      untile_info.input_pitch = src_extent.block_pitch_h;
-      untile_info.output_pitch = dst_extent.block_pitch_h;
+      untile_info.depth = is_3d ? src_extent.depth : 1;
+      untile_info.input_pitch_h = src_extent.block_pitch_h;
+      untile_info.input_pitch_v = src_extent.block_pitch_v;
+      untile_info.output_pitch_h = dst_extent.block_pitch_h;
+      untile_info.output_pitch_v = dst_extent.block_pitch_v;
       untile_info.input_format_info = src.format_info();
       untile_info.output_format_info = GetFormatInfo(src.format);
       untile_info.copy_callback = [=](auto o, auto i, auto l) {
@@ -935,10 +943,14 @@ bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
   copy_region->imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
   copy_region->imageSubresource.mipLevel = mip;
   copy_region->imageSubresource.baseArrayLayer = 0;
-  copy_region->imageSubresource.layerCount = !is_cube ? 1 : dst_extent.depth;
+  copy_region->imageSubresource.layerCount = is_cube ? dst_extent.depth : 1;
   copy_region->imageExtent.width = std::max(1u, (src.width + 1) >> mip);
   copy_region->imageExtent.height = std::max(1u, (src.height + 1) >> mip);
-  copy_region->imageExtent.depth = !is_cube ? dst_extent.depth : 1;
+  if (src.dimension == Dimension::k3D) {
+    copy_region->imageExtent.depth = std::max(1u, (src.depth + 1) >> mip);
+  } else {
+    copy_region->imageExtent.depth = is_cube ? 1 : dst_extent.depth;
+  }
   return true;
 }
 
@@ -1127,43 +1139,55 @@ texture_conversion::CopyBlockCallback TextureCache::GetFormatCopyBlock(
 
 TextureExtent TextureCache::GetMipExtent(const TextureInfo& src, uint32_t mip) {
   auto format_info = GetFormatInfo(src.format);
+  Dimension dimension = src.dimension;
   uint32_t width = src.width + 1;
   uint32_t height = src.height + 1;
   uint32_t depth = src.depth + 1;
   TextureExtent extent;
   if (mip == 0) {
-    extent = TextureExtent::Calculate(format_info, width, height, depth, false,
-                                      false);
+    extent = TextureExtent::Calculate(format_info, dimension, width, height,
+                                      depth, src.is_tiled, false);
   } else {
     uint32_t mip_width = std::max(1u, width >> mip);
     uint32_t mip_height = std::max(1u, height >> mip);
-    extent = TextureExtent::Calculate(format_info, mip_width, mip_height, depth,
-                                      false, false);
+    uint32_t mip_depth = depth;
+    if (dimension == Dimension::k3D) {
+      mip_depth = std::max(1u, depth >> mip);
+    }
+    extent = TextureExtent::Calculate(format_info, dimension, mip_width,
+                                      mip_height, mip_depth, src.is_tiled,
+                                      false);
   }
   return extent;
 }
 
 uint32_t TextureCache::ComputeMipStorage(const FormatInfo* format_info,
-                                         uint32_t width, uint32_t height,
-                                         uint32_t depth, uint32_t mip) {
+                                         Dimension dimension, uint32_t width,
+                                         uint32_t height, uint32_t depth,
+                                         uint32_t mip) {
   assert_not_null(format_info);
   TextureExtent extent;
   if (mip == 0) {
-    extent = TextureExtent::Calculate(format_info, width, height, depth, false,
-                                      false);
+    extent = TextureExtent::Calculate(format_info, dimension, width, height,
+                                      depth, false, false);
   } else {
     uint32_t mip_width = std::max(1u, width >> mip);
     uint32_t mip_height = std::max(1u, height >> mip);
-    extent = TextureExtent::Calculate(format_info, mip_width, mip_height, depth,
-                                      false, false);
+    uint32_t mip_depth = depth;
+    if (dimension == Dimension::k3D) {
+      mip_depth = std::max(1u, depth >> mip);
+    }
+    extent = TextureExtent::Calculate(format_info, dimension, mip_width,
+                                      mip_height, mip_depth, false, false);
   }
   uint32_t bytes_per_block = format_info->bytes_per_block();
   return extent.all_blocks() * bytes_per_block;
 }
 
 uint32_t TextureCache::ComputeMipStorage(const TextureInfo& src, uint32_t mip) {
-  uint32_t size = ComputeMipStorage(GetFormatInfo(src.format), src.width + 1,
-                                    src.height + 1, src.depth + 1, mip);
+  uint32_t size = ComputeMipStorage(GetFormatInfo(src.format), src.dimension,
+                                    src.width + 1, src.height + 1,
+                                    src.depth + 1, mip);
   // ensure 4-byte alignment
   return (size + 3) & (~3u);
 }
@@ -1180,7 +1204,8 @@ uint32_t TextureCache::ComputeTextureStorage(const TextureInfo& src) {
     } else if (mip > 0 && !src.memory.mip_address) {
       continue;
     }
-    length += ComputeMipStorage(format_info, width, height, depth, mip);
+    length += ComputeMipStorage(format_info, src.dimension, width, height,
+                                depth, mip);
   }
   return length;
 }
