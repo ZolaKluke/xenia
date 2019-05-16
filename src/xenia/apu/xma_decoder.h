@@ -37,7 +37,7 @@ class XmaDecoder {
   void Shutdown();
 
   uint32_t context_array_ptr() const {
-    return register_file_.values[XE_XMA_REG_CONTEXT_ARRAY_ADDRESS].u32;
+    return register_file_.values[XE_XMA_REG_CONTEXT_ARRAY_ADDRESS].u32 + 0x1000;
   }
 
   uint32_t AllocateContext();
