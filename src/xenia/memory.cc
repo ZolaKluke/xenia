@@ -161,11 +161,9 @@ bool Memory::Initialize() {
 
   // Prepare physical heaps.
   heaps_.physical.Initialize(physical_membase_, 0x00000000, 0x20000000, 4096);
-  // HACK: should be 64k, but with us overlaying A and E it needs to be 4.
-  /*heaps_.vA0000000.Initialize(virtual_membase_, 0xA0000000, 0x20000000,
-                              64 * 1024, &heaps_.physical);*/
+
   heaps_.vA0000000.Initialize(virtual_membase_, 0xA0000000, 0x20000000,
-                              4 * 1024, &heaps_.physical);
+                              64 * 1024, &heaps_.physical);
   heaps_.vC0000000.Initialize(virtual_membase_, 0xC0000000, 0x20000000,
                               16 * 1024 * 1024, &heaps_.physical);
   heaps_.vE0000000.Initialize(virtual_membase_, 0xE0000000, 0x1FD00000, 4096,
@@ -323,8 +321,7 @@ BaseHeap* Memory::LookupHeap(uint32_t address) {
 BaseHeap* Memory::LookupHeapByType(bool physical, uint32_t page_size) {
   if (physical) {
     if (page_size <= 4096) {
-      // HACK: should be vE0000000
-      return &heaps_.vA0000000;
+      return &heaps_.vE0000000;
     } else if (page_size <= 64 * 1024) {
       return &heaps_.vA0000000;
     } else {
@@ -431,6 +428,7 @@ void Memory::SystemHeapFree(uint32_t address) {
   if (!address) {
     return;
   }
+
   // TODO(benvanik): lightweight pool.
   auto heap = LookupHeap(address);
   heap->Release(address);
@@ -1231,9 +1229,6 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment,
         "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
     return false;
   }
-  if (heap_base_ >= 0xE0000000) {
-    parent_address -= 0x1000;
-  }
 
   // Given the address we've reserved in the parent heap, pin that here.
   // Shouldn't be possible for it to be allocated already.
@@ -1245,6 +1240,8 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment,
     // TODO(benvanik): don't leak parent memory.
     return false;
   }
+
+  if (heap_base_ == 0xE0000000) address -= 0x1000;
   *out_address = address;
   return true;
 }
@@ -1268,9 +1265,6 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size,
     XELOGE(
         "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
     return false;
-  }
-  if (heap_base_ >= 0xE0000000) {
-    parent_base_address -= 0x1000;
   }
 
   // Given the address we've reserved in the parent heap, pin that here.
@@ -1312,9 +1306,6 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address,
         "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
     return false;
   }
-  if (heap_base_ >= 0xE0000000) {
-    parent_address -= 0x1000;
-  }
 
   // Given the address we've reserved in the parent heap, pin that here.
   // Shouldn't be possible for it to be allocated already.
@@ -1326,6 +1317,8 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address,
     // TODO(benvanik): don't leak parent memory.
     return false;
   }
+
+  if (heap_base_ == 0xE0000000) address -= 0x1000;
   *out_address = address;
   return true;
 }
@@ -1343,6 +1336,7 @@ bool PhysicalHeap::Decommit(uint32_t address, uint32_t size) {
 bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
   auto global_lock = global_critical_region_.Acquire();
   uint32_t parent_base_address = GetPhysicalAddress(base_address);
+  if (heap_base_ == 0xE0000000) base_address += 0x1000;
   uint32_t region_size = 0;
   if (QuerySize(base_address, &region_size)) {
     cpu::MMIOHandler::global_handler()->InvalidateRange(parent_base_address,
@@ -1361,6 +1355,7 @@ bool PhysicalHeap::Protect(uint32_t address, uint32_t size, uint32_t protect,
                            uint32_t* old_protect) {
   auto global_lock = global_critical_region_.Acquire();
   uint32_t parent_address = GetPhysicalAddress(address);
+  if (heap_base_ == 0xE0000000) address += 0x1000;
   cpu::MMIOHandler::global_handler()->InvalidateRange(parent_address, size);
 
   if (!parent_heap_->Protect(parent_address, size, protect, old_protect)) {

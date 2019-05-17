@@ -173,7 +173,7 @@ uintptr_t MMIOHandler::AddPhysicalAccessWatch(uint32_t guest_address,
                   page_access, nullptr);
   memory::Protect(virtual_membase_ + 0xC0000000 + entry->address, entry->length,
                   page_access, nullptr);
-  memory::Protect(virtual_membase_ + 0xE0000000 + entry->address, entry->length,
+  memory::Protect(virtual_membase_ + 0xE0000000 + entry->address + 0x1000, entry->length,
                   page_access, nullptr);
 
   return reinterpret_cast<uintptr_t>(entry);
@@ -192,7 +192,7 @@ void MMIOHandler::ClearAccessWatch(AccessWatchEntry* entry) {
                   xe::memory::PageAccess::kReadWrite, nullptr);
   memory::Protect(virtual_membase_ + 0xC0000000 + entry->address, entry->length,
                   xe::memory::PageAccess::kReadWrite, nullptr);
-  memory::Protect(virtual_membase_ + 0xE0000000 + entry->address, entry->length,
+  memory::Protect(virtual_membase_ + 0xE0000000 + entry->address + 0x1000, entry->length,
                   xe::memory::PageAccess::kReadWrite, nullptr);
 }
 
@@ -454,18 +454,22 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
   if (ex->code() != Exception::Code::kAccessViolation) {
     return false;
   }
-  if (ex->fault_address() < uint64_t(virtual_membase_) ||
-      ex->fault_address() > uint64_t(memory_end_)) {
+  if (ex->fault_address < uint64_t(virtual_membase_) ||
+      ex->fault_address > uint64_t(memory_end_)) {
     // Quick kill anything outside our mapping.
     return false;
+  }
+
+  if (ex->fault_address - (0xE00000000ull + uint64_t(virtual_membase_)) < 0x20000000ull) {
+    ex->fault_address -= 0x1000ull;
   }
 
   // Access violations are pretty rare, so we can do a linear search here.
   // Only check if in the virtual range, as we only support virtual ranges.
   const MMIORange* range = nullptr;
-  if (ex->fault_address() < uint64_t(physical_membase_)) {
+  if (ex->fault_address < uint64_t(physical_membase_)) {
     for (const auto& test_range : mapped_ranges_) {
-      if ((static_cast<uint32_t>(ex->fault_address()) & test_range.mask) ==
+      if ((static_cast<uint32_t>(ex->fault_address) & test_range.mask) ==
           test_range.address) {
         // Address is within the range of this mapping.
         range = &test_range;
@@ -474,15 +478,15 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
     }
   }
   if (!range) {
-    auto fault_address = reinterpret_cast<uint8_t*>(ex->fault_address());
+    auto fault_address = reinterpret_cast<uint8_t*>(ex->fault_address);
     uint32_t guest_address = 0;
     if (fault_address >= virtual_membase_ &&
         fault_address < physical_membase_) {
       // Faulting on a virtual address.
-      guest_address = static_cast<uint32_t>(ex->fault_address()) & 0x1FFFFFFF;
+      guest_address = static_cast<uint32_t>(ex->fault_address) & 0x1FFFFFFF;
     } else {
       // Faulting on a physical address.
-      guest_address = static_cast<uint32_t>(ex->fault_address());
+      guest_address = static_cast<uint32_t>(ex->fault_address);
     }
 
     // HACK: Recheck if the pages are still protected (race condition - another
@@ -517,7 +521,7 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
     // Load of a memory value - read from range, swap, and store in the
     // register.
     uint32_t value = range->read(nullptr, range->callback_context,
-                                 static_cast<uint32_t>(ex->fault_address()));
+                                 static_cast<uint32_t>(ex->fault_address));
     uint64_t* reg_ptr = &ex->thread_context()->int_registers[mov.value_reg];
     if (!mov.byte_swap) {
       // We swap only if it's not a movbe, as otherwise we are swapping twice.
@@ -538,7 +542,7 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
       }
     }
     range->write(nullptr, range->callback_context,
-                 static_cast<uint32_t>(ex->fault_address()), value);
+                 static_cast<uint32_t>(ex->fault_address), value);
   }
 
   // Advance RIP to the next instruction so that we resume properly.

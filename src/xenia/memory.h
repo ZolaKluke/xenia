@@ -256,12 +256,9 @@ class Memory {
   // Translates a guest virtual address to a host address that can be accessed
   // as a normal pointer.
   // Note that the contents at the specified host address are big-endian.
-  inline uint8_t* TranslateVirtual(uint32_t guest_address) const {
-    return virtual_membase_ + guest_address;
-  }
-  template <typename T>
+  template <typename T = uint8_t*>
   inline T TranslateVirtual(uint32_t guest_address) const {
-    return reinterpret_cast<T>(virtual_membase_ + guest_address);
+    return reinterpret_cast<T>(virtual_membase_ + guest_address + (guest_address >= 0xE0000000 ? 0x1000 : 0));
   }
 
   // Base address of physical memory in the host address space.
@@ -271,10 +268,7 @@ class Memory {
   // Translates a guest physical address to a host address that can be accessed
   // as a normal pointer.
   // Note that the contents at the specified host address are big-endian.
-  inline uint8_t* TranslatePhysical(uint32_t guest_address) const {
-    return physical_membase_ + (guest_address & 0x1FFFFFFF);
-  }
-  template <typename T>
+  template <typename T = uint8_t*>
   inline T TranslatePhysical(uint32_t guest_address) const {
     return reinterpret_cast<T>(physical_membase_ +
                                (guest_address & 0x1FFFFFFF));

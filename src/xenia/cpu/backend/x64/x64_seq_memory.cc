@@ -38,14 +38,23 @@ RegExp ComputeMemoryAddressOffset(X64Emitter& e, const T& guest,
     address += offset_const;
     if (address < 0x80000000) {
       return e.GetMembaseReg() + address;
-    } else {
+    } else if (address < 0xE0000000) {
       e.mov(e.eax, address);
+      return e.GetMembaseReg() + e.rax;
+    } else {
+      e.mov(e.eax, address + 0x1000);
       return e.GetMembaseReg() + e.rax;
     }
   } else {
     // Clear the top 32 bits, as they are likely garbage.
     // TODO(benvanik): find a way to avoid doing this.
     e.mov(e.eax, guest.reg().cvt32());
+    // Emulate physical 4k pages offset
+    e.cmp(e.eax, 0xE0000000 - offset_const);
+    e.setae(e.cl);
+    e.movzx(e.ecx, e.cl);
+    e.shl(e.ecx, 12);
+    e.add(e.eax, e.ecx);
     return e.GetMembaseReg() + e.rax + offset_const;
   }
 }
@@ -60,14 +69,23 @@ RegExp ComputeMemoryAddress(X64Emitter& e, const T& guest) {
     uint32_t address = static_cast<uint32_t>(guest.constant());
     if (address < 0x80000000) {
       return e.GetMembaseReg() + address;
-    } else {
+    } else if (address < 0xE0000000) {
       e.mov(e.eax, address);
       return e.GetMembaseReg() + e.rax;
-    }
+	} else {
+		e.mov(e.eax, address + 0x1000);
+		return e.GetMembaseReg() + e.rax;
+	}
   } else {
     // Clear the top 32 bits, as they are likely garbage.
     // TODO(benvanik): find a way to avoid doing this.
     e.mov(e.eax, guest.reg().cvt32());
+    // Emulate physical 4k pages offset
+    e.cmp(e.eax, 0xE0000000);
+    e.setae(e.cl);
+    e.movzx(e.ecx, e.cl);
+    e.shl(e.ecx, 12);
+    e.add(e.eax, e.ecx);
     return e.GetMembaseReg() + e.rax;
   }
 }

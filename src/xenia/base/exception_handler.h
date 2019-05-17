@@ -30,7 +30,7 @@ class Exception {
                                  uint64_t fault_address) {
     code_ = Code::kAccessViolation;
     thread_context_ = thread_context;
-    fault_address_ = fault_address;
+    this->fault_address = fault_address;
   }
   void InitializeIllegalInstruction(X64Context* thread_context) {
     code_ = Code::kIllegalInstruction;
@@ -59,13 +59,11 @@ class Exception {
   void set_resume_pc(uint64_t pc) { assert_always(); }
 #endif
 
-  // In case of AV, address that was read from/written to.
-  uint64_t fault_address() const { return fault_address_; }
+  uint64_t fault_address = 0;
 
  private:
   Code code_ = Code::kInvalidException;
   X64Context* thread_context_ = nullptr;
-  uint64_t fault_address_ = 0;
 };
 
 class ExceptionHandler {
