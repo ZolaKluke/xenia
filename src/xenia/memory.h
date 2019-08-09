@@ -397,7 +397,7 @@ class Memory {
   // using normal guest virtual addresses. Kernel structures and other internal
   // 'system' allocations should come from this heap when possible.
   uint32_t SystemHeapAlloc(uint32_t size, uint32_t alignment = 0x20,
-                           uint32_t system_heap_flags = kSystemHeapDefault);
+                           uint32_t system_heap_flags = kSystemHeapDefault, uint32_t page_size = 4096);
 
   // Frees memory allocated with SystemHeapAlloc.
   void SystemHeapFree(uint32_t address);

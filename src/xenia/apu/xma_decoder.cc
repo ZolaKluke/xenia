@@ -106,7 +106,7 @@ X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
 
   // Setup XMA context data.
   context_data_first_ptr_ = memory()->SystemHeapAlloc(
-      sizeof(XMA_CONTEXT_DATA) * kContextCount, 256, kSystemHeapPhysical);
+      sizeof(XMA_CONTEXT_DATA) * kContextCount, 256, kSystemHeapPhysical, 1024 * 64);
   context_data_last_ptr_ =
       context_data_first_ptr_ + (sizeof(XMA_CONTEXT_DATA) * kContextCount - 1);
   register_file_[XE_XMA_REG_CONTEXT_ARRAY_ADDRESS].u32 =

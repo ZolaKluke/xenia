@@ -495,10 +495,10 @@ void Memory::WatchPhysicalMemoryWrite(uint32_t physical_address,
 }
 
 uint32_t Memory::SystemHeapAlloc(uint32_t size, uint32_t alignment,
-                                 uint32_t system_heap_flags) {
+                                 uint32_t system_heap_flags, uint32_t page_size) {
   // TODO(benvanik): lightweight pool.
   bool is_physical = !!(system_heap_flags & kSystemHeapPhysical);
-  auto heap = LookupHeapByType(is_physical, 4096);
+  auto heap = LookupHeapByType(is_physical, page_size);
   uint32_t address;
   if (!heap->Alloc(size, alignment,
                    kMemoryAllocationReserve | kMemoryAllocationCommit,
