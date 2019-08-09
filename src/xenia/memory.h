@@ -274,15 +274,27 @@ class Memory {
   // This is often something like 0x100000000.
   inline uint8_t* virtual_membase() const { return virtual_membase_; }
 
+  // Get guest memory address from real pointer
+  // function assumes address is within range
+  template <typename T>
+  static inline uint32_t GetAddressFromPointer(T ptr)
+  {
+    const uint32_t low = static_cast<uint32_t>((std::uintptr_t)ptr);
+    return low - (uint32_t{low >= 0xE0000000} * 0x1000);
+  }
+
+  // Get offset from vitual memory base from guest address
+  static inline uint32_t GetOffsetFromAddress(uint32_t guest_address)
+  {
+    return uint32_t{guest_address >= 0xE0000000} * 0x1000 + guest_address;
+  }
+
   // Translates a guest virtual address to a host address that can be accessed
   // as a normal pointer.
   // Note that the contents at the specified host address are big-endian.
-  inline uint8_t* TranslateVirtual(uint32_t guest_address) const {
-    return virtual_membase_ + guest_address;
-  }
-  template <typename T>
+  template <typename T = uint8_t*>
   inline T TranslateVirtual(uint32_t guest_address) const {
-    return reinterpret_cast<T>(virtual_membase_ + guest_address);
+    return reinterpret_cast<T>(virtual_membase_ + GetOffsetFromAddress(guest_address));
   }
 
   // Base address of physical memory in the host address space.
@@ -292,10 +304,7 @@ class Memory {
   // Translates a guest physical address to a host address that can be accessed
   // as a normal pointer.
   // Note that the contents at the specified host address are big-endian.
-  inline uint8_t* TranslatePhysical(uint32_t guest_address) const {
-    return physical_membase_ + (guest_address & 0x1FFFFFFF);
-  }
-  template <typename T>
+  template <typename T = uint8_t*>
   inline T TranslatePhysical(uint32_t guest_address) const {
     return reinterpret_cast<T>(physical_membase_ +
                                (guest_address & 0x1FFFFFFF));

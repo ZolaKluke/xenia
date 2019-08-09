@@ -17,6 +17,7 @@
 #include "xenia/base/exception_handler.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
+#include "xenia/memory.h"
 
 namespace xe {
 namespace cpu {
@@ -285,7 +286,7 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
   const MMIORange* range = nullptr;
   if (ex->fault_address() < uint64_t(physical_membase_)) {
     for (const auto& test_range : mapped_ranges_) {
-      if ((static_cast<uint32_t>(ex->fault_address()) & test_range.mask) ==
+      if ((Memory::GetAddressFromPointer(ex->fault_address()) & test_range.mask) ==
           test_range.address) {
         // Address is within the range of this mapping.
         range = &test_range;
@@ -353,7 +354,7 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
     // Load of a memory value - read from range, swap, and store in the
     // register.
     uint32_t value = range->read(nullptr, range->callback_context,
-                                 static_cast<uint32_t>(ex->fault_address()));
+                                 Memory::GetAddressFromPointer(ex->fault_address()));
     uint64_t* reg_ptr = &ex->thread_context()->int_registers[mov.value_reg];
     if (!mov.byte_swap) {
       // We swap only if it's not a movbe, as otherwise we are swapping twice.
@@ -374,7 +375,7 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
       }
     }
     range->write(nullptr, range->callback_context,
-                 static_cast<uint32_t>(ex->fault_address()), value);
+                 Memory::GetAddressFromPointer(ex->fault_address()), value);
   }
 
   // Advance RIP to the next instruction so that we resume properly.

@@ -13,6 +13,7 @@
 #include <string>
 
 #include "xenia/base/memory.h"
+#include "xenia/memory.h"
 
 // TODO(benvanik): split this header, cleanup, etc.
 // clang-format off
@@ -264,7 +265,7 @@ struct X_ANSI_STRING {
     if (!guest_address) {
       return nullptr;
     }
-    return reinterpret_cast<X_ANSI_STRING*>(membase + guest_address);
+    return reinterpret_cast<X_ANSI_STRING*>(membase + xe::Memory::GetOffsetFromAddress(guest_address));
   }
 
   static X_ANSI_STRING* TranslateIndirect(uint8_t* membase,
@@ -273,7 +274,7 @@ struct X_ANSI_STRING {
       return nullptr;
     }
     uint32_t guest_address =
-        xe::load_and_swap<uint32_t>(membase + guest_address_ptr);
+        xe::load_and_swap<uint32_t>(membase + xe::Memory::GetOffsetFromAddress(guest_address_ptr));
     return Translate(membase, guest_address);
   }
 
@@ -298,7 +299,7 @@ struct X_ANSI_STRING {
     if (!length) {
       return "";
     }
-    return std::string(reinterpret_cast<const char*>(membase + pointer),
+    return std::string(reinterpret_cast<const char*>(membase + xe::Memory::GetOffsetFromAddress(pointer)),
                        length);
   }
 };
@@ -320,7 +321,7 @@ struct X_UNICODE_STRING {
       return L"";
     }
 
-    return std::wstring(reinterpret_cast<const wchar_t*>(membase + pointer),
+    return std::wstring(reinterpret_cast<const wchar_t*>(membase + xe::Memory::GetOffsetFromAddress(pointer)),
                         length);
   }
 };
@@ -349,11 +350,8 @@ struct X_LIST_ENTRY {
   be<uint32_t> blink_ptr;  // previous entry / head
 
   // Assumes X_LIST_ENTRY is within guest memory!
-  void initialize(uint8_t* virtual_membase) {
-    flink_ptr = static_cast<uint32_t>(reinterpret_cast<uint8_t*>(this) -
-                                      virtual_membase);
-    blink_ptr = static_cast<uint32_t>(reinterpret_cast<uint8_t*>(this) -
-                                      virtual_membase);
+  void initialize() {
+    blink_ptr = flink_ptr = xe::Memory::GetAddressFromPointer(this);
   }
 };
 static_assert_size(X_LIST_ENTRY, 8);

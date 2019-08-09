@@ -241,7 +241,7 @@ dword_result_t RtlUnicodeStringToAnsiString(
     uint32_t buffer_ptr =
         kernel_memory()->SystemHeapAlloc(uint32_t(ansi_str.size() + 1));
 
-    memcpy(kernel_memory()->virtual_membase() + buffer_ptr, ansi_str.data(),
+    memcpy(kernel_memory()->TranslateVirtual(buffer_ptr), ansi_str.data(),
            ansi_str.size() + 1);
     destination_ptr->length = static_cast<uint16_t>(ansi_str.size());
     destination_ptr->maximum_length =
@@ -250,7 +250,7 @@ dword_result_t RtlUnicodeStringToAnsiString(
   } else {
     uint32_t buffer_capacity = destination_ptr->maximum_length;
     auto buffer_ptr =
-        kernel_memory()->virtual_membase() + destination_ptr->pointer;
+        kernel_memory()->TranslateVirtual(destination_ptr->pointer);
     if (buffer_capacity < ansi_str.size() + 1) {
       // Too large - we just write what we can.
       result = X_STATUS_BUFFER_OVERFLOW;
@@ -341,8 +341,8 @@ pointer_result_t RtlImageXexHeaderField(pointer_t<xex2_header> xex_header,
   uint32_t field_value = 0;
   uint32_t field = field_dword;  // VS acts weird going from dword_t -> enum
 
-  UserModule::GetOptHeader(kernel_memory()->virtual_membase(), xex_header,
-                           xex2_header_keys(field), &field_value);
+  UserModule::GetOptHeader(xex_header, xex2_header_keys(field), 
+	                        &field_value);
 
   return field_value;
 }

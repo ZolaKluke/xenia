@@ -166,13 +166,10 @@ bool Memory::Initialize() {
                               4096);
 
   // Prepare physical heaps.
-  heaps_.physical.Initialize(this, physical_membase_, 0x00000000, 0x20000000,
+  heaps_.physical.Initialize(this, physical_membase_, 0x00000000, 0x20000000, 
                              4096);
-  // HACK: should be 64k, but with us overlaying A and E it needs to be 4.
-  /*heaps_.vA0000000.Initialize(this, virtual_membase_, 0xA0000000, 0x20000000,
-                              64 * 1024, &heaps_.physical);*/
   heaps_.vA0000000.Initialize(this, virtual_membase_, 0xA0000000, 0x20000000,
-                              4 * 1024, &heaps_.physical);
+                              64 * 1024, &heaps_.physical);
   heaps_.vC0000000.Initialize(this, virtual_membase_, 0xC0000000, 0x20000000,
                               16 * 1024 * 1024, &heaps_.physical);
   heaps_.vE0000000.Initialize(this, virtual_membase_, 0xE0000000, 0x1FD00000,
@@ -331,8 +328,7 @@ BaseHeap* Memory::LookupHeap(uint32_t address) {
 BaseHeap* Memory::LookupHeapByType(bool physical, uint32_t page_size) {
   if (physical) {
     if (page_size <= 4096) {
-      // HACK: should be vE0000000
-      return &heaps_.vA0000000;
+      return &heaps_.vE0000000;
     } else if (page_size <= 64 * 1024) {
       return &heaps_.vA0000000;
     } else {
@@ -397,6 +393,7 @@ bool Memory::AddVirtualMappedRange(uint32_t virtual_address, uint32_t mask,
     XELOGE("Unable to map range; commit/protect failed");
     return false;
   }
+
   return mmio_handler_->RegisterRange(virtual_address, mask, size, context,
                                       read_callback, write_callback);
 }
@@ -516,6 +513,7 @@ void Memory::SystemHeapFree(uint32_t address) {
   if (!address) {
     return;
   }
+
   // TODO(benvanik): lightweight pool.
   auto heap = LookupHeap(address);
   heap->Release(address);
@@ -1177,6 +1175,9 @@ bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect,
 
 bool BaseHeap::QueryRegionInfo(uint32_t base_address,
                                HeapAllocationInfo* out_info) {
+  if (heap_base_ == 0xE0000000) {
+    base_address += 0x1000;
+  }
   uint32_t start_page_number = (base_address - heap_base_) / page_size_;
   if (start_page_number > page_table_.size()) {
     XELOGE("BaseHeap::QueryRegionInfo base page out of range");
@@ -1231,6 +1232,10 @@ bool BaseHeap::QueryRegionInfo(uint32_t base_address,
 }
 
 bool BaseHeap::QuerySize(uint32_t address, uint32_t* out_size) {
+  if (heap_base_ == 0xE0000000) {
+    address += 0x1000;
+  }
+
   uint32_t page_number = (address - heap_base_) / page_size_;
   if (page_number > page_table_.size()) {
     XELOGE("BaseHeap::QuerySize base page out of range");
@@ -1244,6 +1249,9 @@ bool BaseHeap::QuerySize(uint32_t address, uint32_t* out_size) {
 }
 
 bool BaseHeap::QueryBaseAndSize(uint32_t* in_out_address, uint32_t* out_size) {
+  if (heap_base_ == 0xE0000000) {
+    *in_out_address += 0x1000;
+  }
   uint32_t page_number = (*in_out_address - heap_base_) / page_size_;
   if (page_number > page_table_.size()) {
     XELOGE("BaseHeap::QuerySize base page out of range");
@@ -1258,6 +1266,9 @@ bool BaseHeap::QueryBaseAndSize(uint32_t* in_out_address, uint32_t* out_size) {
 }
 
 bool BaseHeap::QueryProtect(uint32_t address, uint32_t* out_protect) {
+  if (heap_base_ == 0xE0000000) {
+    address += 0x1000;
+  }
   uint32_t page_number = (address - heap_base_) / page_size_;
   if (page_number > page_table_.size()) {
     XELOGE("BaseHeap::QueryProtect base page out of range");
@@ -1344,9 +1355,6 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment,
         "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
     return false;
   }
-  if (heap_base_ >= 0xE0000000) {
-    parent_address -= 0x1000;
-  }
 
   // Given the address we've reserved in the parent heap, pin that here.
   // Shouldn't be possible for it to be allocated already.
@@ -1358,6 +1366,8 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment,
     // TODO(benvanik): don't leak parent memory.
     return false;
   }
+
+  if (heap_base_ == 0xE0000000) address -= 0x1000;
   *out_address = address;
   return true;
 }
@@ -1381,9 +1391,6 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size,
     XELOGE(
         "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
     return false;
-  }
-  if (heap_base_ >= 0xE0000000) {
-    parent_base_address -= 0x1000;
   }
 
   // Given the address we've reserved in the parent heap, pin that here.
@@ -1425,9 +1432,6 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address,
         "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
     return false;
   }
-  if (heap_base_ >= 0xE0000000) {
-    parent_address -= 0x1000;
-  }
 
   // Given the address we've reserved in the parent heap, pin that here.
   // Shouldn't be possible for it to be allocated already.
@@ -1439,6 +1443,8 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address,
     // TODO(benvanik): don't leak parent memory.
     return false;
   }
+
+  if (heap_base_ == 0xE0000000) address -= 0x1000;
   *out_address = address;
   return true;
 }
@@ -1446,6 +1452,7 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address,
 bool PhysicalHeap::Decommit(uint32_t address, uint32_t size) {
   auto global_lock = global_critical_region_.Acquire();
   uint32_t parent_address = GetPhysicalAddress(address);
+  if (heap_base_ == 0xE0000000) address += 0x1000;
   if (!parent_heap_->Decommit(parent_address, size)) {
     XELOGE("PhysicalHeap::Decommit failed due to parent heap failure");
     return false;
@@ -1456,6 +1463,7 @@ bool PhysicalHeap::Decommit(uint32_t address, uint32_t size) {
 bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
   auto global_lock = global_critical_region_.Acquire();
   uint32_t parent_base_address = GetPhysicalAddress(base_address);
+  if (heap_base_ == 0xE0000000) base_address += 0x1000;
   uint32_t region_size = 0;
   if (QuerySize(base_address, &region_size)) {
     TriggerWatches(base_address, region_size, true, true,

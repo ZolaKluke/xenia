@@ -21,6 +21,7 @@
 #include "xenia/cpu/ppc/ppc_context.h"
 #include "xenia/kernel/kernel_flags.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/memory.h"
 
 namespace xe {
 namespace kernel {
@@ -34,7 +35,7 @@ using PPCContext = xe::cpu::ppc::PPCContext;
       (xe::cpu::xe_kernel_export_shim_fn)export_name##_shim);
 
 #define SHIM_MEM_BASE ppc_context->virtual_membase
-#define SHIM_MEM_ADDR(a) (a ? (ppc_context->virtual_membase + a) : nullptr)
+#define SHIM_MEM_ADDR(a) (a ? ppc_context->virtual_membase + xe::Memory::GetOffsetFromAddress(a) : nullptr)
 
 #define SHIM_MEM_8(a) xe::load_and_swap<uint8_t>(SHIM_MEM_ADDR(a))
 #define SHIM_MEM_16(a) xe::load_and_swap<uint16_t>(SHIM_MEM_ADDR(a))
@@ -118,7 +119,7 @@ class Param {
       uint32_t stack_ptr =
           uint32_t(init.ppc_context->r[1]) + 0x54 + (ordinal_ - 8) * 8;
       *out_value =
-          xe::load_and_swap<V>(init.ppc_context->virtual_membase + stack_ptr);
+          xe::load_and_swap<V>(init.ppc_context->virtual_membase + xe::Memory::GetOffsetFromAddress(stack_ptr));
     }
   }
 
@@ -153,7 +154,7 @@ class ParamBase : public Param {
 class PointerParam : public ParamBase<uint32_t> {
  public:
   PointerParam(Init& init) : ParamBase(init) {
-    host_ptr_ = value_ ? init.ppc_context->virtual_membase + value_ : nullptr;
+    host_ptr_ = value_ ? init.ppc_context->virtual_membase + xe::Memory::GetOffsetFromAddress(value_) : nullptr;
   }
   PointerParam(void* host_ptr) : ParamBase(), host_ptr_(host_ptr) {}
   PointerParam& operator=(void*& other) {
@@ -192,7 +193,7 @@ class PrimitivePointerParam : public ParamBase<uint32_t> {
  public:
   PrimitivePointerParam(Init& init) : ParamBase(init) {
     host_ptr_ = value_ ? reinterpret_cast<xe::be<T>*>(
-                             init.ppc_context->virtual_membase + value_)
+                             init.ppc_context->virtual_membase + xe::Memory::GetOffsetFromAddress(value_))
                        : nullptr;
   }
   PrimitivePointerParam(T* host_ptr) : ParamBase() {
@@ -224,7 +225,7 @@ class StringPointerParam : public ParamBase<uint32_t> {
  public:
   StringPointerParam(Init& init) : ParamBase(init) {
     host_ptr_ = value_ ? reinterpret_cast<CHAR*>(
-                             init.ppc_context->virtual_membase + value_)
+                             init.ppc_context->virtual_membase + xe::Memory::GetOffsetFromAddress(value_))
                        : nullptr;
   }
   StringPointerParam(CHAR* host_ptr) : ParamBase(), host_ptr_(host_ptr) {}
@@ -250,7 +251,7 @@ class TypedPointerParam : public ParamBase<uint32_t> {
   TypedPointerParam(Init& init) : ParamBase(init) {
     host_ptr_ =
         value_
-            ? reinterpret_cast<T*>(init.ppc_context->virtual_membase + value_)
+            ? reinterpret_cast<T*>(init.ppc_context->virtual_membase + xe::Memory::GetOffsetFromAddress(value_))
             : nullptr;
   }
   TypedPointerParam(T* host_ptr) : ParamBase(), host_ptr_(host_ptr) {}
